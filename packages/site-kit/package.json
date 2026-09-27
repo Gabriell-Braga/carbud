@@ -21,7 +21,8 @@
     "./installment": "./src/lib/installment.ts",
     "./links": "./src/lib/links.ts",
     "./jsonld": "./src/lib/jsonld.tsx",
-    "./maps": "./src/lib/maps.ts"
+    "./maps": "./src/lib/maps.ts",
+    "./shared/filter-form": "./src/templates/shared/filter-form.tsx"
   },
   "peerDependencies": {
     "next": "^15",

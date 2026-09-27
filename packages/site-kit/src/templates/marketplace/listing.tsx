@@ -4,6 +4,7 @@ import { BODY_TYPE_LABELS, FUEL_LABELS, TRANSMISSION_LABELS } from "../../lib/ca
 import type { BodyType, Fuel, Transmission } from "../../lib/catalog";
 import { AutoSubmitSelect } from "../shared/auto-submit-select";
 import { FilterDrawer } from "../shared/filter-drawer";
+import { FilterForm, FilterSubmit } from "../shared/filter-form";
 import { HelpBand, SHELL, Shell } from "./chrome";
 import { VehicleGrid } from "./vehicle-card";
 
@@ -195,7 +196,7 @@ function FilterSidebar({
     "h-10 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] px-3 text-[13px] outline-none transition-colors focus:border-[var(--site-primary)]";
 
   return (
-    <form action={links.stock} method="get">
+    <FilterForm action={links.stock}>
       {/* no celular o painel já tem o título "Filtros"; aqui fica só o Limpar */}
       <div className="flex items-center justify-end lg:justify-between">
         <p className="hidden text-[16px] font-semibold lg:block" style={{ fontFamily: "var(--site-font-heading)" }}>
@@ -330,13 +331,10 @@ function FilterSidebar({
         </div>
       </Group>
 
-      <button
-        type="submit"
-        className="mt-5 w-full rounded-[var(--site-radius)] bg-[var(--site-primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
-      >
+      <FilterSubmit className="mt-5 w-full rounded-[var(--site-radius)] bg-[var(--site-primary)] px-4 py-2.5 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]">
         Aplicar filtros
-      </button>
-    </form>
+      </FilterSubmit>
+    </FilterForm>
   );
 }
 

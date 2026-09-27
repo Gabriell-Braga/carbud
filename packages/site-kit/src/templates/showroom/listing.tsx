@@ -4,6 +4,7 @@ import { BODY_TYPE_LABELS, FUEL_LABELS, TRANSMISSION_LABELS } from "../../lib/ca
 import type { BodyType, Fuel, Transmission } from "../../lib/catalog";
 import { AutoSubmitSelect } from "../shared/auto-submit-select";
 import { FilterDrawer } from "../shared/filter-drawer";
+import { FilterForm, FilterSubmit } from "../shared/filter-form";
 import { HERO_GRADIENT, HERO_VARS, SHELL, Shell, TalkBand } from "./chrome";
 import { VehicleGrid } from "./vehicle-card";
 
@@ -101,7 +102,7 @@ export function Listing({
       <FilterDrawer filters={filters} sort={sortForm} barClassName="top-16 px-6">
       <section className="lg:border-b lg:border-[var(--site-border)] lg:bg-[var(--site-surface)] lg:py-6">
         <div className="lg:mx-auto lg:w-full lg:max-w-[1280px] lg:px-6">
-          <form action={links.stock} method="get">
+          <FilterForm action={links.stock}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex gap-6">
                 {[
@@ -215,14 +216,11 @@ export function Listing({
                   ))}
               </select>
 
-              <button
-                type="submit"
-                className="h-11 rounded-[var(--site-radius)] bg-[var(--site-primary)] px-8 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
-              >
+              <FilterSubmit className="h-11 rounded-[var(--site-radius)] bg-[var(--site-primary)] px-8 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]">
                 Filtrar
-              </button>
+              </FilterSubmit>
             </div>
-          </form>
+          </FilterForm>
         </div>
       </section>
       </FilterDrawer>
