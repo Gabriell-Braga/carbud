@@ -52,8 +52,13 @@ export function Listing({
   // A `ordem` fica de fora dos campos escondidos: o servidor lê o PRIMEIRO
   // valor de cada parâmetro, e um hidden antes do select fazia a escolha
   // nova chegar em segundo — a lista não mudava nunca.
+  /*
+    Ordenar passa pelo mesmo caminho dos filtros: troca a lista sem recarregar
+    a página e mantém a URL. Antes recarregava, e quem estava no meio da lista
+    voltava para o topo só por trocar "mais recentes" por "menor preço".
+  */
   const sortForm = (
-    <form action={links.stock} method="get" className="flex items-center gap-2">
+    <FilterForm action={links.stock} className="flex items-center gap-2">
       {Object.entries(paramsDe(filters)).map(([nome, valor]) =>
         nome === "ordem" || valor === undefined || valor === "" ? null : (
           <input key={nome} type="hidden" name={nome} value={String(valor)} />
@@ -67,7 +72,7 @@ export function Listing({
         submitLabel="Ordenar"
         className="h-10 rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] px-3 text-[13px] outline-none transition-colors focus:border-[var(--site-primary)]"
       />
-    </form>
+    </FilterForm>
   );
 
   return (
@@ -202,7 +207,11 @@ function FilterSidebar({
         <p className="hidden text-[16px] font-semibold lg:block" style={{ fontFamily: "var(--site-font-heading)" }}>
           Filtros
         </p>
-        <Link href={links.stock} className="text-[12px] text-[var(--site-primary)] hover:underline">
+        <Link
+          href={links.stock}
+          scroll={false}
+          className="text-[12px] text-[var(--site-primary)] hover:underline"
+        >
           Limpar
         </Link>
       </div>
@@ -366,6 +375,7 @@ function Pill({
   return (
     <Link
       href={href}
+      scroll={false}
       aria-pressed={active}
       className={[
         "rounded-[var(--site-radius)] border px-3 py-2 text-center text-[12px] transition-colors",
@@ -425,6 +435,7 @@ function ActiveChips({ filters, links }: { filters: AppliedFilters; links: SiteL
         <Link
           key={chip.label}
           href={chip.href}
+          scroll={false}
           className="inline-flex items-center gap-2 rounded-full border border-[var(--site-border)] px-3.5 py-1.5 text-[12px] transition-colors hover:border-[var(--site-primary)] hover:text-[var(--site-primary)]"
         >
           {chip.label}

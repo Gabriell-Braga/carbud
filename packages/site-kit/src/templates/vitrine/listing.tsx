@@ -56,7 +56,11 @@ function Filters({
         >
           Filtros
         </p>
-        <Link href={action} className="text-xs font-medium text-[var(--site-primary)]">
+        <Link
+          href={action}
+          scroll={false}
+          className="text-xs font-medium text-[var(--site-primary)]"
+        >
           Limpar tudo
         </Link>
       </div>
@@ -339,8 +343,13 @@ export function Listing({
     tamanho de tela: na barra presa do celular e na linha do total no
     desktop. Cada um so existe no seu tamanho, entao nunca ha dois na tela.
   */
+  /*
+    Ordenar passa pelo mesmo caminho dos filtros: troca a lista sem recarregar
+    a página e mantém a URL. Antes recarregava, e quem estava no meio da lista
+    voltava para o topo só por trocar "mais recentes" por "menor preço".
+  */
   const sortForm = (
-    <form action={links.stock} method="get" className="flex items-center gap-2">
+    <FilterForm action={links.stock} className="flex items-center gap-2">
       {Object.entries({
         q: filters.search,
         marca: filters.brand,
@@ -365,7 +374,7 @@ export function Listing({
         submitLabel="Ordenar"
         className="h-11 rounded-lg border border-[var(--site-border)] bg-[var(--site-surface)] px-3 text-sm text-[var(--site-text)] outline-none transition-colors focus:border-[var(--site-primary)]"
       />
-    </form>
+    </FilterForm>
   );
 
   const withPage = (target: number) =>
@@ -464,6 +473,7 @@ export function Listing({
                 <Link
                   key={chip.label}
                   href={chip.href}
+                  scroll={false}
                   className="inline-flex items-center gap-1.5 rounded-full bg-[var(--site-primary)]/10 px-3 py-1.5 text-[13px] text-[var(--site-primary)] transition-colors hover:bg-[var(--site-primary)]/20"
                 >
                   {chip.label}

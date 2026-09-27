@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import type { AppliedFilters } from "../contract";
+import { FILTERS_APPLIED } from "./filter-form";
 
 /**
  * Quantos filtros estão aplicados, fora a ordenação.
@@ -60,6 +61,19 @@ export function FilterDrawer({
   const trigger = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const count = countActiveFilters(filters);
+
+  /*
+    * Aplicar fecha o painel.
+    *
+    * Antes quem fechava era o recarregamento da página, que remontava tudo.
+    * Agora a lista troca sem recarregar — sem isto o painel ficaria aberto
+    * por cima do resultado que a pessoa acabou de pedir para ver.
+    */
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener(FILTERS_APPLIED, close);
+    return () => window.removeEventListener(FILTERS_APPLIED, close);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

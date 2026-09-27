@@ -45,8 +45,13 @@ export function Listing({
 
   // a ordenação da barra presa do celular: um form só dela, que reenvia os
   // filtros aplicados — no desktop o select mora dentro do form da faixa
+  /*
+    Ordenar passa pelo mesmo caminho dos filtros: troca a lista sem recarregar
+    a página e mantém a URL. Antes recarregava, e quem estava no meio da lista
+    voltava para o topo só por trocar "mais recentes" por "menor preço".
+  */
   const sortForm = (
-    <form action={links.stock} method="get">
+    <FilterForm action={links.stock}>
       {Object.entries(paramsDe(filters)).map(([nome, valor]) =>
         valor === undefined || valor === "" ? null : (
           <input key={nome} type="hidden" name={nome} value={String(valor)} />
@@ -60,7 +65,7 @@ export function Listing({
         submitLabel="Ordenar"
         className={sortClass}
       />
-    </form>
+    </FilterForm>
   );
 
   return (
@@ -354,6 +359,7 @@ function FilterChips({ filters, links }: { filters: AppliedFilters; links: SiteL
         <Link
           key={chip.label}
           href={links.stockWith(chip.remover)}
+          scroll={false}
           className="inline-flex items-center gap-2 rounded-full bg-[var(--site-surface)] px-3.5 py-1.5 text-[12px] transition-colors hover:text-[var(--site-primary)]"
         >
           {chip.label}
@@ -365,6 +371,7 @@ function FilterChips({ filters, links }: { filters: AppliedFilters; links: SiteL
       ))}
       <Link
         href={links.stock}
+        scroll={false}
         className="text-[12px] text-[var(--site-primary)] transition-colors hover:underline"
       >
         Limpar tudo

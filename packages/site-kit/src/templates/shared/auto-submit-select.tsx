@@ -39,6 +39,9 @@ export function AutoSubmitSelect({
         name={name}
         defaultValue={value}
         className={className}
+        /* o `FilterForm` pula quem ja se envia: sem isto a mesma escolha
+           entraria duas vezes no historico do navegador */
+        data-self-submit="true"
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
       >
         {options.map((option) => (
