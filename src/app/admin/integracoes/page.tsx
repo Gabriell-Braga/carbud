@@ -4,13 +4,32 @@ import { FeatureLocked } from "@/components/admin/feature-locked";
 import { requireTenantPage } from "@/lib/auth/guards";
 import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { listApiKeys, listTenantWebhooks } from "@/lib/services/api-access";
+import { Tabs } from "@/components/ui/tabs";
 import { IntegrationsPanel } from "./integrations-panel";
 
 export const metadata: Metadata = { title: "API e webhooks" };
 export const dynamic = "force-dynamic";
 
-export default async function IntegrationsPage() {
+/**
+ * Três assuntos por aba: a chave que abre a porta, o aviso que sai daqui e o
+ * feed que os portais leem. Empilhados, eram uma tela e meia de rolagem para
+ * quem só queria revogar uma chave.
+ */
+const TABS = [
+  { key: "chaves", label: "Chaves de API" },
+  { key: "webhooks", label: "Webhooks" },
+  { key: "feed", label: "Feed de estoque" },
+] as const;
+
+type Section = (typeof TABS)[number]["key"];
+
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aba?: string }>;
+}) {
   const context = await requireTenantPage("api:manage");
+  const { aba } = await searchParams;
 
   if (!(await tenantHasFeature(context.tenant.id, "api_webhooks"))) {
     return (
@@ -24,6 +43,8 @@ export default async function IntegrationsPage() {
     );
   }
 
+  const tab = (TABS.some((item) => item.key === aba) ? aba! : "chaves") as Section;
+
   const [keys, webhooks, hasClassifieds] = await Promise.all([
     listApiKeys(context.tenant.id),
     listTenantWebhooks(context.tenant.id),
@@ -36,7 +57,19 @@ export default async function IntegrationsPage() {
         title="API e webhooks"
         description="Chaves para ler seus dados e avisos automáticos quando algo muda."
       />
+
+      <Tabs
+        active={tab}
+        // o feed só existe para quem tem classificados no plano
+        items={TABS.filter((item) => item.key !== "feed" || hasClassifieds).map((item) => ({
+          key: item.key,
+          label: item.label,
+          href: `/admin/integracoes?aba=${item.key}`,
+        }))}
+      />
+
       <IntegrationsPanel
+        section={tab}
         tenantSlug={context.tenant.slug}
         showFeed={hasClassifieds}
         keys={keys.map((key) => ({

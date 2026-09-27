@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, FormField, Input } from "@/components/ui/field";
@@ -18,13 +16,7 @@ export type SettingsShape = {
   defaultGraceDays: number;
 };
 
-export function SettingsForm({
-  settings,
-  gatewayEnvironment,
-}: {
-  settings: SettingsShape;
-  gatewayEnvironment: string | null;
-}) {
+export function SettingsForm({ settings }: { settings: SettingsShape }) {
   const router = useRouter();
   const toast = useToast();
   const [draft, setDraft] = useState<SettingsShape>(settings);
@@ -157,35 +149,6 @@ export function SettingsForm({
               </span>
             </span>
           </label>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>Gateway de pagamento</CardTitle>
-          <CardDescription>
-            A chave e o token do webhook ficam nas variáveis secretas do Webflow Cloud e não
-            aparecem aqui.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!gatewayEnvironment ? (
-            <Alert tone="warning">
-              Nenhuma chave configurada. Contratações em planos automáticos vão falhar até
-              cadastrar <code>ASAAS_API_KEY</code>.
-            </Alert>
-          ) : (
-            <div className="flex items-center gap-3">
-              <Badge tone={gatewayEnvironment === "production" ? "success" : "info"}>
-                {gatewayEnvironment === "production" ? "Produção" : "Sandbox"}
-              </Badge>
-              <p className="text-[13px] text-muted">
-                {gatewayEnvironment === "production"
-                  ? "Cobranças são reais."
-                  : "Cobranças são de teste e não geram dinheiro."}
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

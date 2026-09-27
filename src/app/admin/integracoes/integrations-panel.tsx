@@ -50,11 +50,20 @@ export function IntegrationsPanel({
   webhooks,
   tenantSlug,
   showFeed,
+  section,
 }: {
   keys: KeyRow[];
   webhooks: WebhookRow[];
   tenantSlug: string;
   showFeed: boolean;
+  /**
+   * Qual aba está aberta.
+   *
+   * O painel continua UM componente porque os diálogos, o aviso do segredo
+   * recém-criado e o "copiar" são compartilhados — separar em três arquivos
+   * duplicaria esse estado. Quem decide o que aparece é esta prop.
+   */
+  section: "chaves" | "webhooks" | "feed";
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -141,7 +150,12 @@ export function IntegrationsPanel({
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <code className="break-all rounded-sm bg-surface-2 px-2 py-1 text-xs">{freshKey}</code>
-            <Button type="button" size="sm" variant="secondary" onClick={() => copy(freshKey, "Chave")}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => copy(freshKey, "Chave")}
+            >
               <Copy className="h-3.5 w-3.5" />
               Copiar
             </Button>
@@ -178,192 +192,200 @@ export function IntegrationsPanel({
         </Alert>
       ) : null}
 
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>Chaves de API</CardTitle>
-            <CardDescription>
-              Envie em <code className="text-xs">Authorization: Bearer</code> para ler seu estoque e
-              seus leads. Guardamos apenas o hash: a chave em claro aparece uma única vez.
-            </CardDescription>
-          </div>
-          <Button type="button" className="shrink-0" onClick={() => setCreatingKey(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            Nova chave
-          </Button>
-        </CardHeader>
+      {section === "chaves" ? (
+        <Card className="mb-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Chaves de API</CardTitle>
+              <CardDescription>
+                Envie em <code className="text-xs">Authorization: Bearer</code> para ler seu estoque
+                e seus leads. Guardamos apenas o hash: a chave em claro aparece uma única vez.
+              </CardDescription>
+            </div>
+            <Button type="button" className="shrink-0" onClick={() => setCreatingKey(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Nova chave
+            </Button>
+          </CardHeader>
 
-        {keys.length === 0 ? (
-          <EmptyState title="Nenhuma chave" description="Crie uma para conectar outro sistema." />
-        ) : (
-          <Table>
-            <Thead>
-              <Tr>
-                <Th>Nome</Th>
-                <Th>Início</Th>
-                <Th numeric>Último uso</Th>
-                <Th>Situação</Th>
-                <Th />
-              </Tr>
-            </Thead>
-            <tbody>
-              {keys.map((key) => (
-                <Tr key={key.id}>
-                  <Td>{key.name}</Td>
-                  <Td>
-                    <code className="text-xs text-muted">{key.prefix}…</code>
-                  </Td>
-                  <Td numeric>
-                    {key.lastUsedAt ? formatDateTime(new Date(key.lastUsedAt)) : "nunca"}
-                  </Td>
-                  <Td>
-                    <Badge tone={key.revokedAt ? "neutral" : "success"}>
-                      {key.revokedAt ? "Revogada" : "Ativa"}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    {!key.revokedAt ? (
-                      <div className="flex justify-end">
+          {keys.length === 0 ? (
+            <EmptyState title="Nenhuma chave" description="Crie uma para conectar outro sistema." />
+          ) : (
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>Nome</Th>
+                  <Th>Início</Th>
+                  <Th numeric>Último uso</Th>
+                  <Th>Situação</Th>
+                  <Th />
+                </Tr>
+              </Thead>
+              <tbody>
+                {keys.map((key) => (
+                  <Tr key={key.id}>
+                    <Td>{key.name}</Td>
+                    <Td>
+                      <code className="text-xs text-muted">{key.prefix}…</code>
+                    </Td>
+                    <Td numeric>
+                      {key.lastUsedAt ? formatDateTime(new Date(key.lastUsedAt)) : "nunca"}
+                    </Td>
+                    <Td>
+                      <Badge tone={key.revokedAt ? "neutral" : "success"}>
+                        {key.revokedAt ? "Revogada" : "Ativa"}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      {!key.revokedAt ? (
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRevoke(key)}
+                            aria-label={`Revogar ${key.name}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : null}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      ) : null}
+
+      {section === "webhooks" ? (
+        <Card className="mb-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle>Webhooks</CardTitle>
+              <CardDescription>
+                Avisamos seu sistema quando algo acontece aqui. Cada chamada leva a assinatura
+                HMAC-SHA256 do corpo no cabeçalho{" "}
+                <code className="text-xs">{WEBHOOK_HEADER_SIGNATURE}</code>.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              className="shrink-0"
+              onClick={() =>
+                setEditingHook({
+                  id: "",
+                  url: "",
+                  events: ["lead.created"],
+                  active: true,
+                  lastStatus: null,
+                  lastError: null,
+                  lastAttemptAt: null,
+                  failureCount: 0,
+                })
+              }
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Novo webhook
+            </Button>
+          </CardHeader>
+
+          {webhooks.length === 0 ? (
+            <EmptyState
+              title="Nenhum webhook"
+              description="Cadastre uma URL para receber avisos automáticos."
+            />
+          ) : (
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>Endereço</Th>
+                  <Th>Eventos</Th>
+                  <Th numeric>Última tentativa</Th>
+                  <Th>Situação</Th>
+                  <Th />
+                </Tr>
+              </Thead>
+              <tbody>
+                {webhooks.map((hook) => (
+                  <Tr key={hook.id}>
+                    <Td>
+                      <code className="break-all text-xs">{hook.url}</code>
+                    </Td>
+                    <Td>{hook.events.map((event) => EVENT_LABELS[event] ?? event).join(", ")}</Td>
+                    <Td numeric>
+                      {hook.lastAttemptAt ? formatDateTime(new Date(hook.lastAttemptAt)) : "—"}
+                    </Td>
+                    <Td>
+                      {!hook.active ? (
+                        <Badge tone="neutral">Desligado</Badge>
+                      ) : hook.lastError ? (
+                        <Badge tone="danger">{hook.lastError}</Badge>
+                      ) : hook.lastStatus ? (
+                        <Badge tone="success">HTTP {hook.lastStatus}</Badge>
+                      ) : (
+                        <Badge tone="info">Sem entregas</Badge>
+                      )}
+                    </Td>
+                    <Td>
+                      <div className="flex justify-end gap-1">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleRevoke(key)}
-                          aria-label={`Revogar ${key.name}`}
+                          onClick={() => setEditingHook(hook)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteHook(hook)}
+                          aria-label="Remover webhook"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                    ) : null}
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Card>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Card>
+      ) : null}
 
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>Webhooks</CardTitle>
-            <CardDescription>
-              Avisamos seu sistema quando algo acontece aqui. Cada chamada leva a assinatura
-              HMAC-SHA256 do corpo no cabeçalho{" "}
-              <code className="text-xs">{WEBHOOK_HEADER_SIGNATURE}</code>.
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            className="shrink-0"
-            onClick={() =>
-              setEditingHook({
-                id: "",
-                url: "",
-                events: ["lead.created"],
-                active: true,
-                lastStatus: null,
-                lastError: null,
-                lastAttemptAt: null,
-                failureCount: 0,
-              })
-            }
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Novo webhook
-          </Button>
-        </CardHeader>
+      {section === "feed" && showFeed ? (
+        <StockFeedCard tenantSlug={tenantSlug} onCopy={copy} />
+      ) : null}
 
-        {webhooks.length === 0 ? (
-          <EmptyState
-            title="Nenhum webhook"
-            description="Cadastre uma URL para receber avisos automáticos."
-          />
-        ) : (
-          <Table>
-            <Thead>
-              <Tr>
-                <Th>Endereço</Th>
-                <Th>Eventos</Th>
-                <Th numeric>Última tentativa</Th>
-                <Th>Situação</Th>
-                <Th />
-              </Tr>
-            </Thead>
-            <tbody>
-              {webhooks.map((hook) => (
-                <Tr key={hook.id}>
-                  <Td>
-                    <code className="break-all text-xs">{hook.url}</code>
-                  </Td>
-                  <Td>{hook.events.map((event) => EVENT_LABELS[event] ?? event).join(", ")}</Td>
-                  <Td numeric>
-                    {hook.lastAttemptAt ? formatDateTime(new Date(hook.lastAttemptAt)) : "—"}
-                  </Td>
-                  <Td>
-                    {!hook.active ? (
-                      <Badge tone="neutral">Desligado</Badge>
-                    ) : hook.lastError ? (
-                      <Badge tone="danger">{hook.lastError}</Badge>
-                    ) : hook.lastStatus ? (
-                      <Badge tone="success">HTTP {hook.lastStatus}</Badge>
-                    ) : (
-                      <Badge tone="info">Sem entregas</Badge>
-                    )}
-                  </Td>
-                  <Td>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingHook(hook)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteHook(hook)}
-                        aria-label="Remover webhook"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-
-      {showFeed ? <StockFeedCard tenantSlug={tenantSlug} onCopy={copy} /> : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Como usar</CardTitle>
-          <CardDescription>Dois endereços, autenticados pela chave.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-[13px]">
-          <Endpoint
-            method="GET"
-            path="/api/v1/vehicles"
-            description="Seu estoque. Aceita ?situacao=available e ?limite=50."
-          />
-          <Endpoint
-            method="GET"
-            path="/api/v1/leads"
-            description="Seus leads. Aceita ?desde=2026-09-01 para sincronizar só o que é novo."
-          />
-          <Endpoint
-            method="POST"
-            path="/api/v1/leads"
-            description="Envia um lead de fora: nome, telefone, email, mensagem, origem."
-          />
-        </CardContent>
-      </Card>
+      {section === "chaves" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Como usar</CardTitle>
+            <CardDescription>Dois endereços, autenticados pela chave.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-[13px]">
+            <Endpoint
+              method="GET"
+              path="/api/v1/vehicles"
+              description="Seu estoque. Aceita ?situacao=available e ?limite=50."
+            />
+            <Endpoint
+              method="GET"
+              path="/api/v1/leads"
+              description="Seus leads. Aceita ?desde=2026-09-01 para sincronizar só o que é novo."
+            />
+            <Endpoint
+              method="POST"
+              path="/api/v1/leads"
+              description="Envia um lead de fora: nome, telefone, email, mensagem, origem."
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {creatingKey ? (
         <Dialog
@@ -553,8 +575,8 @@ function StockFeedCard({
         <CardTitle>Feed de estoque</CardTitle>
         <CardDescription>
           Entregue um destes endereços ao portal de classificados. Ele busca sozinho e mantém os
-          anúncios em dia. Só entram veículos disponíveis e reservados; rascunho e vendido ficam
-          de fora.
+          anúncios em dia. Só entram veículos disponíveis e reservados; rascunho e vendido ficam de
+          fora.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
