@@ -25,12 +25,19 @@ não usa.
   domínio. É lá que se prova para a AWS que o domínio é seu.
 - Acesso às variáveis do app no Webflow Cloud.
 
-**Uma decisão antes:** escolha a **região** e use a mesma até o fim. Sugestão:
-`us-east-1` (Norte da Virgínia). É a mais barata e a com mais recursos; o
-atraso extra para o Brasil é irrelevante em e-mail. Se preferir Brasil, use
-`sa-east-1`. O que não pode é verificar o domínio numa região e configurar o
-app em outra — a AWS trata cada região como um mundo separado, e o envio falha
-dizendo que o domínio não está verificado.
+**Uma decisão antes:** escolha a **região** e use a mesma até o fim. A conta da
+Carbud usa **`sa-east-1` (América do Sul, São Paulo)**. `us-east-1` também
+serve e é um pouco mais barata; o atraso extra é irrelevante em e-mail.
+
+O que não pode é misturar. A AWS trata cada região como um mundo separado, e
+**três coisas** ficam presas à região escolhida:
+
+- a verificação do domínio (Parte 1);
+- a saída da sandbox (Parte 2) — pedir em outra região não vale;
+- a variável `AWS_SES_REGION` no app (Parte 4).
+
+A chave do IAM (Parte 3) é a exceção: o IAM é global e a mesma chave serve em
+qualquer região.
 
 ---
 
@@ -40,8 +47,8 @@ Isto prova para a AWS que você pode enviar em nome de `carbud.com.br`. Sem
 isso, nada sai.
 
 1. Entre no console da AWS.
-2. No canto superior direito, confira a **região**. Troque para
-   **Leste dos EUA (Norte da Virgínia) us-east-1**.
+2. No canto superior direito, confira a **região**. Escolha
+   **América do Sul (São Paulo) sa-east-1** e não mude mais.
 3. Na busca do topo, escreva **SES** e abra **Amazon Simple Email Service**.
 4. No menu da esquerda: **Configuration → Identities**.
 5. Botão **Create identity**.
@@ -63,20 +70,44 @@ A AWS mostra então **3 registros CNAME** com nomes parecidos com
 
 Se você marcou a opção da Route 53, pule esta parte: já está feito.
 
-Senão, abra onde o DNS do `carbud.com.br` é administrado e crie os **três**
-registros, um por vez, exatamente como a AWS mostra:
+O `carbud.com.br` usa o **DNS do próprio Registro.br** (os servidores
+`d.sec.dns.br` e `f.sec.dns.br`). Então os registros entram lá:
+
+1. Entre em [registro.br](https://registro.br) e abra o domínio `carbud.com.br`.
+2. Vá em **DNS** → **Editar Zona**.
+3. Crie os **três** CNAMEs que o SES mostrou.
+
+Se a tela for um formulário campo a campo:
 
 | Campo | O que colocar |
 |---|---|
+| Nome | só a primeira parte, ex.: `xxxx._domainkey` |
 | Tipo | CNAME |
-| Nome / Host | o que a AWS mostra (algo como `xxxx._domainkey`) |
-| Valor / Aponta para | o que a AWS mostra (termina em `.amazonses.com`) |
-| TTL | o padrão |
+| Dados / Valor | o que a AWS mostra, termina em `.dkim.amazonses.com` |
 
-> Cuidado comum: alguns painéis de DNS acrescentam o domínio sozinho. Se o
-> campo já mostra `.carbud.com.br` no fim, cole **só** a primeira parte do
-> nome. Ficar `xxxx._domainkey.carbud.com.br.carbud.com.br` é o erro que faz a
-> verificação nunca completar.
+Se a tela for o editor de zona em texto, uma linha por registro, **com ponto
+no fim do valor**:
+
+```
+xxxx._domainkey IN CNAME xxxx.dkim.amazonses.com.
+```
+
+> Cuidado comum: o Registro.br (como quase todo painel de DNS) completa o
+> domínio sozinho. Se colar o nome inteiro, vira
+> `xxxx._domainkey.carbud.com.br.carbud.com.br` e a verificação nunca
+> completa.
+
+### Recomendado: SPF
+
+No mesmo editor, um registro TXT na raiz do domínio:
+
+| Campo | Valor |
+|---|---|
+| Nome | vazio, ou `@` |
+| Tipo | TXT |
+| Dados | `v=spf1 include:amazonses.com ~all` |
+
+O `include:amazonses.com` vale para qualquer região do SES.
 
 Volte ao SES e espere. O estado da identidade vai de **Pending** para
 **Verified**. Costuma levar de alguns minutos a algumas horas.
@@ -102,9 +133,11 @@ Conta nova do SES começa em **sandbox**: só envia para endereços que você
 mesmo verificou. Serve para testar, mas não serve para a operação — o e-mail
 de lead vai para vendedor de revenda, que você não vai verificar um por um.
 
-1. No SES, menu da esquerda: **Account dashboard**.
-2. Procure o aviso de sandbox e clique em **Request production access**.
-3. Preencha:
+1. Confira que a região no canto superior direito ainda é **sa-east-1**: a
+   saída da sandbox vale só para a região onde foi pedida.
+2. No SES, menu da esquerda: **Account dashboard**.
+3. Procure o aviso de sandbox e clique em **Request production access**.
+4. Preencha:
    - **Mail type**: Transactional.
    - **Website URL**: `https://crm.carbud.com.br`
    - **Use case description**: escreva em inglês, de forma direta. Sugestão:
@@ -116,7 +149,7 @@ de lead vai para vendedor de revenda, que você não vai verificar um por um.
      > and we do not buy lists. Bounces and complaints are monitored and the
      > affected addresses are removed.
    - **Additional contacts** e o resto: pode deixar em branco.
-4. Envie. A resposta costuma vir em até 24 horas.
+5. Envie. A resposta costuma vir em até 24 horas.
 
 Enquanto a liberação não sai, dá para testar: em **Identities**, crie uma
 identidade do tipo **Email address** com o seu próprio e-mail, confirme o link
@@ -172,7 +205,7 @@ cadastre:
 
 | Nome | Tipo | Valor |
 |---|---|---|
-| `AWS_SES_REGION` | Variable | `us-east-1` (a mesma da Parte 1) |
+| `AWS_SES_REGION` | Variable | `sa-east-1` (a mesma da Parte 1) |
 | `AWS_ACCESS_KEY_ID` | **Secret** | o Access key ID da Parte 3 |
 | `AWS_SECRET_ACCESS_KEY` | **Secret** | a Secret access key da Parte 3 |
 | `EMAIL_FROM` | Variable | `Carbud <nao-responda@carbud.com.br>` |
