@@ -18,6 +18,7 @@ import {
 import { getPortal } from "@/lib/integrations/portals";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
 import { listStages, pickAssignee, recordLeadEvent } from "@/lib/services/crm";
+import { notifyNewLead } from "@/lib/services/notifications";
 import { trackInBackground } from "@/lib/tracking/dispatch";
 import { newEventId } from "@/lib/tracking/event";
 
@@ -220,6 +221,21 @@ export async function registerPortalLead(
     },
     content: vehicle ? { id: vehicle.id, name: vehicleLabel } : undefined,
     sourceUrl: url,
+  });
+
+  await notifyNewLead({
+    tenantId,
+    lead: {
+      id: leadId,
+      name,
+      // lead de portal pode vir sem telefone; o tipo do banco guarda texto
+      phone: incoming.phone ?? "",
+      email: incoming.email,
+      message: incoming.message,
+      vehicleLabel,
+      assignedToUserId,
+    },
+    origin: portalName,
   });
 
   await dispatchTenantEvent(tenantId, "lead.created", {

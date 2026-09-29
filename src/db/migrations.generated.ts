@@ -222,5 +222,11 @@ export const MIGRATIONS: BundledMigration[] = [
       "ALTER TABLE `tenant_sites` ADD `tracking` text;",
       "ALTER TABLE `tenant_sites` ADD `tracking_secrets` text;"
     ]
+  },
+  {
+    "tag": "0019_notifications",
+    "statements": [
+      "ALTER TABLE `tenant_sites` ADD `notifications` text;"
+    ]
   }
 ];

@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
+import { sendWelcomeInvite } from "@/lib/services/invites";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import { hashPassword } from "@/lib/auth/password";
 import { badRequest, conflict, jsonOk, withApi } from "@/lib/http";
@@ -34,6 +35,14 @@ export const POST = withApi(async (request: Request) => {
       mustChangePassword: true,
     })
     .returning({ id: users.id });
+
+  await sendWelcomeInvite({
+    userId: created[0].id,
+    name: input.name,
+    email: input.email,
+    tenantName: null,
+    invitedBy: context.user.name,
+  });
 
   await logAuditFor(
     context,

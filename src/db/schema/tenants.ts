@@ -97,6 +97,13 @@ export type TrackingSecrets = {
   ga4ApiSecret?: string;
 };
 
+/** Ver `lib/services/notifications.ts`: quem recebe aviso, e de quê. */
+export type NotificationSettings = {
+  newLead?: boolean;
+  leadRecipients?: string[];
+  notifyAssignee?: boolean;
+};
+
 export type SeoSettings = {
   titleTemplate?: string;
   defaultDescription?: string;
@@ -154,6 +161,8 @@ export const tenantSites = sqliteTable("tenant_sites", {
   aboutText: text("about_text"),
   seo: text("seo", { mode: "json" }).$type<SeoSettings>(),
   tracking: text("tracking", { mode: "json" }).$type<TrackingSettings>(),
+  /** Avisos por e-mail da operação (lead novo, e para quem). */
+  notifications: text("notifications", { mode: "json" }).$type<NotificationSettings>(),
   /** Blob do cofre com os segredos dos conectores; nunca volta para a tela. */
   trackingSecrets: text("tracking_secrets"),
   stats: text("stats", { mode: "json" }).$type<SiteStats>(),

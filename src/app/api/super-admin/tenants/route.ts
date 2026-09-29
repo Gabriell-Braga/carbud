@@ -3,6 +3,7 @@ import { billingStatus, tenantSites, tenants, users } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import { hashPassword } from "@/lib/auth/password";
+import { sendWelcomeInvite } from "@/lib/services/invites";
 import { badRequest, conflict, jsonOk, withApi } from "@/lib/http";
 import { isSlugTaken, nextDueDate } from "@/lib/services/tenants";
 import { isTemplateSelectable } from "@carbud/site-kit/manifests";
@@ -85,6 +86,16 @@ export const POST = withApi(async (request: Request) => {
       })
       .returning({ id: users.id });
     adminUserId = insertedUser[0]?.id ?? null;
+
+    if (adminUserId) {
+      await sendWelcomeInvite({
+        userId: adminUserId,
+        name: input.adminName || input.name,
+        email: input.adminEmail!,
+        tenantName: input.name,
+        invitedBy: context.user.name,
+      });
+    }
   }
 
   await logAuditFor(

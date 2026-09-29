@@ -12,6 +12,15 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 # para o super-admin destravar a pessoa manualmente.
 # RESEND_API_KEY="re_..."
 # EMAIL_FROM="Carbud <nao-responda@carbud.com.br>"
+# EMAIL_REPLY_TO="contato@carbud.com.br"
+
+# Amazon SES pela API HTTP (nao SMTP: o runtime de Workers nao tem socket).
+# A regiao precisa ser a MESMA onde o dominio foi verificado no SES.
+# Passo a passo da conta AWS: docs/EMAIL-AWS-SES.md
+# AWS_SES_REGION="us-east-1"
+# AWS_ACCESS_KEY_ID="AKIA..."
+# AWS_SECRET_ACCESS_KEY="..."
+# AWS_SES_CONFIGURATION_SET="..."
 
 # O mount path NÃO precisa ser cadastrado: o next.config.ts deriva
 # NEXT_PUBLIC_BASE_PATH do BASE_URL que o Webflow Cloud injeta no build.

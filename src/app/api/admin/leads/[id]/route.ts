@@ -7,6 +7,7 @@ import { badRequest, jsonOk, notFound, withApi } from "@/lib/http";
 import { getLead } from "@/lib/services/leads";
 import { listStages, recordLeadEvent } from "@/lib/services/crm";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
+import { notifyLeadAssigned } from "@/lib/services/notifications";
 import { trackLeadWon } from "@/lib/tracking/sale";
 import { leadUpdateSchema } from "@/lib/validation/leads";
 
@@ -64,6 +65,18 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
     */
   if (input.status === "won" && existing.status !== "won") {
     await trackLeadWon(context.tenant.id, { ...existing, ...input });
+  }
+
+  /*
+   * Passou a ser de alguém: avisa quem recebeu. Só na MUDANÇA — salvar de
+   * novo o mesmo responsável não é uma atribuição nova.
+   */
+  if (input.assignedToUserId && input.assignedToUserId !== existing.assignedToUserId) {
+    await notifyLeadAssigned({
+      tenantId: context.tenant.id,
+      lead: { ...existing, ...input },
+      assignedToUserId: input.assignedToUserId,
+    });
   }
 
   await dispatchTenantEvent(context.tenant.id, "lead.updated", { id, ...input });

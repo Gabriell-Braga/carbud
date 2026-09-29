@@ -81,7 +81,11 @@ no banco do ambiente (local ou Webflow Cloud), controlando o que já rodou em `_
 |---|---|---|---|
 | `AUTH_SECRET` | Secret | sim | Chave HS256 que assina os JWT de sessão |
 | `OPS_SECRET` | Secret | sim | Protege `/api/ops/*` |
-| `RESEND_API_KEY` | Secret | não | Ativa o envio de e-mail (redefinição de senha) |
+| `AWS_SES_REGION` | Variable | para e-mail | Região do SES, ex.: `us-east-1` |
+| `AWS_ACCESS_KEY_ID` | Secret | para e-mail | Chave de acesso com permissão `ses:SendEmail` |
+| `AWS_SECRET_ACCESS_KEY` | Secret | para e-mail | Segredo da chave acima |
+| `EMAIL_REPLY_TO` | Variable | não | Endereço que recebe as respostas |
+| `RESEND_API_KEY` | Secret | não | Provedor alternativo ao SES |
 | `EMAIL_FROM` | Variable | não | Remetente verificado, ex.: `Carbud <nao-responda@carbud.com.br>` |
 | `APP_ORIGIN` | Variable | em produção | Origem pública do painel, sem o mount path (`https://crm.carbud.com.br`). É a variável da troca de domínio — ver abaixo |
 
@@ -145,6 +149,27 @@ HTTP 200 e o motivo no corpo, porque portal que leva erro desliga a integração
 
 Um lead por pessoa por anúncio: a segunda mensagem da mesma pessoa entra como evento no
 lead que já existe, e reenvio do mesmo aviso não duplica nada.
+
+## E-mail
+
+Quatro envios: redefinição de senha, convite de usuário novo (com link para
+definir a própria senha, nunca a senha no corpo), aviso de lead novo e aviso de
+lead atribuído. Os dois últimos são por revenda e **desligados por padrão**, em
+**Mensagens → Avisos por e-mail**.
+
+Provedor: **Amazon SES pela API HTTP**, com assinatura SigV4 feita à mão em
+[sigv4.ts](src/lib/email/sigv4.ts). Não é SMTP porque não pode ser: o painel
+roda em Cloudflare Workers, onde a porta 587 é bloqueada e não existe socket.
+Pelo mesmo motivo a AWS pede uma **chave de acesso**, e não um usuário SMTP.
+**Resend** continua aceito como alternativa; com os dois configurados, o SES
+manda.
+
+Sem provedor nenhum, nada quebra: `sendEmail` devolve `delivered: false` e
+cada fluxo segue o plano B (o link de redefinição aparece no Painel Geral, a
+senha provisória continua valendo).
+
+O passo a passo da conta AWS está em
+[docs/EMAIL-AWS-SES.md](docs/EMAIL-AWS-SES.md).
 
 ## Conectores de mídia (pixel, server-side e sinal de venda)
 

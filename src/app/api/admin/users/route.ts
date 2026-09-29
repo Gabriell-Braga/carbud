@@ -5,6 +5,7 @@ import { requireApiTenant } from "@/lib/auth/guards";
 import { hashPassword } from "@/lib/auth/password";
 import { assignableRoles } from "@/lib/auth/rbac";
 import { badRequest, conflict, forbidden, jsonOk, withApi } from "@/lib/http";
+import { sendWelcomeInvite } from "@/lib/services/invites";
 import { isEmailTaken } from "@/lib/services/users";
 import { checkTenantLimit } from "@/lib/plans/service";
 import { createUserSchema } from "@/lib/validation/users";
@@ -42,6 +43,14 @@ export const POST = withApi(async (request: Request) => {
       mustChangePassword: input.mustChangePassword,
     })
     .returning({ id: users.id });
+
+  await sendWelcomeInvite({
+    userId: created[0].id,
+    name: input.name,
+    email: input.email,
+    tenantName: context.tenant.name,
+    invitedBy: context.user.name,
+  });
 
   await logAuditFor(
     context,

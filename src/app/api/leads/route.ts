@@ -9,6 +9,7 @@ import { publicLeadSchema } from "@/lib/validation/leads";
 
 import { listStages, pickAssignee, recordLeadEvent } from "@/lib/services/crm";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
+import { notifyNewLead } from "@/lib/services/notifications";
 import { newEventId } from "@/lib/tracking/event";
 import { trackInBackground } from "@/lib/tracking/dispatch";
 import { composeLeadMessage, createIntentRecord } from "@/lib/services/public-lead";
@@ -152,6 +153,21 @@ export const POST = withApi(async (request: Request) => {
       ? { id: vehicleId, name: vehicleLabel }
       : undefined,
     sourceUrl: input.tracking?.pageUrl ?? input.utm?.page ?? null,
+  });
+
+  // e-mail para quem atende, quando a revenda ligou o aviso
+  await notifyNewLead({
+    tenantId: tenant.id,
+    lead: {
+      id: leadId,
+      name: input.name,
+      phone: input.phone,
+      email: input.email || null,
+      message: composeLeadMessage(input),
+      vehicleLabel,
+      assignedToUserId,
+    },
+    origin: "site",
   });
 
   // avisa quem integrou, sem poder derrubar a captação do lead

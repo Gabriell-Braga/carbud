@@ -5,8 +5,11 @@ import { can } from "@/lib/auth/rbac";
 import { ensureTemplates } from "@/lib/services/message-templates";
 import { getWhatsappConnection } from "@/lib/services/whatsapp";
 import { tenantHasFeature } from "@/lib/api/feature-guard";
+import { isEmailConfigured } from "@/lib/email";
 import { isVaultConfigured } from "@/lib/security/vault";
+import { getNotificationSettings, teamEmails } from "@/lib/services/notifications";
 import { Tabs } from "@/components/ui/tabs";
+import { NotificationsPanel } from "./notifications-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { WhatsappConnection } from "./whatsapp-connection";
 
@@ -14,11 +17,13 @@ export const metadata: Metadata = { title: "Mensagens" };
 export const dynamic = "force-dynamic";
 
 /**
- * Duas coisas diferentes: a conta conectada e os textos que ela manda.
- * Quem vem escrever um modelo não precisa passar pela ficha da conexão.
+ * Três coisas diferentes: os textos que a equipe manda, a conta de WhatsApp
+ * conectada e os avisos que o sistema manda sozinho. Quem vem escrever um
+ * modelo não precisa passar pela ficha da conexão.
  */
 const TABS = [
   { key: "modelos", label: "Modelos" },
+  { key: "avisos", label: "Avisos por e-mail" },
   { key: "conexao", label: "Conexão" },
 ] as const;
 
@@ -31,35 +36,50 @@ export default async function TemplatesPage({
   const { aba } = await searchParams;
   const tab = TABS.some((item) => item.key === aba) ? aba! : "modelos";
 
-  const [templates, connection, hasWhatsapp] = await Promise.all([
+  const canWrite = can(context.role, "tenant:settings");
+
+  const [templates, connection, hasWhatsapp, notifications, team] = await Promise.all([
     ensureTemplates(context.tenant.id),
     getWhatsappConnection(context.tenant.id),
     tenantHasFeature(context.tenant.id, "whatsapp_integrado"),
+    getNotificationSettings(context.tenant.id),
+    teamEmails(context.tenant.id),
   ]);
 
   return (
     <>
       <PageHeader
         title="Mensagens"
-        description="Modelos prontos para o WhatsApp. O vendedor escolhe na ficha do lead e o sistema preenche os dados."
+        description="O que a equipe manda pelo WhatsApp e o que o sistema avisa por e-mail."
       />
 
-      {/* sem WhatsApp no plano não há o que conectar: a aba não aparece */}
-      {hasWhatsapp ? (
-        <Tabs
-          active={tab}
-          items={TABS.map((item) => ({
-            key: item.key,
-            label: item.label,
-            href: `/admin/mensagens?aba=${item.key}`,
-          }))}
+      <Tabs
+        active={tab}
+        // sem WhatsApp no plano não há o que conectar: a aba não aparece
+        items={TABS.filter((item) => item.key !== "conexao" || hasWhatsapp).map((item) => ({
+          key: item.key,
+          label: item.label,
+          href: `/admin/mensagens?aba=${item.key}`,
+        }))}
+      />
+
+      {tab === "avisos" ? (
+        <NotificationsPanel
+          readOnly={!canWrite}
+          emailReady={isEmailConfigured()}
+          suggestions={team}
+          initial={{
+            newLead: notifications.newLead ?? false,
+            notifyAssignee: notifications.notifyAssignee ?? true,
+            leadRecipients: notifications.leadRecipients ?? [],
+          }}
         />
       ) : null}
 
       {hasWhatsapp && tab === "conexao" ? (
         <WhatsappConnection
           vaultReady={isVaultConfigured()}
-          canWrite={can(context.role, "tenant:settings")}
+          canWrite={canWrite}
           connection={
             connection
               ? {
@@ -83,7 +103,7 @@ export default async function TemplatesPage({
             body: template.body,
             active: template.active,
           }))}
-          canWrite={can(context.role, "tenant:settings")}
+          canWrite={canWrite}
           example={{
             nome: "Ana Paula Ribeiro",
             veiculo: "Chevrolet Onix 1.0 LT 2022",
