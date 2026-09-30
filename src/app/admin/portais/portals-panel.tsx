@@ -164,18 +164,7 @@ export function PortalsPanel({
                   </p>
                 ) : null}
 
-                {portal.method === "feed" ? (
-                  <a
-                    /* <a> cru, e não <Link>: o mount path precisa entrar à mão */
-                    href={withBasePath(`/r/${tenantSlug}/estoque.xml`)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-8 items-center gap-2 rounded border border-border px-3 text-[13px] text-text hover:bg-surface-2"
-                  >
-                    <Rss className="h-3.5 w-3.5" />
-                    Ver o feed
-                  </a>
-                ) : canWrite ? (
+                {portal.method === "feed" ? null : canWrite ? (
                   <div className="flex flex-wrap gap-2">
                     {connected ? (
                       <>
@@ -213,6 +202,10 @@ export function PortalsPanel({
                   </div>
                 ) : null}
 
+                {portal.importsFeed ? (
+                  <StockFeed slug={tenantSlug} portalName={portal.name} />
+                ) : null}
+
                 <LeadInbox url={leadInboxes[portal.key]} portalName={portal.name} />
 
                 {portal.availability === "aguardando_acesso" ? (
@@ -237,6 +230,45 @@ export function PortalsPanel({
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * O endereço de onde o portal LÊ o estoque.
+ *
+ * Fica ao lado da URL de leads porque, para quem importa por URL, os dois
+ * formam o par que a loja precisa informar no portal: um traz o carro para
+ * lá, o outro traz o interessado para cá.
+ *
+ * Quando a revenda tem domínio próprio, o melhor endereço é o dela — o do
+ * painel funciona, mas amarra o site do cliente ao nosso domínio.
+ */
+function StockFeed({ slug, portalName }: { slug: string; portalName: string }) {
+  const url = `${typeof window === "undefined" ? "" : window.location.origin}${withBasePath(
+    `/r/${slug}/estoque.xml`,
+  )}`;
+
+  return (
+    <details className="mt-3 rounded-inner border border-border bg-surface-2/40 px-3 py-2">
+      <summary className="flex cursor-pointer items-center gap-2 text-[13px] text-text">
+        <Rss className="h-3.5 w-3.5 text-faint" />
+        Feed de estoque para o {portalName}
+      </summary>
+      <p className="mt-2 text-xs text-muted">
+        Informe este endereço no {portalName} como fonte do estoque. Ele lê sozinho, de tempos em
+        tempos, e mantém os anúncios em dia. Há também a versão <code>.json</code>, no mesmo
+        caminho.
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="min-w-0 flex-1 break-all rounded-sm bg-surface px-2 py-1 text-[11px] text-muted">
+          {url}
+        </code>
+        <CopyButton value={url} />
+      </div>
+      <p className="mt-2 text-xs text-faint">
+        Com domínio próprio, prefira o endereço da loja: <code>https://seu-dominio/estoque.xml</code>.
+      </p>
+    </details>
   );
 }
 

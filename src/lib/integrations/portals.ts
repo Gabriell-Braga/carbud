@@ -53,6 +53,14 @@ export type PortalDefinition = {
    */
   appEnvPrefix?: string;
   oauth?: PortalOauth;
+  /**
+   * O portal busca o estoque num endereço nosso, em vez de receber por API.
+   *
+   * Vale para o Webmotors (que importa por URL mesmo conectado) e para o
+   * card de feed. É o que decide se o card mostra o endereço do feed — sem
+   * ele, a loja liga para o suporte do portal sem ter o que informar.
+   */
+  importsFeed?: boolean;
   fields: PortalField[];
   /** O que a revenda precisa fazer, uma única vez, para conseguir o acesso. */
   howToConnect: string;
@@ -66,6 +74,7 @@ export const PORTALS: PortalDefinition[] = [
     key: "webmotors",
     name: "Webmotors",
     method: "credentials",
+    importsFeed: true,
     // o client id/secret são do integrador (nós), não da loja: ficam no ambiente
     appEnvPrefix: "WEBMOTORS",
     fields: [
@@ -120,6 +129,7 @@ export const PORTALS: PortalDefinition[] = [
     key: "feed",
     name: "Outros portais (por feed)",
     method: "feed",
+    importsFeed: true,
     fields: [],
     howToConnect:
       "Para portais sem API, entregue o endereço do feed de estoque. Eles buscam sozinhos e mantêm os anúncios em dia. O endereço está na tela de API e webhooks.",
