@@ -7,7 +7,9 @@ import {
   type PortalConnection,
 } from "@/db/schema";
 import { badRequest, conflict } from "@/lib/http";
-import { portalAvailability } from "@/lib/integrations/portal-apps";
+import { portalApp, portalAvailability } from "@/lib/integrations/portal-apps";
+import { webmotorsToken } from "@/lib/integrations/webmotors";
+import { onlyDigits } from "@/lib/utils";
 import type { OauthTokens } from "@/lib/integrations/portal-oauth";
 import { getPortal, shouldBePublished, type PublicationStatus } from "@/lib/integrations/portals";
 import { open, seal } from "@/lib/security/vault";
@@ -57,7 +59,29 @@ export async function connectPortal(
     .map((field) => field.label);
   if (missing.length > 0) throw badRequest(`Faltou preencher: ${missing.join(", ")}`);
 
-  await storeConnection(tenantId, userId, portal, credentials);
+  /*
+   * O que não é segredo também fica fora do cofre: é como o aviso do portal
+   * acha a revenda sem abrir as credenciais de cada conexão.
+   */
+  const settings: Record<string, string> = {};
+  for (const field of definition.fields) {
+    if (!field.secret) settings[field.key] = credentials[field.key].trim();
+  }
+
+  if (portal === "webmotors") {
+    settings.cnpj = onlyDigits(settings.cnpj ?? "");
+    if (settings.cnpj.length !== 14) throw badRequest("CNPJ da loja precisa ter 14 dígitos.");
+    // senha errada aparece agora, e não no primeiro lead que não chegar
+    const app = portalApp(definition);
+    if (app) {
+      await webmotorsToken(app, {
+        username: settings.username,
+        password: credentials.password ?? "",
+      });
+    }
+  }
+
+  await storeConnection(tenantId, userId, portal, credentials, settings);
 }
 
 /**

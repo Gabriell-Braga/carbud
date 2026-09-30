@@ -30,7 +30,7 @@ import type { OauthTokens } from "@/lib/integrations/portal-oauth";
 import { getPortal, shouldBePublished } from "@/lib/integrations/portals";
 import { mediaUrl } from "@/lib/paths";
 import { seal } from "@/lib/security/vault";
-import { pullPortalLeads } from "./portal-leads";
+import { pullPortalLeads, retryWebmotorsLeads } from "./portal-leads";
 import { getConnection, readCredentials } from "./portals";
 
 /**
@@ -66,9 +66,28 @@ export type SyncReport = {
 };
 
 export async function syncTenantPortals(tenantId: string, origin: string): Promise<SyncReport[]> {
+  const reports: SyncReport[] = [];
+
   const connection = await getConnection(tenantId, "mercadolivre");
-  if (!connection || connection.status !== "conectado") return [];
-  return [await syncMercadoLivre(connection, origin)];
+  if (connection && connection.status === "conectado") {
+    reports.push(await syncMercadoLivre(connection, origin));
+  }
+
+  // Webmotors: só a volta existe; aqui entram os avisos de lead que falharam
+  const webmotors = await getConnection(tenantId, "webmotors");
+  if (webmotors && webmotors.status === "conectado") {
+    const ingest = await retryWebmotorsLeads(tenantId);
+    reports.push({
+      portal: "webmotors",
+      published: 0,
+      updated: 0,
+      removed: 0,
+      failed: ingest.failed,
+      leads: ingest.created,
+    });
+  }
+
+  return reports;
 }
 
 /**

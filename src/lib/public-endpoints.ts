@@ -32,10 +32,8 @@ const PORTAL_NOTES: Record<
 > = {
   webmotors: {
     intro:
-      "O cadastro do Webmotors pede dois endereços, nos campos CALLBACK URL LEADS e CALLBACK URL ESTOQUE. São os dois abaixo, nessa ordem — não há OAuth aqui: a conexão é pelo código da loja.",
-    leadsLabel: "URL de leads — campo CALLBACK URL LEADS",
-    feedLabel: "Feed de estoque — campo CALLBACK URL ESTOQUE",
-    feed: "Quando a revenda tem domínio próprio, o Webmotors deve receber o endereço DELA (https://dominio-da-loja/estoque.xml), que não passa por aqui.",
+      "Vai no app carbud do portal de desenvolvedores do Webmotors, uma vez, e vale para todas as revendas. Só o campo CALLBACK URL LEADS: o CALLBACK URL ESTOQUE fica vazio. Cada revenda conecta com o usuário Integrador de API dela, na tela de Portais.",
+    leadsLabel: "Avisos de lead — campo CALLBACK URL LEADS",
   },
   feed: {
     intro:
@@ -43,7 +41,7 @@ const PORTAL_NOTES: Record<
   },
   mercadolivre: {
     intro:
-      "Além do retorno do OAuth, o app do Mercado Livre tem a URL de notificações. Marque o tópico \"questions\": é ele que traz as perguntas dos anúncios, que viram lead no CRM.",
+      'Além do retorno do OAuth, o app do Mercado Livre tem a URL de notificações. Marque o tópico "questions": é ele que traz as perguntas dos anúncios, que viram lead no CRM.',
   },
 };
 
@@ -63,22 +61,31 @@ function portalGroup(portal: PortalDefinition, at: (path: string) => string): Pu
   if (portal.key === "mercadolivre") {
     endpoints.push({
       label: "Notificações",
-      where: "App do integrador no Mercado Livre (URL de callback de notificações), com o tópico \"questions\" marcado",
+      where:
+        'App do integrador no Mercado Livre (URL de callback de notificações), com o tópico "questions" marcado',
       url: at("/api/webhooks/mercadolivre"),
     });
   }
 
-  endpoints.push({
-    label: notes.leadsLabel ?? "URL de leads",
-    where: [
-      `Cada revenda cadastra a URL dela no ${portal.name}. O endereço completo, com o token, está em Portais, no card do portal`,
-      notes.leads,
-      "O token não muda com o domínio, mas o começo do endereço sim: depois da troca, as revendas precisam recadastrar",
-    ]
-      .filter(Boolean)
-      .join(". "),
-    url: at(`/api/portals/${portal.key}/leads?token=...`),
-  });
+  if (portal.appLeadWebhook) {
+    endpoints.push({
+      label: notes.leadsLabel ?? "Avisos de lead",
+      where: `App do integrador no ${portal.name}. Um endereço só: o aviso traz o CNPJ, que diz de qual revenda é o lead`,
+      url: at(`/api/webhooks/${portal.key}`),
+    });
+  } else {
+    endpoints.push({
+      label: notes.leadsLabel ?? "URL de leads",
+      where: [
+        `Cada revenda cadastra a URL dela no ${portal.name}. O endereço completo, com o token, está em Portais, no card do portal`,
+        notes.leads,
+        "O token não muda com o domínio, mas o começo do endereço sim: depois da troca, as revendas precisam recadastrar",
+      ]
+        .filter(Boolean)
+        .join(". "),
+      url: at(`/api/portals/${portal.key}/leads?token=...`),
+    });
+  }
 
   if (portal.importsFeed) {
     endpoints.push({

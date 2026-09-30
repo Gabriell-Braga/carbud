@@ -37,6 +37,11 @@ export type IncomingPortalLead = {
   messageId?: string | null;
   /** Id do anúncio no portal, para achar o carro no nosso estoque. */
   adExternalId: string | null;
+  /**
+   * Placa do carro do anúncio, sem traço. Serve quando o anúncio não saiu
+   * da nossa fila de publicação (o Webmotors), e o id dele não casa com nada.
+   */
+  plate?: string | null;
   /** Endereço do anúncio ou da conversa, para responder de lá. */
   url: string | null;
 };

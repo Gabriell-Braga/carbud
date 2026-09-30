@@ -206,7 +206,10 @@ export function PortalsPanel({
                   <StockFeed slug={tenantSlug} portalName={portal.name} />
                 ) : null}
 
-                <LeadInbox url={leadInboxes[portal.key]} portalName={portal.name} />
+                {/* leads por aviso ao nosso app: a loja não cadastra URL nenhuma */}
+                {portal.appLeadWebhook ? null : (
+                  <LeadInbox url={leadInboxes[portal.key]} portalName={portal.name} />
+                )}
 
                 {portal.availability === "aguardando_acesso" ? (
                   <p className="mt-2 text-xs text-faint">
@@ -266,7 +269,8 @@ function StockFeed({ slug, portalName }: { slug: string; portalName: string }) {
         <CopyButton value={url} />
       </div>
       <p className="mt-2 text-xs text-faint">
-        Com domínio próprio, prefira o endereço da loja: <code>https://seu-dominio/estoque.xml</code>.
+        Com domínio próprio, prefira o endereço da loja:{" "}
+        <code>https://seu-dominio/estoque.xml</code>.
       </p>
     </details>
   );
@@ -294,8 +298,8 @@ function LeadInbox({ url, portalName }: { url?: string; portalName: string }) {
         Receber leads deste portal
       </summary>
       <p className="mt-2 text-xs text-muted">
-        Cadastre este endereço no {portalName} como URL de leads. Quem chamar por ele entra no
-        CRM como lead, com o carro do anúncio quando o código vier junto.
+        Cadastre este endereço no {portalName} como URL de leads. Quem chamar por ele entra no CRM
+        como lead, com o carro do anúncio quando o código vier junto.
       </p>
       <div className="mt-2 flex items-center gap-2">
         <code className="min-w-0 flex-1 break-all rounded-sm bg-surface px-2 py-1 text-[11px] text-muted">

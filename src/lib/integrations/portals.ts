@@ -56,11 +56,17 @@ export type PortalDefinition = {
   /**
    * O portal busca o estoque num endereço nosso, em vez de receber por API.
    *
-   * Vale para o Webmotors (que importa por URL mesmo conectado) e para o
-   * card de feed. É o que decide se o card mostra o endereço do feed — sem
-   * ele, a loja liga para o suporte do portal sem ter o que informar.
+   * Vale para o card de feed. É o que decide se o card mostra o endereço do
+   * feed — sem ele, a loja liga para o suporte do portal sem ter o que
+   * informar.
    */
   importsFeed?: boolean;
+  /**
+   * O portal avisa os leads de TODAS as lojas numa URL só, cadastrada no app
+   * do integrador (Webmotors). A loja não cadastra endereço nenhum, e o card
+   * não mostra a URL de leads com token.
+   */
+  appLeadWebhook?: boolean;
   fields: PortalField[];
   /** O que a revenda precisa fazer, uma única vez, para conseguir o acesso. */
   howToConnect: string;
@@ -74,19 +80,29 @@ export const PORTALS: PortalDefinition[] = [
     key: "webmotors",
     name: "Webmotors",
     method: "credentials",
-    importsFeed: true,
     // o client id/secret são do integrador (nós), não da loja: ficam no ambiente
     appEnvPrefix: "WEBMOTORS",
+    appLeadWebhook: true,
     fields: [
       {
-        key: "dealerId",
-        label: "Código da loja",
+        key: "cnpj",
+        label: "CNPJ da loja",
         secret: false,
-        hint: "O mesmo que aparece no painel do Webmotors.",
+        hint: "O mesmo cadastrado no Webmotors. É por ele que o lead acha a sua loja.",
+      },
+      {
+        key: "username",
+        label: "E-mail do usuário Integrador de API",
+        secret: false,
+      },
+      {
+        key: "password",
+        label: "Senha do usuário Integrador de API",
+        secret: true,
       },
     ],
     howToConnect:
-      "Entre no Webmotors com o login da loja, abra o chat de atendimento e peça para liberar a integração de anúncios pelo Carbud. Depois informe aqui o código da loja e não precisa voltar lá.",
+      'No Cockpit do Webmotors, em Usuários, crie um usuário com o perfil "Integrador de API" (a loja só pode ter um). Depois, na aba Integrações, ative a Integração com CRM de terceiros. Informe aqui o CNPJ da loja e o e-mail e a senha desse usuário: os leads do Webmotors passam a entrar no CRM sozinhos.',
   },
   {
     key: "icarros",

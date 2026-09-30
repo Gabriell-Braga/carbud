@@ -52,8 +52,13 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 # O Mercado Livre tambem pede a URL de notificacoes (webhook) do app:
 #   <APP_ORIGIN><mount path>/api/webhooks/mercadolivre
 # Os enderecos prontos para copiar estao em Super-admin > Configuracoes.
+# O Webmotors tem uma URL so, de avisos de lead, no campo CALLBACK URL LEADS
+# do app (CALLBACK URL ESTOQUE fica vazio):
+#   <APP_ORIGIN><mount path>/api/webhooks/webmotors
+# A API comeca em homologacao; o endereco de producao vem com a aprovacao.
 # WEBMOTORS_CLIENT_ID="..."
 # WEBMOTORS_CLIENT_SECRET="..."
+# WEBMOTORS_API_URL="https://hlg-webmotors.sensedia.com"
 # OLX_CLIENT_ID="..."
 # OLX_CLIENT_SECRET="..."
 # MERCADOLIVRE_CLIENT_ID="..."

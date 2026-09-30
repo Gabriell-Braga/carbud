@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   leadEvents,
@@ -15,10 +15,19 @@ import {
   type MercadoLivreClient,
   type MlQuestion,
 } from "@/lib/integrations/mercadolivre";
+import { portalApp } from "@/lib/integrations/portal-apps";
 import { getPortal } from "@/lib/integrations/portals";
+import {
+  fetchLeadDetail,
+  parseLeadDetail,
+  parseLeadNotice,
+  webmotorsToken,
+  type WebmotorsLeadNotice,
+} from "@/lib/integrations/webmotors";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
 import { listStages, pickAssignee, recordLeadEvent } from "@/lib/services/crm";
 import { notifyNewLead } from "@/lib/services/notifications";
+import { getConnection, readCredentials } from "@/lib/services/portals";
 import { trackInBackground } from "@/lib/tracking/dispatch";
 import { newEventId } from "@/lib/tracking/event";
 
@@ -127,19 +136,32 @@ export async function registerPortalLead(
 
   if (strict && !match[0]) return "ignored";
 
+  const vehicleColumns = {
+    id: vehicles.id,
+    brand: vehicles.brand,
+    model: vehicles.model,
+    version: vehicles.version,
+    yearModel: vehicles.yearModel,
+  };
   const vehicleRows = match[0]
     ? await db
-        .select({
-          id: vehicles.id,
-          brand: vehicles.brand,
-          model: vehicles.model,
-          version: vehicles.version,
-          yearModel: vehicles.yearModel,
-        })
+        .select(vehicleColumns)
         .from(vehicles)
         .where(eq(vehicles.id, match[0].vehicleId))
         .limit(1)
-    : [];
+    : incoming.plate
+      ? // anúncio que não saiu da nossa fila: a placa é o que liga ao carro
+        await db
+          .select(vehicleColumns)
+          .from(vehicles)
+          .where(
+            and(
+              eq(vehicles.tenantId, tenantId),
+              sql`upper(replace(${vehicles.licensePlate}, '-', '')) = ${incoming.plate}`,
+            ),
+          )
+          .limit(1)
+      : [];
 
   const vehicle = vehicleRows[0] ?? null;
   const vehicleLabel = vehicle
@@ -194,9 +216,7 @@ export async function registerPortalLead(
     tenantId,
     leadId,
     type: "created",
-    body: vehicleLabel
-      ? `Lead do ${portalName} sobre ${vehicleLabel}.`
-      : `Lead do ${portalName}.`,
+    body: vehicleLabel ? `Lead do ${portalName} sobre ${vehicleLabel}.` : `Lead do ${portalName}.`,
     metadata: {
       source: "portal",
       portal: incoming.portal,
@@ -403,10 +423,7 @@ async function pullMercadoLivre(
        * aqui, e os dois passam sozinhos — marcar como processado perderia o
        * lead.
        */
-      await db
-        .update(webhookEvents)
-        .set({ error: message })
-        .where(eq(webhookEvents.id, event.id));
+      await db.update(webhookEvents).set({ error: message }).where(eq(webhookEvents.id, event.id));
     }
   }
 
@@ -448,10 +465,93 @@ async function processMercadoLivreNotification(
       // a conta do ML pode ter anúncios que não saíram do painel
       strict: true,
       resolveName: async () =>
-        buyerName(
-          await client.getUser(question.fromUserId).catch(() => null),
-          question.fromUserId,
-        ),
+        buyerName(await client.getUser(question.fromUserId).catch(() => null), question.fromUserId),
     },
   );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Webmotors: o aviso traz só o id, nós buscamos o lead                      */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Busca o lead avisado e grava no CRM da revenda.
+ *
+ * O token é pedido a cada aviso: lead de uma loja chega em minutos, não em
+ * rajada, e guardar token vencido para economizar um login custaria mais
+ * código do que o login custa.
+ */
+export async function ingestWebmotorsLead(
+  tenantId: string,
+  notice: WebmotorsLeadNotice,
+): Promise<RegisterOutcome> {
+  const definition = getPortal("webmotors");
+  const app = definition ? portalApp(definition) : null;
+  if (!app) throw new Error("App do Webmotors sem credenciais no ambiente");
+
+  const connection = await getConnection(tenantId, "webmotors");
+  if (!connection || connection.status !== "conectado") {
+    throw new Error("Webmotors desconectado nesta revenda");
+  }
+  const credentials = await readCredentials(connection);
+  const token = await webmotorsToken(app, {
+    username: credentials.username ?? "",
+    password: credentials.password ?? "",
+  });
+  const detail = await fetchLeadDetail(app, token, notice);
+  return registerPortalLead(tenantId, parseLeadDetail(detail, notice));
+}
+
+/** Aviso guardado → lead. Marca o evento como processado ou com o erro. */
+export async function processWebmotorsEvent(event: WebhookEvent): Promise<RegisterOutcome> {
+  const db = await getDb();
+  const notice = parseLeadNotice(event.payload);
+  if (!event.tenantId || !notice) {
+    await db
+      .update(webhookEvents)
+      .set({ processedAt: new Date(), error: "aviso sem revenda ou sem id de lead" })
+      .where(eq(webhookEvents.id, event.id));
+    return "ignored";
+  }
+
+  try {
+    const outcome = await ingestWebmotorsLead(event.tenantId, notice);
+    await db
+      .update(webhookEvents)
+      .set({ processedAt: new Date(), error: null })
+      .where(eq(webhookEvents.id, event.id));
+    return outcome;
+  } catch (error) {
+    // sem processedAt: a sincronização e o reenvio do Webmotors tentam de novo
+    const message = error instanceof Error ? error.message : String(error);
+    await db.update(webhookEvents).set({ error: message }).where(eq(webhookEvents.id, event.id));
+    throw error;
+  }
+}
+
+/** Avisos que falharam (senha trocada, API fora do ar) entram de novo aqui. */
+export async function retryWebmotorsLeads(tenantId: string): Promise<LeadIngestReport> {
+  const report = emptyIngestReport();
+  const db = await getDb();
+  const pending = await db
+    .select()
+    .from(webhookEvents)
+    .where(
+      and(
+        eq(webhookEvents.provider, "webmotors"),
+        eq(webhookEvents.tenantId, tenantId),
+        isNull(webhookEvents.processedAt),
+      ),
+    )
+    .orderBy(asc(webhookEvents.receivedAt))
+    .limit(BATCH);
+
+  for (const event of pending) {
+    try {
+      report[await processWebmotorsEvent(event)] += 1;
+    } catch {
+      report.failed += 1;
+    }
+  }
+  return report;
 }

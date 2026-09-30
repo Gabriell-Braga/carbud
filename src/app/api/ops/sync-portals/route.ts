@@ -44,11 +44,17 @@ export const POST = withApi(async (request: Request) => {
         portalConnections,
         and(
           eq(portalConnections.tenantId, webhookEvents.tenantId),
-          eq(portalConnections.portal, "mercadolivre"),
+          // o aviso é do mesmo portal da conexão (Mercado Livre, Webmotors)
+          eq(portalConnections.portal, webhookEvents.provider),
           eq(portalConnections.status, "conectado"),
         ),
       )
-      .where(and(eq(webhookEvents.provider, "mercadolivre"), isNull(webhookEvents.processedAt))),
+      .where(
+        and(
+          inArray(webhookEvents.provider, ["mercadolivre", "webmotors"]),
+          isNull(webhookEvents.processedAt),
+        ),
+      ),
   ]);
 
   const tenantIds = [
