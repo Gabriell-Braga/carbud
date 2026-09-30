@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { vehicles, type VehicleStatus } from "@/db/schema";
+import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
@@ -69,7 +70,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 ${entries
   .map(
     (entry) => `  <url>
-    <loc>${escapeXml(`${origin}${entry.loc}`)}</loc>
+    <loc>${escapeXml(`${origin}${withBasePath(entry.loc)}`)}</loc>
     <lastmod>${entry.lastmod}</lastmod>
     <changefreq>${entry.changefreq}</changefreq>
     <priority>${entry.priority}</priority>

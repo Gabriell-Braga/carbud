@@ -15,6 +15,7 @@ import { FormField, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { apiDelete, apiPost } from "@/lib/client/api";
 import { PUBLICATION_LABELS, type PortalCard } from "@/lib/integrations/portals";
+import { withBasePath } from "@/lib/paths";
 import { formatDateTime } from "@/lib/utils";
 import { SyncButton } from "./sync-button";
 
@@ -165,7 +166,8 @@ export function PortalsPanel({
 
                 {portal.method === "feed" ? (
                   <a
-                    href={`/r/${tenantSlug}/estoque.xml`}
+                    /* <a> cru, e não <Link>: o mount path precisa entrar à mão */
+                    href={withBasePath(`/r/${tenantSlug}/estoque.xml`)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex h-8 items-center gap-2 rounded border border-border px-3 text-[13px] text-text hover:bg-surface-2"

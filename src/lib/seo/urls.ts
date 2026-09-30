@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { BASE_PATH } from "@/lib/paths";
+import { BASE_PATH, withBasePath } from "@/lib/paths";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 
 /**
@@ -51,10 +51,18 @@ export async function describeOrigin(): Promise<OriginInfo> {
   };
 }
 
-/** URL absoluta de uma página do site da revenda, já com o mount path. */
+/**
+ * URL absoluta de uma página do site da revenda, já com o mount path.
+ *
+ * O `withBasePath` não é detalhe: `tenantPublicPath` devolve `/r/<slug>`
+ * porque é isso que o `<Link>` do Next quer (ele acrescenta o mount path
+ * sozinho). Quem monta endereço absoluto — canonical, og:url, sitemap, link
+ * de e-mail — precisa acrescentar à mão, senão publica
+ * `https://crm.carbud.com.br/r/<slug>`, que é 404: o app vive sob `/app`.
+ */
 export async function tenantAbsoluteUrl(slug: string, subPath = ""): Promise<string> {
   const origin = await getOrigin();
-  return `${origin}${tenantPublicPath(slug, subPath)}`;
+  return `${origin}${withBasePath(tenantPublicPath(slug, subPath))}`;
 }
 
 export function absoluteFromOrigin(origin: string, path: string): string {

@@ -1,3 +1,4 @@
+import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
@@ -21,12 +22,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   const body = [
     "User-agent: *",
-    `Allow: ${tenantPublicPath(slug)}`,
+    `Allow: ${withBasePath(tenantPublicPath(slug))}`,
     "Disallow: /admin",
     "Disallow: /super-admin",
     "Disallow: /api",
     "",
-    `Sitemap: ${origin}${tenantPublicPath(slug, "/sitemap.xml")}`,
+    `Sitemap: ${origin}${withBasePath(tenantPublicPath(slug, "/sitemap.xml"))}`,
     "",
   ].join("\n");
 
