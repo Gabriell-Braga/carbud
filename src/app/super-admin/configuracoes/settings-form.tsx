@@ -144,8 +144,8 @@ export function SettingsForm({ settings }: { settings: SettingsShape }) {
             <span>
               Deixar o gateway avisar o pagador
               <span className="block text-xs text-faint">
-                Desligado, ninguém recebe aviso de vencimento, e a revenda descobre a dívida quando o
-                painel bloqueia.
+                Desligado, ninguém recebe aviso de vencimento, e a revenda descobre a dívida quando
+                o painel bloqueia.
               </span>
             </span>
           </label>

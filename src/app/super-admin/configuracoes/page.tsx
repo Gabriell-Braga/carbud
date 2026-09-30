@@ -5,6 +5,7 @@ import { requireSuperAdminPage } from "@/lib/auth/guards";
 import { asaasEnvironment } from "@/lib/gateway/asaas";
 import { getPlatformSettings } from "@/lib/plans/service";
 import { emailProvider } from "@/lib/email";
+import { getEmailCopyOverrides } from "@/lib/email/copy-store";
 import { EmailPanel } from "./email-panel";
 import { GatewayStatus } from "./gateway-status";
 import { PublicEndpoints } from "./public-endpoints";
@@ -48,7 +49,7 @@ export default async function PlatformSettingsPage({
     <>
       <PageHeader
         title="Configurações da plataforma"
-        description="Cobrança, saúde do gateway e os endereços que outros serviços chamam."
+        description="Cobrança, saúde do gateway, e-mails do produto e os endereços que outros serviços chamam."
       />
 
       <Tabs
@@ -74,6 +75,7 @@ export default async function PlatformSettingsPage({
           provider={emailProvider()}
           from={process.env.EMAIL_FROM ?? null}
           defaultTo={context.user.email}
+          overrides={await getEmailCopyOverrides()}
         />
       ) : null}
 

@@ -53,10 +53,7 @@ export function amzDates(now: Date): { amzDate: string; dateStamp: string } {
   return { amzDate, dateStamp: amzDate.slice(0, 8) };
 }
 
-async function signingKey(
-  credentials: AwsCredentials,
-  dateStamp: string,
-): Promise<ArrayBuffer> {
+async function signingKey(credentials: AwsCredentials, dateStamp: string): Promise<ArrayBuffer> {
   const kDate = await hmac(
     new TextEncoder().encode(`AWS4${credentials.secretAccessKey}`),
     dateStamp,
@@ -100,12 +97,7 @@ export async function signedHeaders(input: {
   ].join("\n");
 
   const scope = `${dateStamp}/${credentials.region}/${credentials.service}/aws4_request`;
-  const stringToSign = [
-    ALGORITHM,
-    amzDate,
-    scope,
-    await sha256Hex(canonicalRequest),
-  ].join("\n");
+  const stringToSign = [ALGORITHM, amzDate, scope, await sha256Hex(canonicalRequest)].join("\n");
 
   const signature = toHex(await hmac(await signingKey(credentials, dateStamp), stringToSign));
 

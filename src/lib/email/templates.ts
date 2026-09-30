@@ -16,9 +16,19 @@ import { APP_NAME } from "@/lib/brand";
  * Cada e-mail leva também a versão em texto puro. Não é capricho: provedor
  * corporativo bloqueia HTML com frequência, e mensagem que chega em branco é
  * pior do que não chegar.
+ *
+ * Os textos de cada e-mail têm um padrão aqui e podem ser reescritos no Painel
+ * Geral (Configurações → E-mail). O que fica gravado é só a diferença; quem
+ * dispara busca com `getEmailCopy` e passa como segundo argumento.
  */
 
-export type EmailContent = { subject: string; html: string; text: string };
+export type EmailContent = {
+  subject: string;
+  html: string;
+  text: string;
+  /** O mesmo trecho escondido no HTML, à parte para a prévia do editor. */
+  preheader: string;
+};
 
 /* Paleta da marca — as mesmas do painel. */
 const ROXO = "#694ae5";
@@ -169,35 +179,261 @@ function citacao(texto: string): string {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Textos editáveis                                                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * O que o Painel Geral pode reescrever em cada e-mail.
+ *
+ * Só texto, nunca HTML. A moldura acima é o que faz a mensagem chegar inteira
+ * no Outlook e no Gmail; deixar editar o HTML seria deixar quebrar isso sem
+ * perceber — o erro só aparece na caixa de entrada de quem recebe. Os dados
+ * que mudam a cada envio (telefone, mensagem do cliente, link) também ficam
+ * fora: entram sozinhos, no lugar certo, e escapados.
+ */
+export type EmailCopy = {
+  subject: string;
+  /** Trecho que o cliente de e-mail mostra ao lado do assunto, na lista. */
+  preheader: string;
+  title: string;
+  /** Parágrafos separados por linha em branco; `**assim**` vira negrito. */
+  body: string;
+  button: string;
+  footer: string;
+};
+
+export const EMAIL_COPY_FIELDS = [
+  "subject",
+  "preheader",
+  "title",
+  "body",
+  "button",
+  "footer",
+] as const satisfies readonly (keyof EmailCopy)[];
+
+export const EMAIL_TEMPLATE_KEYS = ["newLead", "leadAssigned", "welcome", "passwordReset"] as const;
+export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
+
+/** O que está gravado: só os campos que diferem do padrão. */
+export type EmailCopyOverrides = Partial<Record<EmailTemplateKey, Partial<EmailCopy>>>;
+
+export type EmailVariable = { key: string; label: string };
+
+export type EmailTemplateInfo = {
+  name: string;
+  group: "Comercial" | "Acesso";
+  /** Quando sai — para quem edita saber o que está mexendo. */
+  when: string;
+  /** O que entra sozinho e não aparece nos campos. */
+  automatic: string;
+  variables: EmailVariable[];
+  defaults: EmailCopy;
+};
+
+const LEAD_VARIABLES: EmailVariable[] = [
+  { key: "nome", label: "Nome do cliente" },
+  { key: "veiculo", label: "Veículo de interesse" },
+  { key: "origem", label: "Origem do contato" },
+  { key: "revenda", label: "Nome da revenda" },
+  { key: "responsavel", label: "Vendedor responsável" },
+];
+
+export const EMAIL_TEMPLATES: Record<EmailTemplateKey, EmailTemplateInfo> = {
+  newLead: {
+    name: "Lead novo",
+    group: "Comercial",
+    when: "Quando um lead chega pelo site ou por um portal, para a equipe da revenda.",
+    automatic:
+      "Veículo, telefone, e-mail e responsável em um quadro; a mensagem do cliente em destaque; o atalho para o WhatsApp. Quando o cliente deixa mensagem, o começo dela substitui a prévia.",
+    variables: LEAD_VARIABLES,
+    defaults: {
+      subject: "Lead novo: {{nome}} — {{veiculo}}",
+      preheader: "Contato novo pelo {{origem}}. Responda rápido.",
+      title: "{{nome}} entrou em contato",
+      body: "Chegou agora pelo **{{origem}}**.",
+      button: "Abrir no painel",
+      footer: "Você recebe este aviso porque atende os leads desta revenda.",
+    },
+  },
+  leadAssigned: {
+    name: "Lead atribuído",
+    group: "Comercial",
+    when: "Quando um lead passa a ser de um vendedor, só para ele.",
+    automatic:
+      "Os mesmos dados do lead novo: quadro com veículo e contato, mensagem do cliente e atalho para o WhatsApp.",
+    variables: LEAD_VARIABLES,
+    defaults: {
+      subject: "Lead para você: {{nome}} — {{veiculo}}",
+      preheader: "Um lead novo é seu. Responda rápido.",
+      title: "{{nome}} é seu",
+      body: "Chegou agora pelo **{{origem}}**.",
+      button: "Abrir no painel",
+      footer: "Este lead foi atribuído a você. Ele também aparece no seu funil.",
+    },
+  },
+  welcome: {
+    name: "Convite de usuário",
+    group: "Acesso",
+    when: "Quando alguém é cadastrado no painel — pela revenda ou pelo Painel Geral.",
+    automatic: "O link para a pessoa definir a própria senha. A senha nunca vai no e-mail.",
+    variables: [
+      { key: "nome", label: "Primeiro nome" },
+      { key: "onde", label: "“no painel da Revenda X”" },
+      { key: "revenda", label: "Nome da revenda" },
+      { key: "convidado_por", label: "Quem cadastrou" },
+      { key: "minutos", label: "Validade do link" },
+    ],
+    defaults: {
+      subject: "Seu acesso {{onde}}",
+      preheader: "Sua conta foi criada. Defina sua senha para entrar.",
+      title: "Bem-vindo(a), {{nome}}",
+      body: "Sua conta {{onde}} foi criada por {{convidado_por}}.\n\nEscolha sua senha e o acesso está pronto.",
+      button: "Definir minha senha",
+      footer:
+        "O link vale por {{minutos}} minutos. Se ele vencer, use “Esqueci minha senha” na tela de acesso.",
+    },
+  },
+  passwordReset: {
+    name: "Redefinir senha",
+    group: "Acesso",
+    when: "Quando alguém pede “Esqueci minha senha” na tela de acesso.",
+    automatic: "O link de redefinição, de uso único.",
+    variables: [
+      { key: "nome", label: "Primeiro nome" },
+      { key: "minutos", label: "Validade do link" },
+    ],
+    defaults: {
+      subject: "Redefinir sua senha",
+      preheader: "Link para escolher uma nova senha. Vale por {{minutos}} minutos.",
+      title: "Redefinir sua senha",
+      body: "Olá, {{nome}}.\n\nRecebemos um pedido para redefinir a sua senha de acesso ao painel. Clique no botão para escolher uma nova.",
+      button: "Escolher nova senha",
+      footer:
+        "O link vale por {{minutos}} minutos. Se não foi você, ignore esta mensagem: nada muda.",
+    },
+  },
+};
+
+/** Tamanho máximo de cada campo — assunto longo é cortado pelo celular. */
+export const EMAIL_COPY_LIMITS: Record<keyof EmailCopy, number> = {
+  subject: 150,
+  preheader: 200,
+  title: 150,
+  body: 3000,
+  button: 40,
+  footer: 600,
+};
+
+/** Padrão por baixo, gravado por cima. Campo vazio volta para o padrão. */
+export function resolveCopy(key: EmailTemplateKey, custom?: Partial<EmailCopy> | null): EmailCopy {
+  const copy = { ...EMAIL_TEMPLATES[key].defaults };
+  if (!custom) return copy;
+  for (const field of EMAIL_COPY_FIELDS) {
+    const value = custom[field];
+    if (typeof value === "string" && value.trim()) copy[field] = value;
+  }
+  return copy;
+}
+
+const VARIABLE = /\{\{\s*([a-z_]+)\s*\}\}/g;
+
+/** Variáveis escritas que o modelo não conhece — `{{nme}}` sairia literal. */
+export function unknownVariables(key: EmailTemplateKey, text: string): string[] {
+  const known = new Set(EMAIL_TEMPLATES[key].variables.map((variable) => variable.key));
+  const unknown = new Set<string>();
+  for (const match of text.matchAll(VARIABLE)) {
+    if (!known.has(match[1])) unknown.add(match[1]);
+  }
+  return [...unknown];
+}
+
+type Vars = Record<string, string | null | undefined>;
+
+function fill(text: string, vars: Vars): string {
+  return text.replace(VARIABLE, (whole, name: string) =>
+    name in vars ? (vars[name] ?? "") : whole,
+  );
+}
+
+/**
+ * Linha única preenchida, sem a sobra de variável vazia.
+ *
+ * "Lead novo: Ana — {{veiculo}}" sem veículo viraria "Lead novo: Ana — ", e o
+ * traço solto no fim do assunto é a primeira coisa que se lê na notificação.
+ */
+function line(text: string, vars: Vars): string {
+  return fill(text, vars)
+    .replace(/\s+/g, " ")
+    .replace(/\(\s*\)/g, "")
+    .replace(/(\s*[—–\-·|:,])+\s*$/, "")
+    .trim();
+}
+
+function paragraphsOf(text: string, vars: Vars): string[] {
+  return fill(text, vars)
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+/** Escapa tudo e só depois devolve o negrito e as quebras de linha. */
+function inlineHtml(text: string): string {
+  return escapeHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, `<strong style="color:${TINTA}">$1</strong>`)
+    .replace(/\n/g, "<br>");
+}
+
+function stripMarks(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1");
+}
+
+/** Versão em texto puro dos e-mails de acesso: título, corpo, link, rodapé. */
+function plainText(
+  title: string,
+  paragraphs: string[],
+  button: string,
+  url: string,
+  footer: string,
+) {
+  return [title, "", ...paragraphs.map(stripMarks), "", `${button}:`, url, "", footer].join("\n");
+}
+
+/** Com mais de um parágrafo, o primeiro fala com a pessoa e os outros explicam. */
+function bodyHtml(paragraphs: string[]): string {
+  return paragraphs
+    .map((paragraph, index) =>
+      paragrafo(inlineHtml(paragraph), paragraphs.length > 1 && index === 0 ? TINTA : CINZA),
+    )
+    .join("\n              ");
+}
+
+/* ------------------------------------------------------------------------ */
 /* Acesso                                                                    */
 /* ------------------------------------------------------------------------ */
 
-export function passwordResetEmail(input: {
-  name: string;
-  url: string;
-  minutes: number;
-}): EmailContent {
-  const text = [
-    `Olá, ${input.name}.`,
-    "",
-    "Recebemos um pedido para redefinir a sua senha de acesso ao painel.",
-    `Abra este link para escolher uma nova senha (vale por ${input.minutes} minutos):`,
-    input.url,
-    "",
-    "Se não foi você, ignore esta mensagem: nada muda.",
-  ].join("\n");
+export function passwordResetEmail(
+  input: { name: string; url: string; minutes: number },
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  const copy = resolveCopy("passwordReset", custom);
+  const vars: Vars = { nome: input.name, minutos: String(input.minutes) };
+  const paragraphs = paragraphsOf(copy.body, vars);
+  const footer = line(copy.footer, vars);
+
+  const preheader = line(copy.preheader, vars);
 
   return {
-    subject: "Redefinir sua senha",
-    text,
+    subject: line(copy.subject, vars),
+    preheader,
+    text: plainText(line(copy.title, vars), paragraphs, line(copy.button, vars), input.url, footer),
     html: layout({
-      preheader: `Link para escolher uma nova senha. Vale por ${input.minutes} minutos.`,
+      preheader,
       eyebrow: APP_NAME,
-      title: "Redefinir sua senha",
-      body: `${paragrafo(`Olá, ${escapeHtml(input.name)}.`)}
-              ${paragrafo("Recebemos um pedido para redefinir a sua senha de acesso ao painel. Clique no botão para escolher uma nova.", CINZA)}
-              ${botao(input.url, "Escolher nova senha")}`,
-      footer: `O link vale por ${input.minutes} minutos. Se não foi você, ignore esta mensagem: nada muda.`,
+      title: line(copy.title, vars),
+      body: `${bodyHtml(paragraphs)}
+              ${botao(input.url, line(copy.button, vars))}`,
+      footer: escapeHtml(footer),
     }),
   };
 }
@@ -210,37 +446,40 @@ export function passwordResetEmail(input: {
  * quem recebeu e na de quem encaminhou — e quem cadastrou não precisa mais
  * ligar para ditar a senha.
  */
-export function welcomeEmail(input: {
-  name: string;
-  tenantName: string | null;
-  url: string;
-  minutes: number;
-  invitedBy: string | null;
-}): EmailContent {
-  const onde = input.tenantName ? `no painel da ${input.tenantName}` : `no ${APP_NAME}`;
-  const quem = input.invitedBy ? ` por ${input.invitedBy}` : "";
+export function welcomeEmail(
+  input: {
+    name: string;
+    tenantName: string | null;
+    url: string;
+    minutes: number;
+    invitedBy: string | null;
+  },
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  const copy = resolveCopy("welcome", custom);
+  const vars: Vars = {
+    nome: input.name,
+    onde: input.tenantName ? `no painel da ${input.tenantName}` : `no ${APP_NAME}`,
+    revenda: input.tenantName ?? APP_NAME,
+    convidado_por: input.invitedBy ?? `equipe ${APP_NAME}`,
+    minutos: String(input.minutes),
+  };
+  const paragraphs = paragraphsOf(copy.body, vars);
+  const footer = line(copy.footer, vars);
 
-  const text = [
-    `Olá, ${input.name}.`,
-    "",
-    `Sua conta ${onde} foi criada${quem}.`,
-    `Defina sua senha por este link (vale por ${input.minutes} minutos):`,
-    input.url,
-    "",
-    "Depois disso, é só entrar com o seu e-mail e a senha que você escolher.",
-  ].join("\n");
+  const preheader = line(copy.preheader, vars);
 
   return {
-    subject: `Seu acesso ${onde}`,
-    text,
+    subject: line(copy.subject, vars),
+    preheader,
+    text: plainText(line(copy.title, vars), paragraphs, line(copy.button, vars), input.url, footer),
     html: layout({
-      preheader: "Sua conta foi criada. Defina sua senha para entrar.",
+      preheader,
       eyebrow: input.tenantName ?? APP_NAME,
-      title: `Bem-vindo(a), ${input.name}`,
-      body: `${paragrafo(`Sua conta ${escapeHtml(onde)} foi criada${escapeHtml(quem)}.`, CINZA)}
-              ${paragrafo("Escolha sua senha e o acesso está pronto.")}
-              ${botao(input.url, "Definir minha senha")}`,
-      footer: `O link vale por ${input.minutes} minutos. Se ele vencer, use “Esqueci minha senha” na tela de acesso.`,
+      title: line(copy.title, vars),
+      body: `${bodyHtml(paragraphs)}
+              ${botao(input.url, line(copy.button, vars))}`,
+      footer: escapeHtml(footer),
     }),
   };
 }
@@ -271,13 +510,41 @@ export type LeadEmailInput = {
  * celular — o vendedor decide ali se liga agora. Telefone e e-mail viram
  * link: no celular, tocar disca ou abre o WhatsApp, sem copiar e colar.
  */
-export function newLeadEmail(input: LeadEmailInput): EmailContent {
-  const assunto = input.vehicleLabel
-    ? `Lead novo: ${input.leadName} — ${input.vehicleLabel}`
-    : `Lead novo: ${input.leadName}`;
+export function newLeadEmail(
+  input: LeadEmailInput,
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  return leadEmail("newLead", input, custom);
+}
+
+/** O mesmo lead, quando ele passa a ser de um vendedor específico. */
+export function leadAssignedEmail(
+  input: LeadEmailInput,
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  return leadEmail("leadAssigned", input, custom);
+}
+
+function leadEmail(
+  key: "newLead" | "leadAssigned",
+  input: LeadEmailInput,
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  const copy = resolveCopy(key, custom);
+  const vars: Vars = {
+    nome: input.leadName,
+    veiculo: input.vehicleLabel,
+    origem: input.origin,
+    revenda: input.tenantName,
+    responsavel: input.assignedTo,
+  };
+  const paragraphs = paragraphsOf(copy.body, vars);
+  const footer = line(copy.footer, vars);
 
   const digitos = input.phone?.replace(/\D/g, "") ?? "";
-  const whatsapp = digitos ? `https://wa.me/${digitos.length > 11 ? digitos : `55${digitos}`}` : null;
+  const whatsapp = digitos
+    ? `https://wa.me/${digitos.length > 11 ? digitos : `55${digitos}`}`
+    : null;
 
   const linhasTexto = [
     `Origem: ${input.origin}`,
@@ -288,12 +555,13 @@ export function newLeadEmail(input: LeadEmailInput): EmailContent {
   ].filter(Boolean) as string[];
 
   const text = [
-    `${input.leadName} entrou em contato.`,
+    line(copy.title, vars),
+    ...paragraphs.map(stripMarks),
     "",
     ...linhasTexto,
     input.message ? `\nMensagem: "${input.message}"` : "",
     "",
-    "Abra no painel:",
+    `${line(copy.button, vars)}:`,
     input.url,
   ]
     .filter((linha) => linha !== "")
@@ -315,47 +583,77 @@ export function newLeadEmail(input: LeadEmailInput): EmailContent {
   }
   if (input.assignedTo) itens.push({ rotulo: "Responsável", valor: escapeHtml(input.assignedTo) });
 
+  const preheader = input.message ? input.message.slice(0, 90) : line(copy.preheader, vars);
+
   return {
-    subject: assunto,
+    subject: line(copy.subject, vars),
+    preheader,
     text,
     html: layout({
-      preheader: input.message
-        ? input.message.slice(0, 90)
-        : `Contato novo pelo ${input.origin}. Responda rápido.`,
+      preheader,
       eyebrow: input.tenantName,
-      title: `${input.leadName} entrou em contato`,
-      body: `${paragrafo(`Chegou agora pelo <strong style="color:${TINTA}">${escapeHtml(input.origin)}</strong>.`, CINZA)}
+      title: line(copy.title, vars),
+      body: `${bodyHtml(paragraphs)}
               ${dados(itens)}
               ${input.message ? citacao(input.message) : ""}
-              ${botao(input.url, "Abrir no painel")}
+              ${botao(input.url, line(copy.button, vars))}
               ${
                 whatsapp
                   ? `<p style="margin:10px 0 0 0;font-size:14px"><a href="${escapeHtml(whatsapp)}" style="color:${ROXO};text-decoration:none;font-weight:600">Chamar no WhatsApp &rsaquo;</a></p>`
                   : ""
               }`,
-      footer: "Você recebe este aviso porque atende os leads desta revenda.",
+      footer: escapeHtml(footer),
     }),
   };
 }
 
-/** O mesmo lead, quando ele passa a ser de um vendedor específico. */
-export function leadAssignedEmail(input: LeadEmailInput): EmailContent {
-  const base = newLeadEmail(input);
-  const assunto = input.vehicleLabel
-    ? `Lead para você: ${input.leadName} — ${input.vehicleLabel}`
-    : `Lead para você: ${input.leadName}`;
+/* ------------------------------------------------------------------------ */
+/* Amostras                                                                  */
+/* ------------------------------------------------------------------------ */
 
-  return {
-    subject: assunto,
-    text: base.text,
-    html: base.html
-      .replace(
-        `${escapeHtml(input.leadName)} entrou em contato`,
-        `${escapeHtml(input.leadName)} é seu`,
-      )
-      .replace(
-        "Você recebe este aviso porque atende os leads desta revenda.",
-        "Este lead foi atribuído a você. Ele também aparece no seu funil.",
-      ),
+/**
+ * Cada modelo com dados de exemplo — para a prévia do editor e para a
+ * amostra enviada por e-mail, que assim mostram exatamente a mesma coisa.
+ *
+ * O link de senha aponta para um token que não existe, de propósito: clicar
+ * nele mostra a tela de link inválido, e não abre a conta de ninguém.
+ */
+export function sampleEmail(
+  key: EmailTemplateKey,
+  input: { panelUrl: (path: string) => string; userName: string },
+  custom?: Partial<EmailCopy> | null,
+): EmailContent {
+  const lead: LeadEmailInput = {
+    leadName: "Ana Souza",
+    phone: "(31) 98888-7777",
+    email: "ana.souza@exemplo.com",
+    message:
+      "Tenho interesse nesse Compass. Aceita meu Onix 2019 na troca? Consigo dar entrada de 40 mil.",
+    vehicleLabel: "Jeep Compass Longitude 1.3 T270 2023",
+    origin: "site",
+    url: input.panelUrl("/admin/leads"),
+    tenantName: "Revenda de Exemplo",
+    assignedTo: "Carlos Vendedor",
   };
+  const resetUrl = input.panelUrl("/redefinir-senha?token=amostra-sem-valor");
+
+  switch (key) {
+    case "newLead":
+      return newLeadEmail(lead, custom);
+    case "leadAssigned":
+      return leadAssignedEmail(lead, custom);
+    case "welcome":
+      return welcomeEmail(
+        {
+          name: input.userName,
+          tenantName: "Revenda de Exemplo",
+          url: resetUrl,
+          minutes: 60,
+          invitedBy: `Equipe ${APP_NAME}`,
+        },
+        custom,
+      );
+    case "passwordReset":
+      return passwordResetEmail({ name: input.userName, url: resetUrl, minutes: 60 }, custom);
+  }
 }

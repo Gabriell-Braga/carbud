@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { tenantSites, tenants, users, type Lead } from "@/db/schema";
 import { newLeadEmail, leadAssignedEmail, sendInBackground } from "@/lib/email";
+import { getEmailCopy } from "@/lib/email/copy-store";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 
@@ -28,9 +29,7 @@ export type NotificationSettings = {
   notifyAssignee?: boolean;
 };
 
-export async function getNotificationSettings(
-  tenantId: string,
-): Promise<NotificationSettings> {
+export async function getNotificationSettings(tenantId: string): Promise<NotificationSettings> {
   const db = await getDb();
   const rows = await db
     .select({ notifications: tenantSites.notifications })
@@ -118,17 +117,20 @@ export async function notifyNewLead(input: {
 
   await sendInBackground({
     to: addresses,
-    ...newLeadEmail({
-      leadName: input.lead.name,
-      phone: input.lead.phone || null,
-      email: input.lead.email,
-      message: input.lead.message,
-      vehicleLabel: input.lead.vehicleLabel,
-      origin: input.origin,
-      url: `${origin}${withBasePath(`/admin/leads/${input.lead.id}`)}`,
-      tenantName: await tenantName(input.tenantId),
-      assignedTo: assigneeName,
-    }),
+    ...newLeadEmail(
+      {
+        leadName: input.lead.name,
+        phone: input.lead.phone || null,
+        email: input.lead.email,
+        message: input.lead.message,
+        vehicleLabel: input.lead.vehicleLabel,
+        origin: input.origin,
+        url: `${origin}${withBasePath(`/admin/leads/${input.lead.id}`)}`,
+        tenantName: await tenantName(input.tenantId),
+        assignedTo: assigneeName,
+      },
+      await getEmailCopy("newLead"),
+    ),
   });
 }
 
@@ -165,17 +167,20 @@ export async function notifyLeadAssigned(input: {
 
   await sendInBackground({
     to: found[0].email,
-    ...leadAssignedEmail({
-      leadName: input.lead.name,
-      phone: input.lead.phone || null,
-      email: input.lead.email,
-      message: input.lead.message,
-      vehicleLabel: input.lead.vehicleLabel,
-      origin: "atribuído a você",
-      url: `${origin}${withBasePath(`/admin/leads/${input.lead.id}`)}`,
-      tenantName: await tenantName(input.tenantId),
-      assignedTo: found[0].name,
-    }),
+    ...leadAssignedEmail(
+      {
+        leadName: input.lead.name,
+        phone: input.lead.phone || null,
+        email: input.lead.email,
+        message: input.lead.message,
+        vehicleLabel: input.lead.vehicleLabel,
+        origin: "atribuído a você",
+        url: `${origin}${withBasePath(`/admin/leads/${input.lead.id}`)}`,
+        tenantName: await tenantName(input.tenantId),
+        assignedTo: found[0].name,
+      },
+      await getEmailCopy("leadAssigned"),
+    ),
   });
 }
 

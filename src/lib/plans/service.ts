@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS = {
 };
 
 export async function getPlatformSettings(): Promise<
-  Omit<PlatformSettings, "id" | "updatedAt">
+  Omit<PlatformSettings, "id" | "updatedAt" | "emailTemplates">
 > {
   return cached(cacheKeys.settings(), PLAN_TTL, async () => {
     const db = await getDb();

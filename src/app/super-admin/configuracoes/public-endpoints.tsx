@@ -26,23 +26,23 @@ export async function PublicEndpoints() {
       <CardHeader>
         <CardTitle>Endereços públicos</CardTitle>
         <CardDescription>
-          O que está cadastrado fora do app e precisa ser atualizado quando o domínio mudar.
-          Origem atual: <code className="text-xs text-text">{info.origin}</code>
+          O que está cadastrado fora do app e precisa ser atualizado quando o domínio mudar. Origem
+          atual: <code className="text-xs text-text">{info.origin}</code>
           {info.source === "env" ? " (fixada por APP_ORIGIN)" : " (lida do request)"}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {info.internalHost ? (
           <Alert tone="danger">
-            APP_ORIGIN não está definida e o request chega pelo host interno do Webflow Cloud.
-            Os endereços abaixo estão ERRADOS — defina APP_ORIGIN nas Secret Variables com o
-            domínio público: <code>https://crm.carbud.com.br</code>.
+            APP_ORIGIN não está definida e o request chega pelo host interno do Webflow Cloud. Os
+            endereços abaixo estão ERRADOS — defina APP_ORIGIN nas Secret Variables com o domínio
+            público: <code>https://crm.carbud.com.br</code>.
           </Alert>
         ) : info.source === "headers" ? (
           <Alert tone="warning">
             APP_ORIGIN não está definida: a origem está vindo do request. Funciona em
-            desenvolvimento; em produção, fixe a variável para os links de e-mail e o OAuth
-            não dependerem de proxy.
+            desenvolvimento; em produção, fixe a variável para os links de e-mail e o OAuth não
+            dependerem de proxy.
           </Alert>
         ) : null}
 

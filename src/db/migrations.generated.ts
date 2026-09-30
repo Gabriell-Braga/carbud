@@ -228,5 +228,11 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `tenant_sites` ADD `notifications` text;"
     ]
+  },
+  {
+    "tag": "0020_email_templates",
+    "statements": [
+      "ALTER TABLE `platform_settings` ADD `email_templates` text;"
+    ]
   }
 ];

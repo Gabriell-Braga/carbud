@@ -1,7 +1,13 @@
 import { getDb } from "@/db";
 import { passwordResets } from "@/db/schema";
-import { RESET_TTL_MINUTES, generateResetToken, hashResetToken, resetExpiresAt } from "@/lib/auth/reset";
+import {
+  RESET_TTL_MINUTES,
+  generateResetToken,
+  hashResetToken,
+  resetExpiresAt,
+} from "@/lib/auth/reset";
 import { sendInBackground, welcomeEmail } from "@/lib/email";
+import { getEmailCopy } from "@/lib/email/copy-store";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 
@@ -45,13 +51,16 @@ export async function sendWelcomeInvite(input: {
 
     await sendInBackground({
       to: input.email,
-      ...welcomeEmail({
-        name: input.name.split(" ")[0],
-        tenantName: input.tenantName,
-        url: `${origin}${withBasePath(`/redefinir-senha?token=${token}`)}`,
-        minutes: RESET_TTL_MINUTES,
-        invitedBy: input.invitedBy,
-      }),
+      ...welcomeEmail(
+        {
+          name: input.name.split(" ")[0],
+          tenantName: input.tenantName,
+          url: `${origin}${withBasePath(`/redefinir-senha?token=${token}`)}`,
+          minutes: RESET_TTL_MINUTES,
+          invitedBy: input.invitedBy,
+        },
+        await getEmailCopy("welcome"),
+      ),
     });
   } catch (error) {
     console.error("[convite] não consegui enviar", input.email, error);

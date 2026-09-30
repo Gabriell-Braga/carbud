@@ -2,33 +2,39 @@ import { z } from "zod";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import { badRequest, conflict, jsonOk, withApi } from "@/lib/http";
 import {
+  EMAIL_TEMPLATE_KEYS,
+  EMAIL_TEMPLATES,
   emailProvider,
-  leadAssignedEmail,
-  newLeadEmail,
-  passwordResetEmail,
+  sampleEmail,
   sendEmail,
-  welcomeEmail,
-  type EmailContent,
 } from "@/lib/email";
+import { getEmailCopyOverrides } from "@/lib/email/copy-store";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
+import { emailTemplateSchema } from "@/lib/validation/email";
 
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
   to: z.string().trim().toLowerCase().email("Endereço inválido"),
+  /** Um modelo só. Sem ele, vão os quatro, com os textos gravados. */
+  template: z.enum(EMAIL_TEMPLATE_KEYS).optional(),
+  /** Rascunho do editor, para testar antes de salvar. */
+  copy: z.unknown().optional(),
 });
 
 /**
- * Manda uma amostra de cada e-mail do produto para um endereço.
+ * Manda amostra dos e-mails do produto para um endereço.
  *
  * Existe para conferir o desenho em cliente de e-mail de verdade. Ler o HTML
  * não serve: o Gmail, o Outlook e o Apple Mail renderizam de formas
  * diferentes, e o que quebra só aparece na caixa de entrada.
  *
+ * Com `template` e `copy`, manda o rascunho do editor — dá para ver o texto
+ * novo chegando antes de ele valer para as revendas.
+ *
  * Todos os dados são de exemplo — nenhum lead, usuário ou token real é
- * tocado. O link de senha aponta para um token que não existe, de propósito:
- * clicar nele mostra a tela de link inválido, e não abre a conta de ninguém.
+ * tocado (ver `sampleEmail`).
  */
 export const POST = withApi(async (request: Request) => {
   const context = await requireApiSuperAdmin("platform:billing:write");
@@ -41,55 +47,36 @@ export const POST = withApi(async (request: Request) => {
   }
 
   const origin = await getOrigin();
-  const painel = (path: string) => `${origin}${withBasePath(path)}`;
-
-  const lead = {
-    leadName: "Ana Souza (exemplo)",
-    phone: "(31) 98888-7777",
-    email: "ana.souza@exemplo.com",
-    message:
-      "Tenho interesse nesse Compass. Aceita meu Onix 2019 na troca? Consigo dar entrada de 40 mil.",
-    vehicleLabel: "Jeep Compass Longitude 1.3 T270 2023",
-    origin: "site",
-    url: painel("/admin/leads"),
-    tenantName: "Revenda de Exemplo",
-    assignedTo: "Carlos Vendedor",
+  const sample = {
+    panelUrl: (path: string) => `${origin}${withBasePath(path)}`,
+    userName: context.user.name.split(" ")[0],
   };
 
-  const amostras: { nome: string; conteudo: EmailContent }[] = [
-    { nome: "lead novo", conteudo: newLeadEmail(lead) },
-    { nome: "lead atribuído", conteudo: leadAssignedEmail(lead) },
-    {
-      nome: "redefinir senha",
-      conteudo: passwordResetEmail({
-        name: context.user.name.split(" ")[0],
-        url: painel("/redefinir-senha?token=amostra-sem-valor"),
-        minutes: 60,
-      }),
-    },
-    {
-      nome: "convite",
-      conteudo: welcomeEmail({
-        name: context.user.name.split(" ")[0],
-        tenantName: "Revenda de Exemplo",
-        url: painel("/redefinir-senha?token=amostra-sem-valor"),
-        minutes: 60,
-        invitedBy: "Equipe Carbud",
-      }),
-    },
-  ];
+  const saved = await getEmailCopyOverrides();
+  const keys = parsed.data.template ? [parsed.data.template] : [...EMAIL_TEMPLATE_KEYS];
+
+  let draft = null;
+  if (parsed.data.template && parsed.data.copy !== undefined) {
+    const checked = emailTemplateSchema.safeParse({
+      key: parsed.data.template,
+      copy: parsed.data.copy,
+    });
+    if (!checked.success) throw badRequest("Dados inválidos", checked.error.issues);
+    draft = checked.data.copy;
+  }
 
   const resultados = [];
-  for (const amostra of amostras) {
+  for (const key of keys) {
+    const conteudo = sampleEmail(key, sample, draft ?? saved[key]);
     const resultado = await sendEmail({
       to: parsed.data.to,
       // o prefixo evita confundir amostra com aviso de verdade na caixa
-      subject: `[amostra] ${amostra.conteudo.subject}`,
-      html: amostra.conteudo.html,
-      text: amostra.conteudo.text,
+      subject: `[amostra] ${conteudo.subject}`,
+      html: conteudo.html,
+      text: conteudo.text,
     });
     resultados.push({
-      amostra: amostra.nome,
+      amostra: EMAIL_TEMPLATES[key].name,
       enviado: resultado.delivered,
       ...(resultado.reason ? { motivo: resultado.reason } : {}),
     });

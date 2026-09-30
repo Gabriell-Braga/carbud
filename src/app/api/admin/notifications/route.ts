@@ -5,6 +5,7 @@ import { logAuditFor } from "@/lib/audit";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { badRequest, conflict, jsonOk, withApi } from "@/lib/http";
 import { isEmailConfigured, sendEmail, newLeadEmail } from "@/lib/email";
+import { getEmailCopy } from "@/lib/email/copy-store";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 import { getNotificationSettings } from "@/lib/services/notifications";
@@ -85,16 +86,19 @@ export const POST = withApi(async () => {
   const origin = await getOrigin();
   const result = await sendEmail({
     to,
-    ...newLeadEmail({
-      leadName: "Lead de teste",
-      phone: "(31) 99999-0000",
-      email: "teste@carbud.com.br",
-      message: "Mensagem de teste. Se você recebeu isto, o aviso está funcionando.",
-      vehicleLabel: "Veículo de exemplo 2024",
-      origin: "teste",
-      url: `${origin}${withBasePath("/admin/leads")}`,
-      tenantName: context.tenant.name,
-    }),
+    ...newLeadEmail(
+      {
+        leadName: "Lead de teste",
+        phone: "(31) 99999-0000",
+        email: "teste@carbud.com.br",
+        message: "Mensagem de teste. Se você recebeu isto, o aviso está funcionando.",
+        vehicleLabel: "Veículo de exemplo 2024",
+        origin: "teste",
+        url: `${origin}${withBasePath("/admin/leads")}`,
+        tenantName: context.tenant.name,
+      },
+      await getEmailCopy("newLead"),
+    ),
   });
 
   if (!result.delivered) throw conflict(result.reason ?? "Não consegui enviar.");

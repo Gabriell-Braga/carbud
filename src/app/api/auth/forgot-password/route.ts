@@ -10,6 +10,7 @@ import {
   resetExpiresAt,
 } from "@/lib/auth/reset";
 import { isEmailConfigured, passwordResetEmail, sendEmail } from "@/lib/email";
+import { getEmailCopy } from "@/lib/email/copy-store";
 import { badRequest, clientIp, jsonOk, tooManyRequests, withApi } from "@/lib/http";
 import { rateLimit } from "@/lib/ratelimit";
 import { getOrigin } from "@/lib/seo/urls";
@@ -58,11 +59,10 @@ export const POST = withApi(async (request: Request) => {
   const origin = await getOrigin();
   const url = `${origin}${withBasePath(`/redefinir-senha?token=${token}`)}`;
 
-  const message = passwordResetEmail({
-    name: user.name.split(" ")[0],
-    url,
-    minutes: RESET_TTL_MINUTES,
-  });
+  const message = passwordResetEmail(
+    { name: user.name.split(" ")[0], url, minutes: RESET_TTL_MINUTES },
+    await getEmailCopy("passwordReset"),
+  );
   const delivery = await sendEmail({ to: user.email, ...message });
 
   await db.insert(passwordResets).values({

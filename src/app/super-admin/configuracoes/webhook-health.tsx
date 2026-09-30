@@ -47,7 +47,10 @@ function toneFor(health: Health): "info" | "warning" | "danger" | "success" {
   if (health.staleUrl) return "danger";
   if (!health.webhook.enabled || health.webhook.interrupted) return "danger";
   if (health.missingEvents?.length) return "danger";
-  if (health.lastRejected && (!health.lastAccepted || health.lastRejected.at > health.lastAccepted.at)) {
+  if (
+    health.lastRejected &&
+    (!health.lastAccepted || health.lastRejected.at > health.lastAccepted.at)
+  ) {
     return "danger";
   }
   return health.events?.length ? "success" : "info";
@@ -153,12 +156,17 @@ export function WebhookHealth() {
             ) : null}
 
             {health.connectionError ? (
-              <Alert tone="danger">Não consegui falar com o gateway: {health.connectionError}</Alert>
+              <Alert tone="danger">
+                Não consegui falar com o gateway: {health.connectionError}
+              </Alert>
             ) : null}
 
             {health.webhook ? (
               <div className="grid gap-3 text-[13px] sm:grid-cols-2">
-                <Line label="Endereço" value={<code className="text-xs">{health.webhook.url}</code>} />
+                <Line
+                  label="Endereço"
+                  value={<code className="text-xs">{health.webhook.url}</code>}
+                />
                 <Line
                   label="Estado no gateway"
                   value={

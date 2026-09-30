@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { amzDates, sha256Hex, signedHeaders } from "./sigv4";
 import { explain, sendViaSes, sesPayload, type SesConfig } from "./ses";
-import { newLeadEmail, welcomeEmail } from "./templates";
+import {
+  EMAIL_COPY_FIELDS,
+  EMAIL_TEMPLATE_KEYS,
+  EMAIL_TEMPLATES,
+  newLeadEmail,
+  sampleEmail,
+  unknownVariables,
+  welcomeEmail,
+} from "./templates";
 
 const CREDENCIAIS = {
   accessKeyId: "AKIAIOSFODNN7EXAMPLE",
@@ -170,5 +178,61 @@ describe("textos", () => {
     });
     expect(email.html).toContain("redefinir-senha?token=abc");
     expect(email.text).not.toMatch(/senha provis/i);
+  });
+});
+
+describe("textos editáveis", () => {
+  const lead = {
+    leadName: "Ana Souza",
+    phone: null,
+    email: null,
+    message: null,
+    vehicleLabel: null,
+    origin: "site",
+    url: "https://exemplo.test",
+    tenantName: "Auto Teste",
+  };
+
+  it("sem veículo, o assunto não termina num traço solto", () => {
+    expect(newLeadEmail(lead).subject).toBe("Lead novo: Ana Souza");
+  });
+
+  it("usa o texto gravado e cai no padrão onde o campo está vazio", () => {
+    const email = newLeadEmail(lead, { subject: "Cliente {{nome}} chegou", title: "  " });
+    expect(email.subject).toBe("Cliente Ana Souza chegou");
+    expect(email.html).toContain("Ana Souza entrou em contato");
+  });
+
+  it("variável preenchida com texto de fora continua escapada", () => {
+    const email = newLeadEmail(
+      { ...lead, leadName: "<b>x</b>" },
+      { body: "Oi **{{nome}}**\n\nSegundo parágrafo" },
+    );
+    expect(email.html).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(email.html).not.toContain("<b>x</b>");
+    expect(email.html).toContain("<strong");
+    expect(email.text).toContain("Oi <b>x</b>");
+  });
+
+  it("aponta variável que o modelo não conhece", () => {
+    expect(unknownVariables("passwordReset", "Olá {{nome}}, {{veiculo}} {{nme}}")).toEqual([
+      "veiculo",
+      "nme",
+    ]);
+  });
+
+  it("todo padrão só usa variáveis do próprio modelo", () => {
+    for (const key of EMAIL_TEMPLATE_KEYS) {
+      for (const field of EMAIL_COPY_FIELDS) {
+        expect(unknownVariables(key, EMAIL_TEMPLATES[key].defaults[field])).toEqual([]);
+      }
+    }
+  });
+
+  it("toda amostra sai sem variável sobrando", () => {
+    for (const key of EMAIL_TEMPLATE_KEYS) {
+      const email = sampleEmail(key, { panelUrl: (path) => path, userName: "Ana" });
+      expect(`${email.subject}${email.html}${email.text}`).not.toContain("{{");
+    }
   });
 });

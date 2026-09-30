@@ -1,6 +1,7 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { createdAt, idColumn, updatedAt } from "./_shared";
 import type { PlanFeatures, PlanLimits } from "@/lib/plans/catalog";
+import type { EmailCopyOverrides } from "@/lib/email/templates";
 
 /** Como a mensalidade é cobrada. */
 export const BILLING_MODES = ["gateway", "manual"] as const;
@@ -102,6 +103,8 @@ export const platformSettings = sqliteTable("platform_settings", {
     .default(true),
   /** Dias entre o vencimento e a suspensão, quando o plano não define. */
   defaultGraceDays: integer("default_grace_days").notNull().default(5),
+  /** Textos dos e-mails reescritos no Painel Geral — só o que difere do padrão. */
+  emailTemplates: text("email_templates", { mode: "json" }).$type<EmailCopyOverrides>(),
   updatedAt: updatedAt(),
 });
 

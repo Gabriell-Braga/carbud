@@ -17,15 +17,15 @@ export function GatewayStatus({ environment }: { environment: string | null }) {
       <CardHeader>
         <CardTitle>Gateway de pagamento</CardTitle>
         <CardDescription>
-          A chave e o token do webhook ficam nas variáveis secretas do Webflow Cloud e não
-          aparecem aqui.
+          A chave e o token do webhook ficam nas variáveis secretas do Webflow Cloud e não aparecem
+          aqui.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {!environment ? (
           <Alert tone="warning">
-            Nenhuma chave configurada. Contratações em planos automáticos vão falhar até
-            cadastrar <code>ASAAS_API_KEY</code>.
+            Nenhuma chave configurada. Contratações em planos automáticos vão falhar até cadastrar{" "}
+            <code>ASAAS_API_KEY</code>.
           </Alert>
         ) : (
           <div className="flex items-center gap-3">
