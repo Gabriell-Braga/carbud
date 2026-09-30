@@ -4,6 +4,8 @@ import { Tabs } from "@/components/ui/tabs";
 import { requireSuperAdminPage } from "@/lib/auth/guards";
 import { asaasEnvironment } from "@/lib/gateway/asaas";
 import { getPlatformSettings } from "@/lib/plans/service";
+import { emailProvider } from "@/lib/email";
+import { EmailPanel } from "./email-panel";
 import { GatewayStatus } from "./gateway-status";
 import { PublicEndpoints } from "./public-endpoints";
 import { SettingsForm } from "./settings-form";
@@ -24,6 +26,7 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { key: "cobranca", label: "Cobrança" },
   { key: "gateway", label: "Gateway" },
+  { key: "email", label: "E-mail" },
   { key: "enderecos", label: "Endereços públicos" },
 ] as const;
 
@@ -32,7 +35,7 @@ export default async function PlatformSettingsPage({
 }: {
   searchParams: Promise<{ aba?: string }>;
 }) {
-  await requireSuperAdminPage();
+  const context = await requireSuperAdminPage();
   const { aba } = await searchParams;
   const tab = TABS.some((item) => item.key === aba) ? aba! : "cobranca";
 
@@ -64,6 +67,14 @@ export default async function PlatformSettingsPage({
           <GatewayStatus environment={environment} />
           <WebhookHealth />
         </>
+      ) : null}
+
+      {tab === "email" ? (
+        <EmailPanel
+          provider={emailProvider()}
+          from={process.env.EMAIL_FROM ?? null}
+          defaultTo={context.user.email}
+        />
       ) : null}
 
       {tab === "enderecos" ? <PublicEndpoints /> : null}
