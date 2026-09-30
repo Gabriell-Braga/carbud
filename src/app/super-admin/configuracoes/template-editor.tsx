@@ -1,7 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Info, Monitor, RotateCcw, Send, Smartphone, Type } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  Braces,
+  ChevronDown,
+  ChevronRight,
+  Monitor,
+  Send,
+  Smartphone,
+  Type,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +23,6 @@ import {
 } from "@/components/ui/card";
 import { FormField, Input, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
-import { APP_NAME } from "@/lib/brand";
 import { apiPost, apiPut, fieldErrorsFrom } from "@/lib/client/api";
 import {
   EMAIL_COPY_FIELDS,
@@ -27,6 +35,7 @@ import {
   type EmailCopy,
   type EmailCopyOverrides,
   type EmailTemplateKey,
+  type EmailVariable,
 } from "@/lib/email/templates";
 import { cn } from "@/lib/utils";
 
@@ -42,25 +51,25 @@ const LABELS: Record<Field, string> = {
   footer: "Rodapé",
 };
 
-const HINTS: Partial<Record<Field, string>> = {
-  preheader: "Aparece ao lado do assunto, na lista de mensagens.",
-  body: "Linha em branco separa parágrafos. **Assim** vira negrito.",
-};
+/** O que quase todo mundo muda fica à vista; o resto, a um clique. */
+const MAIN_FIELDS: Field[] = ["subject", "title", "body", "button"];
+const EXTRA_FIELDS: Field[] = ["preheader", "footer"];
+
+const GROUPS = ["Comercial", "Acesso"] as const;
 
 function sameCopy(a: EmailCopy, b: EmailCopy): boolean {
   return EMAIL_COPY_FIELDS.every((field) => a[field].trim() === b[field].trim());
 }
 
 /**
- * Editor dos textos de e-mail, com prévia montada pelo mesmo código do envio.
+ * Modelos de e-mail: primeiro a lista, depois um modelo por vez.
  *
- * A prévia não é uma imitação: chama `sampleEmail`, a mesma função que monta
- * a amostra enviada por e-mail, com o rascunho no lugar do texto gravado. O
- * que aparece aqui é o que sai — só o cliente de e-mail pode mudar algo.
+ * Tudo na mesma tela — quatro modelos, seis campos, variáveis e prévia — era
+ * informação demais para quem só veio trocar uma frase. A lista responde "o
+ * que existe e o que já foi mexido"; o editor abre só o modelo escolhido.
  *
- * Cada modelo guarda o próprio rascunho enquanto a pessoa navega entre eles,
- * então trocar de modelo não pede confirmação nem perde o que foi escrito; o
- * ponto no cartão avisa o que ainda não foi salvo.
+ * A prévia não é imitação: chama `sampleEmail`, a mesma função da amostra
+ * enviada por e-mail, com o rascunho no lugar do texto gravado.
  */
 export function TemplateEditor({
   overrides: initialOverrides,
@@ -71,17 +80,89 @@ export function TemplateEditor({
   canSend: boolean;
   defaultTo: string;
 }) {
-  const toast = useToast();
   const [overrides, setOverrides] = useState(initialOverrides);
-  const [active, setActive] = useState<EmailTemplateKey>(EMAIL_TEMPLATE_KEYS[0]);
-  const [drafts, setDrafts] = useState<Record<EmailTemplateKey, EmailCopy>>(
-    () =>
-      Object.fromEntries(
-        EMAIL_TEMPLATE_KEYS.map((key) => [key, resolveCopy(key, initialOverrides[key])]),
-      ) as Record<EmailTemplateKey, EmailCopy>,
+  const [active, setActive] = useState<EmailTemplateKey | null>(null);
+
+  if (active) {
+    return (
+      <Editor
+        key={active}
+        templateKey={active}
+        saved={overrides[active] ?? null}
+        canSend={canSend}
+        defaultTo={defaultTo}
+        onBack={() => setActive(null)}
+        onSaved={(stored) =>
+          setOverrides((current) => {
+            const next = { ...current };
+            if (stored) next[active] = stored;
+            else delete next[active];
+            return next;
+          })
+        }
+      />
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Modelos de mensagem</CardTitle>
+        <CardDescription>O texto de cada e-mail que o produto envia.</CardDescription>
+      </CardHeader>
+      {GROUPS.map((group) => (
+        <div key={group} className="border-b border-border last:border-b-0">
+          <p className="px-5 pb-1 pt-3 text-[11px] uppercase tracking-wider text-faint">{group}</p>
+          <ul>
+            {EMAIL_TEMPLATE_KEYS.filter((key) => EMAIL_TEMPLATES[key].group === group).map(
+              (key) => {
+                const info = EMAIL_TEMPLATES[key];
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      onClick={() => setActive(key)}
+                      className="group flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-surface-2"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-text">{info.name}</span>
+                        <span className="block truncate text-xs text-muted">{info.when}</span>
+                      </span>
+                      {overrides[key] ? <Badge tone="info">Personalizado</Badge> : null}
+                      <ChevronRight className="h-4 w-4 shrink-0 text-faint transition-colors group-hover:text-text" />
+                    </button>
+                  </li>
+                );
+              },
+            )}
+          </ul>
+        </div>
+      ))}
+    </Card>
   );
+}
+
+function Editor({
+  templateKey,
+  saved: savedOverride,
+  canSend,
+  defaultTo,
+  onBack,
+  onSaved,
+}: {
+  templateKey: EmailTemplateKey;
+  saved: Partial<EmailCopy> | null;
+  canSend: boolean;
+  defaultTo: string;
+  onBack: () => void;
+  onSaved: (stored: Partial<EmailCopy> | null) => void;
+}) {
+  const toast = useToast();
+  const info = EMAIL_TEMPLATES[templateKey];
+  const [saved, setSaved] = useState(() => resolveCopy(templateKey, savedOverride));
+  const [draft, setDraft] = useState(saved);
+  const [showExtra, setShowExtra] = useState(false);
   const [view, setView] = useState<View>("desktop");
-  const [to, setTo] = useState(defaultTo);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
@@ -91,16 +172,13 @@ export function TemplateEditor({
   );
   const lastField = useRef<Field>("body");
 
-  const info = EMAIL_TEMPLATES[active];
-  const draft = drafts[active];
-  const saved = resolveCopy(active, overrides[active]);
   const dirty = !sameCopy(draft, saved);
   const isDefault = sameCopy(draft, info.defaults);
 
   const errors = useMemo(() => {
     const found: Partial<Record<Field, string>> = {};
     for (const field of EMAIL_COPY_FIELDS) {
-      const unknown = unknownVariables(active, draft[field]);
+      const unknown = unknownVariables(templateKey, draft[field]);
       if (unknown.length > 0) {
         found[field] = `Variável desconhecida: ${unknown.map((name) => `{{${name}}}`).join(", ")}`;
       } else if (serverErrors[`copy.${field}`]) {
@@ -108,16 +186,21 @@ export function TemplateEditor({
       }
     }
     return found;
-  }, [active, draft, serverErrors]);
+  }, [templateKey, draft, serverErrors]);
   const hasErrors = Object.keys(errors).length > 0;
 
+  // erro num campo recolhido não pode ficar escondido
+  useEffect(() => {
+    if (EXTRA_FIELDS.some((field) => errors[field])) setShowExtra(true);
+  }, [errors]);
+
   const preview = useMemo(
-    () => sampleEmail(active, { panelUrl: (path) => path, userName: "Ana" }, draft),
-    [active, draft],
+    () => sampleEmail(templateKey, { panelUrl: (path) => path, userName: "Ana" }, draft),
+    [templateKey, draft],
   );
 
   function update(field: Field, value: string) {
-    setDrafts((current) => ({ ...current, [active]: { ...current[active], [field]: value } }));
+    setDraft((current) => ({ ...current, [field]: value }));
     if (serverErrors[`copy.${field}`]) setServerErrors({});
   }
 
@@ -142,7 +225,7 @@ export function TemplateEditor({
     setServerErrors({});
     const result = await apiPut<{ copy: Partial<EmailCopy> | null }>(
       "/api/super-admin/email-templates",
-      { key: active, copy: draft },
+      { key: templateKey, copy: draft },
     );
     setSaving(false);
 
@@ -152,23 +235,19 @@ export function TemplateEditor({
       return;
     }
 
-    const stored = result.data.copy;
-    setOverrides((current) => {
-      const next = { ...current };
-      if (stored) next[active] = stored;
-      else delete next[active];
-      return next;
-    });
     // o servidor apara espaços; o rascunho passa a ser o que ficou gravado
-    setDrafts((current) => ({ ...current, [active]: resolveCopy(active, stored) }));
-    toast.success("Modelo salvo", `“${info.name}” vale a partir do próximo envio.`);
+    const stored = resolveCopy(templateKey, result.data.copy);
+    setSaved(stored);
+    setDraft(stored);
+    onSaved(result.data.copy);
+    toast.success("Modelo salvo", "Vale a partir do próximo envio.");
   }
 
   async function sendTest() {
     setSending(true);
     const result = await apiPost("/api/super-admin/email-samples", {
-      to,
-      template: active,
+      to: defaultTo,
+      template: templateKey,
       copy: draft,
     });
     setSending(false);
@@ -177,155 +256,107 @@ export function TemplateEditor({
       toast.error("Não consegui enviar", result.error);
       return;
     }
-    toast.success("Teste enviado", `“${info.name}” para ${to}, com o texto que está na tela.`);
+    toast.success("Teste enviado", `Para ${defaultTo}, com o texto que está na tela.`);
+  }
+
+  function renderField(field: Field) {
+    const id = `modelo-${field}`;
+    const common = {
+      id,
+      value: draft[field],
+      maxLength: EMAIL_COPY_LIMITS[field],
+      placeholder: info.defaults[field],
+      "aria-invalid": errors[field] ? true : undefined,
+      onFocus: () => {
+        lastField.current = field;
+      },
+      ref: (element: HTMLInputElement & HTMLTextAreaElement) => {
+        fieldRefs.current[field] = element;
+      },
+    };
+
+    return (
+      <FormField
+        key={field}
+        label={LABELS[field]}
+        htmlFor={id}
+        error={errors[field]}
+        hint={
+          field === "body"
+            ? "Linha em branco separa parágrafos; **assim** vira negrito."
+            : undefined
+        }
+      >
+        {field === "body" || field === "footer" ? (
+          <Textarea
+            {...common}
+            rows={field === "body" ? 4 : 2}
+            className={field === "footer" ? "min-h-16" : undefined}
+            onChange={(event) => update(field, event.target.value)}
+          />
+        ) : (
+          <Input {...common} onChange={(event) => update(field, event.target.value)} />
+        )}
+      </FormField>
+    );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Modelos de mensagem</CardTitle>
-        <CardDescription>
-          Os textos de cada e-mail. O desenho e os dados de cada envio — telefone, mensagem do
-          cliente, links — entram sozinhos; aqui muda só o que está escrito.
-        </CardDescription>
+    // sem overflow-hidden: ele prende a prévia "sticky" e corta o menu de variáveis
+    <Card className="overflow-visible">
+      <CardHeader className="flex items-center gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          aria-label="Voltar aos modelos"
+          title="Voltar aos modelos"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="flex items-center gap-2">
+            {info.name}
+            {dirty ? <Badge tone="warning">Não salvo</Badge> : null}
+          </CardTitle>
+          <CardDescription className="truncate">{info.when}</CardDescription>
+        </div>
       </CardHeader>
 
-      <CardContent className="space-y-5">
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4" role="tablist">
-          {EMAIL_TEMPLATE_KEYS.map((key) => {
-            const item = EMAIL_TEMPLATES[key];
-            const selected = key === active;
-            const custom = Boolean(overrides[key]);
-            const unsaved = !sameCopy(drafts[key], resolveCopy(key, overrides[key]));
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => {
-                  setActive(key);
-                  setServerErrors({});
-                }}
-                className={cn(
-                  "rounded-inner border px-3.5 py-3 text-left transition-colors duration-200 ease-out",
-                  selected
-                    ? "border-accent bg-accent-soft"
-                    : "border-border bg-surface hover:border-border-strong",
-                )}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] uppercase tracking-wider text-faint">
-                    {item.group}
-                  </span>
-                  {unsaved ? (
-                    <span
-                      className="h-2 w-2 rounded-full bg-warning"
-                      title="Alterações não salvas"
-                      aria-label="Alterações não salvas"
-                    />
-                  ) : null}
-                </span>
-                <span className="mt-0.5 block text-sm font-medium text-text">{item.name}</span>
-                <span className="mt-1 block text-xs text-muted">
-                  {custom ? "Personalizado" : "Texto padrão"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-          {/* campos */}
-          <div className="min-w-0">
-            <p className="mb-4 text-xs leading-relaxed text-muted">{info.when}</p>
-
-            <div className="mb-4">
-              <p className="label-instrument mb-1.5 text-text">Variáveis</p>
-              <div className="flex flex-wrap gap-1.5">
-                {info.variables.map((variable) => (
-                  <button
-                    key={variable.key}
-                    type="button"
-                    // mousedown não tira o foco do campo — o cursor fica onde estava
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertVariable(variable.key)}
-                    title={`Inserir ${variable.label.toLowerCase()} no campo selecionado`}
-                    className="inline-flex items-center gap-1.5 rounded-tag border border-border bg-surface-2 px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-text"
-                  >
-                    <code className="font-mono text-[11px] text-accent-text">{`{{${variable.key}}}`}</code>
-                    {variable.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-1.5 text-xs text-faint">
-                Clique para inserir no campo onde está o cursor.
-              </p>
-            </div>
-
-            {EMAIL_COPY_FIELDS.map((field) => {
-              const multiline = field === "body" || field === "footer";
-              const props = {
-                id: `modelo-${field}`,
-                value: draft[field],
-                maxLength: EMAIL_COPY_LIMITS[field],
-                placeholder: info.defaults[field],
-                "aria-invalid": errors[field] ? true : undefined,
-                onFocus: () => {
-                  lastField.current = field;
-                },
-                onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-                  update(field, event.target.value),
-              };
-              const hint =
-                field === "subject"
-                  ? `${draft.subject.length} caracteres — até uns 60 aparecem inteiros no celular.`
-                  : HINTS[field];
-
-              return (
-                <FormField
-                  key={field}
-                  label={LABELS[field]}
-                  htmlFor={props.id}
-                  hint={hint}
-                  error={errors[field]}
-                >
-                  {multiline ? (
-                    <Textarea
-                      {...props}
-                      ref={(element) => {
-                        fieldRefs.current[field] = element;
-                      }}
-                      rows={field === "body" ? 5 : 2}
-                      className={field === "footer" ? "min-h-16" : undefined}
-                    />
-                  ) : (
-                    <Input
-                      {...props}
-                      ref={(element) => {
-                        fieldRefs.current[field] = element;
-                      }}
-                    />
-                  )}
-                </FormField>
-              );
-            })}
-
-            <div className="flex items-start gap-2 rounded-inner border border-border bg-surface-2 px-3.5 py-3 text-xs leading-relaxed text-muted">
-              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                <span className="font-medium text-text">Entra sozinho: </span>
-                {info.automatic}
-              </span>
-            </div>
+      <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* campos */}
+        <div className="min-w-0">
+          <div className="mb-3 flex justify-end">
+            <VariableMenu variables={info.variables} onPick={insertVariable} />
           </div>
 
-          {/* prévia: acompanha a rolagem no desktop, para ver o efeito de cada campo */}
-          <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="label-instrument text-text">Prévia</p>
+          {MAIN_FIELDS.map(renderField)}
+
+          <button
+            type="button"
+            onClick={() => setShowExtra((open) => !open)}
+            className="flex items-center gap-1.5 text-xs font-medium text-muted transition-colors hover:text-text"
+            aria-expanded={showExtra}
+          >
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform", !showExtra && "-rotate-90")}
+            />
+            Prévia na caixa de entrada e rodapé
+          </button>
+          <div className={cn("mt-4", !showExtra && "hidden")}>{EXTRA_FIELDS.map(renderField)}</div>
+        </div>
+
+        {/* prévia: acompanha a rolagem no desktop, para ver o efeito de cada campo */}
+        <div className="min-w-0 lg:sticky lg:top-4 lg:self-start">
+          <div className="overflow-hidden rounded-inner border border-border">
+            <div className="flex items-center gap-3 border-b border-border px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-text">{preview.subject}</p>
+                <p className="truncate text-xs text-faint">{preview.preheader}</p>
+              </div>
               <div
-                className="inline-flex rounded-full border border-border bg-surface-2 p-0.5"
+                className="flex shrink-0 gap-0.5"
                 role="radiogroup"
                 aria-label="Formato da prévia"
               >
@@ -341,105 +372,54 @@ export function TemplateEditor({
                     type="button"
                     role="radio"
                     aria-checked={view === option.key}
+                    aria-label={option.label}
                     title={option.label}
                     onClick={() => setView(option.key)}
                     className={cn(
-                      "inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors",
-                      view === option.key
-                        ? "bg-surface text-text shadow-sm"
-                        : "text-muted hover:text-text",
+                      "grid h-7 w-7 place-items-center rounded-full transition-colors",
+                      view === option.key ? "bg-surface-2 text-text" : "text-faint hover:text-text",
                     )}
                   >
                     <option.icon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{option.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-inner border border-border">
-              {/* como aparece na lista da caixa de entrada */}
-              <div className="flex items-start gap-3 border-b border-border bg-surface px-4 py-3">
-                <span
-                  aria-hidden="true"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-accent-contrast"
-                >
-                  {APP_NAME.charAt(0)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-muted">{APP_NAME}</p>
-                  <p className="truncate text-sm font-semibold text-text">{preview.subject}</p>
-                  <p className="truncate text-xs text-faint">{preview.preheader}</p>
-                </div>
-              </div>
-
+            {view === "text" ? (
+              <pre className="h-[520px] overflow-auto whitespace-pre-wrap bg-surface p-4 font-mono text-xs leading-relaxed text-text">
+                {preview.text}
+              </pre>
+            ) : (
               <div className="bg-[#f4f4f7]">
-                {view === "text" ? (
-                  <pre className="h-[560px] overflow-auto whitespace-pre-wrap bg-surface p-4 font-mono text-xs leading-relaxed text-text">
-                    {preview.text}
-                  </pre>
-                ) : (
-                  <iframe
-                    title={`Prévia: ${info.name}`}
-                    srcDoc={preview.html}
-                    // sem scripts nem navegação: é só para olhar
-                    sandbox=""
-                    className={cn(
-                      "mx-auto block h-[560px] border-0 bg-[#f4f4f7] transition-[width] duration-300",
-                      view === "mobile" ? "w-[375px] max-w-full" : "w-full",
-                    )}
-                  />
-                )}
+                <iframe
+                  title={`Prévia: ${info.name}`}
+                  srcDoc={preview.html}
+                  // sem scripts nem navegação: é só para olhar
+                  sandbox=""
+                  className={cn(
+                    "mx-auto block h-[520px] border-0 bg-[#f4f4f7]",
+                    view === "mobile" ? "w-[375px] max-w-full" : "w-full",
+                  )}
+                />
               </div>
-            </div>
-
-            <p className="mt-2 text-xs text-faint">
-              Com dados de exemplo. Gmail e Outlook podem mudar detalhes — envie um teste para ver
-              na caixa de entrada.
-            </p>
-
-            {canSend ? (
-              <div className="mt-4 flex flex-wrap items-end gap-2">
-                <FormField
-                  label="Enviar teste para"
-                  htmlFor="modelo-teste-para"
-                  className="mb-0 min-w-52 flex-1"
-                >
-                  <Input
-                    id="modelo-teste-para"
-                    type="email"
-                    value={to}
-                    onChange={(event) => setTo(event.target.value)}
-                  />
-                </FormField>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  loading={sending}
-                  disabled={hasErrors || !to}
-                  onClick={sendTest}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  Enviar teste
-                </Button>
-              </div>
-            ) : null}
+            )}
           </div>
+          <p className="mt-2 text-xs text-faint">{info.automatic}</p>
         </div>
       </CardContent>
 
       <CardFooter className="flex-wrap justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             disabled={isDefault}
-            onClick={() => setDrafts((current) => ({ ...current, [active]: { ...info.defaults } }))}
-            title="Preenche os campos com o texto de fábrica. Só vale depois de salvar."
+            onClick={() => setDraft({ ...info.defaults })}
+            title="Preenche com o texto de fábrica. Só vale depois de salvar."
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Texto padrão
+            Voltar ao padrão
           </Button>
           {dirty ? (
             <Button
@@ -447,7 +427,7 @@ export function TemplateEditor({
               variant="ghost"
               size="sm"
               onClick={() => {
-                setDrafts((current) => ({ ...current, [active]: saved }));
+                setDraft(saved);
                 setServerErrors({});
               }}
             >
@@ -456,13 +436,94 @@ export function TemplateEditor({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3">
-          {dirty ? <Badge tone="warning">Não salvo</Badge> : null}
+        <div className="flex items-center gap-2">
+          {canSend ? (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={sending}
+              disabled={hasErrors}
+              onClick={sendTest}
+              title={`Envia o rascunho para ${defaultTo}`}
+            >
+              <Send className="h-3.5 w-3.5" />
+              Enviar teste
+            </Button>
+          ) : null}
           <Button type="button" loading={saving} disabled={!dirty || hasErrors} onClick={save}>
-            Salvar modelo
+            Salvar
           </Button>
         </div>
       </CardFooter>
     </Card>
+  );
+}
+
+/** Variáveis num menu: à vista, viravam uma parede de chips acima dos campos. */
+function VariableMenu({
+  variables,
+  onPick,
+}: {
+  variables: EmailVariable[];
+  onPick: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function close(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        // mousedown não tira o foco do campo — o cursor fica onde estava
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <Braces className="h-3.5 w-3.5" />
+        Inserir variável
+      </Button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 w-64 overflow-hidden rounded-inner border border-border bg-surface py-1 shadow-lg"
+        >
+          {variables.map((variable) => (
+            <button
+              key={variable.key}
+              type="button"
+              role="menuitem"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onPick(variable.key);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-2"
+            >
+              {variable.label}
+              <code className="font-mono text-[11px] text-faint">{`{{${variable.key}}}`}</code>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
