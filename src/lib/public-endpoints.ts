@@ -38,8 +38,14 @@ export function publicEndpoints(origin: string): PublicEndpoint[] {
     {
       label: "Leads dos portais (uma URL por revenda)",
       where:
-        "Cada revenda cadastra a URL dela no portal como \"URL de leads\" — o endereço completo, com o token, está em Portais, no card de cada portal. O token não muda com o domínio, mas o começo do endereço sim: depois da troca, as revendas precisam recadastrar",
+        "Cada revenda cadastra a URL dela no portal como \"URL de leads\". Vale para TODOS: Webmotors, OLX, iCarros, Mercado Livre e os que só recebem feed. O endereço completo, com o token, está em Portais, no card de cada portal. O token não muda com o domínio, mas o começo do endereço sim: depois da troca, as revendas precisam recadastrar",
       url: at("/api/portals/<portal>/leads?token=..."),
+    },
+    {
+      label: "Feed de estoque (uma URL por revenda)",
+      where:
+        "Cadastrado no portal que importa por URL — é o caso do Webmotors, que junto com a URL de leads forma o par dele. Também há a versão .json no mesmo caminho. Quando a revenda tem domínio próprio, o portal deve receber o endereço DELA (https://dominio-da-loja/estoque.xml), que não passa por aqui",
+      url: at("/r/<slug>/estoque.xml"),
     },
     {
       label: "Webhook do Asaas",
