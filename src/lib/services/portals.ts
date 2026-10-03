@@ -5,10 +5,12 @@ import {
   vehiclePublications,
   vehicles,
   type PortalConnection,
+  type PublicationMeta,
 } from "@/db/schema";
 import { badRequest, conflict } from "@/lib/http";
 import { portalApp, portalAvailability } from "@/lib/integrations/portal-apps";
 import { webmotorsToken } from "@/lib/integrations/webmotors";
+import { WebmotorsStockClient } from "@/lib/integrations/webmotors-stock";
 import { onlyDigits } from "@/lib/utils";
 import type { OauthTokens } from "@/lib/integrations/portal-oauth";
 import { getPortal, shouldBePublished, type PublicationStatus } from "@/lib/integrations/portals";
@@ -55,7 +57,7 @@ export async function connectPortal(
   }
 
   const missing = definition.fields
-    .filter((field) => !credentials[field.key]?.trim())
+    .filter((field) => !field.optional && !credentials[field.key]?.trim())
     .map((field) => field.label);
   if (missing.length > 0) throw badRequest(`Faltou preencher: ${missing.join(", ")}`);
 
@@ -65,7 +67,8 @@ export async function connectPortal(
    */
   const settings: Record<string, string> = {};
   for (const field of definition.fields) {
-    if (!field.secret) settings[field.key] = credentials[field.key].trim();
+    const value = credentials[field.key]?.trim();
+    if (!field.secret && value) settings[field.key] = value;
   }
 
   if (portal === "webmotors") {
@@ -77,6 +80,22 @@ export async function connectPortal(
       await webmotorsToken(app, {
         username: settings.username,
         password: credentials.password ?? "",
+      });
+    }
+
+    // a publicação é opcional, mas pela metade não: e-mail sem senha é erro de digitação
+    const stockEmail = settings.stockEmail ?? "";
+    const stockPassword = credentials.stockPassword?.trim() ?? "";
+    if (Boolean(stockEmail) !== Boolean(stockPassword)) {
+      throw badRequest(
+        'Para publicar o estoque, informe o e-mail E a senha do usuário "Integração Revendedor".',
+      );
+    }
+    if (stockEmail) {
+      await WebmotorsStockClient.login({
+        cnpj: settings.cnpj,
+        email: stockEmail,
+        password: stockPassword,
       });
     }
   }
@@ -99,7 +118,7 @@ export async function connectOauthPortal(
   const definition = getPortal(portal);
   if (!definition || definition.method !== "oauth") throw badRequest("Portal desconhecido");
   // o id da conta fica fora do cofre: é como o webhook do portal acha a revenda
-  const settings = tokens.externalUserId ? { externalUserId: tokens.externalUserId } : undefined;
+  const settings = tokens.externalUserId ? { externalUserId: tokens.externalUserId } : {};
   await storeConnection(tenantId, userId, portal, tokens, settings);
 }
 
@@ -114,12 +133,21 @@ async function storeConnection(
   const db = await getDb();
   const existing = await getConnection(tenantId, portal);
 
+  /*
+   * Reconectar (trocar senha, reautorizar) não apaga as escolhas da loja,
+   * como o tipo de anúncio padrão. Só os campos do formulário são
+   * substituídos — o que ficou em branco agora some, de propósito.
+   */
+  const formKeys = new Set(getPortal(portal)?.fields.map((field) => field.key) ?? []);
+  const kept = Object.fromEntries(
+    Object.entries(existing?.settings ?? {}).filter(([key]) => !formKeys.has(key)),
+  );
   const values = {
     credentials: sealed,
     status: "conectado" as const,
     connectedByUserId: userId,
     lastError: null,
-    ...(settings ? { settings } : {}),
+    ...(settings ? { settings: { ...kept, ...settings } } : {}),
   };
 
   if (existing) {
@@ -156,6 +184,16 @@ export async function disconnectPortal(tenantId: string, portal: string): Promis
         inArray(vehiclePublications.status, ["publicado", "pendente"]),
       ),
     );
+}
+
+/**
+ * Se a conexão publica anúncios. O Webmotors conectado só com o usuário dos
+ * leads não publica nada: enfileirar carro para ele deixaria a tela cheia de
+ * "aguardando envio" que nunca sai.
+ */
+export function connectionPublishes(connection: Pick<PortalConnection, "portal" | "settings">) {
+  if (connection.portal === "webmotors") return Boolean(connection.settings?.stockEmail);
+  return connection.portal === "mercadolivre" || connection.portal === "olx";
 }
 
 /** Credenciais decifradas, para o adaptador do portal usar. */
@@ -197,7 +235,7 @@ export async function queueVehicleSync(tenantId: string, vehicleId: string): Pro
   if (!vehicle) return;
 
   const connections = (await listConnections(tenantId)).filter(
-    (connection) => connection.status === "conectado",
+    (connection) => connection.status === "conectado" && connectionPublishes(connection),
   );
   if (connections.length === 0) return;
 
@@ -245,6 +283,7 @@ export async function portalListings(tenantId: string, portal: string) {
       detail: vehiclePublications.lastError,
       url: vehiclePublications.externalUrl,
       syncedAt: vehiclePublications.syncedAt,
+      meta: vehiclePublications.meta,
       brand: vehicles.brand,
       model: vehicles.model,
       version: vehicles.version,
@@ -257,7 +296,44 @@ export async function portalListings(tenantId: string, portal: string) {
     .orderBy(asc(vehicles.brand), asc(vehicles.model), asc(vehicles.yearModel));
 }
 
-/** Ajustes do portal que a revenda controla (hoje: o tipo de anúncio no ML). */
+/**
+ * Tipo de anúncio de UM carro. Nulo volta ao padrão do portal.
+ *
+ * Anúncio já no ar volta para a fila: a troca acontece no portal na próxima
+ * sincronização (Webmotors troca a modalidade, ML o listing type), sem
+ * despublicar.
+ */
+export async function setPublicationListingType(
+  tenantId: string,
+  publicationId: string,
+  listingType: string | null,
+): Promise<void> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(vehiclePublications)
+    .where(
+      and(eq(vehiclePublications.tenantId, tenantId), eq(vehiclePublications.id, publicationId)),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) throw badRequest("Anúncio não encontrado");
+
+  const meta: PublicationMeta = { ...(row.meta ?? {}) };
+  if (listingType) meta.listingType = listingType;
+  else delete meta.listingType;
+
+  await db
+    .update(vehiclePublications)
+    .set({
+      meta,
+      // removido continua removido: o tipo vale para quando voltar ao ar
+      ...(row.status === "publicado" ? { status: "pendente" as const } : {}),
+    })
+    .where(eq(vehiclePublications.id, row.id));
+}
+
+/** Ajustes do portal que a revenda controla (hoje: o tipo de anúncio padrão). */
 export async function updateConnectionSettings(
   tenantId: string,
   portal: string,

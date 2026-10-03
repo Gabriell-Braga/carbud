@@ -90,10 +90,7 @@ export async function leadInboxToken(tenantId: string, portal: string): Promise<
  * quantos caracteres do começo estão certos — é o suficiente para descobrir
  * a assinatura byte a byte.
  */
-export async function tenantFromLeadToken(
-  token: string,
-  portal: string,
-): Promise<string | null> {
+export async function tenantFromLeadToken(token: string, portal: string): Promise<string | null> {
   const cut = token.indexOf(".");
   if (cut <= 0) return null;
 
@@ -122,11 +119,56 @@ export async function tenantFromLeadToken(
  * (telefone ou e-mail) bastam, o resto entra na mensagem.
  */
 const ALIASES = {
-  name: ["name", "nome", "nome_cliente", "customerName", "customer_name", "buyer_name", "lead_name", "contact_name"],
-  phone: ["phone", "telefone", "celular", "fone", "phoneNumber", "phone_number", "mobile", "whatsapp", "contact_phone"],
+  name: [
+    "name",
+    "nome",
+    "nome_cliente",
+    "customerName",
+    "customer_name",
+    "buyer_name",
+    "lead_name",
+    "contact_name",
+  ],
+  phone: [
+    "phone",
+    "telefone",
+    "celular",
+    "fone",
+    "phoneNumber",
+    "phone_number",
+    "mobile",
+    "whatsapp",
+    "contact_phone",
+  ],
   email: ["email", "e-mail", "e_mail", "mail", "customerEmail", "customer_email", "contact_email"],
-  message: ["message", "mensagem", "comentario", "comentário", "comment", "text", "texto", "observacao", "observação", "description"],
-  ad: ["adId", "ad_id", "anuncio", "anuncio_id", "anuncioId", "listingId", "listing_id", "externalId", "external_id", "itemId", "item_id", "vehicleId", "vehicle_id", "codigo_anuncio"],
+  message: [
+    "message",
+    "mensagem",
+    "comentario",
+    "comentário",
+    "comment",
+    "text",
+    "texto",
+    "observacao",
+    "observação",
+    "description",
+  ],
+  ad: [
+    "adId",
+    "ad_id",
+    "anuncio",
+    "anuncio_id",
+    "anuncioId",
+    "listingId",
+    "listing_id",
+    "externalId",
+    "external_id",
+    "itemId",
+    "item_id",
+    "vehicleId",
+    "vehicle_id",
+    "codigo_anuncio",
+  ],
   url: ["url", "link", "permalink", "ad_url", "adUrl", "anuncio_url"],
   id: ["id", "leadId", "lead_id", "protocolo", "protocol", "reference", "referencia"],
 } as const;
@@ -157,14 +199,14 @@ function pick(body: RawBody, keys: readonly string[]): string | null {
 }
 
 export type NormalizeResult =
-  | { ok: true; lead: IncomingPortalLead }
-  | { ok: false; reason: string };
+  { ok: true; lead: IncomingPortalLead } | { ok: false; reason: string };
 
 export function normalizeInboundLead(portal: string, body: unknown): NormalizeResult {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, reason: "Corpo vazio ou fora de formato: esperado um objeto JSON." };
   }
   const raw = body as RawBody;
+  if (portal === "olx") return normalizeOlxLead(raw);
 
   const phoneRaw = pick(raw, ALIASES.phone);
   const phone = phoneRaw ? onlyDigits(phoneRaw) : "";
@@ -193,6 +235,62 @@ export function normalizeInboundLead(portal: string, body: unknown): NormalizeRe
       messageId: providedId,
       adExternalId,
       url: pick(raw, ALIASES.url),
+    },
+  };
+}
+
+const OLX_SOURCES: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  telefone: "Telefone",
+  chat: "Chat",
+  financing: "Simulação de financiamento",
+  olx: "OLX",
+};
+
+/**
+ * O formato documentado da OLX (developers.olx.com.br/lead/leads.html).
+ *
+ * Lido à parte porque os nomes genéricos enganam aqui: `externalId` é o id
+ * do LEAD na OLX, não do anúncio — pela lista de apelidos ele viraria código
+ * de anúncio. `adId` é o id que NÓS mandamos ao publicar; vazio quando o
+ * anúncio foi criado direto no site da OLX.
+ */
+function normalizeOlxLead(raw: RawBody): NormalizeResult {
+  const text = (key: string) => {
+    const value = raw[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+    return null;
+  };
+
+  const phone = onlyDigits(text("phone") ?? "");
+  const email = text("email")?.toLowerCase() ?? null;
+  if (!phone && !email) {
+    return { ok: false, reason: "Informe ao menos telefone ou e-mail de quem procurou." };
+  }
+
+  const adId = text("adId");
+  const listId = text("listId");
+  const leadId = text("externalId");
+  const source = text("source");
+  const message = [source ? (OLX_SOURCES[source] ?? source) : null, text("message")]
+    .filter(Boolean)
+    .join(": ");
+
+  return {
+    ok: true,
+    lead: {
+      portal: "olx",
+      externalId: leadId
+        ? `olx:lead:${leadId}`
+        : `olx:${adId ?? listId ?? "sem-anuncio"}:${phone || email}`,
+      name: text("name") || "Contato sem nome",
+      phone: phone || null,
+      email,
+      message: message || null,
+      messageId: leadId ?? text("createdAt"),
+      adExternalId: adId,
+      url: text("linkAd"),
     },
   };
 }

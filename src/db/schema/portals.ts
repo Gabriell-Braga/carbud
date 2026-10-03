@@ -5,6 +5,22 @@ import { users } from "./users";
 import { vehicles } from "./vehicles";
 import type { PublicationStatus } from "@/lib/integrations/portals";
 
+export type PublicationMeta = {
+  /** Tipo de anúncio pedido para este carro; ausente = o padrão do portal. */
+  listingType?: string;
+  /** O tipo que o portal confirmou para o anúncio no ar. */
+  appliedListingType?: string;
+  /** OLX: token do último lote, para consultar o resultado da moderação. */
+  importToken?: string;
+  /** OLX: id do anúncio na OLX (o externalId é o NOSSO id enviado). */
+  listId?: string;
+  /** OLX: último destaque aplicado (ISO) e as próximas voltas agendadas. */
+  highlightedAt?: string;
+  nextHighlights?: string[];
+  /** Assinatura das fotos enviadas; muda, reenvia as fotos. */
+  photosKey?: string;
+};
+
 export const CONNECTION_STATUS = ["desconectado", "conectado", "erro"] as const;
 export type ConnectionStatus = (typeof CONNECTION_STATUS)[number];
 
@@ -67,6 +83,12 @@ export const vehiclePublications = sqliteTable(
     externalUrl: text("external_url"),
     status: text("status").$type<PublicationStatus>().notNull().default("pendente"),
     lastError: text("last_error"),
+    /**
+     * O que cada portal precisa lembrar do anúncio e não cabe nas colunas
+     * comuns: o tipo de anúncio escolhido para ESTE carro e o que está
+     * aplicado lá, o lote da OLX, o último destaque, a assinatura das fotos.
+     */
+    meta: text("meta", { mode: "json" }).$type<PublicationMeta>(),
     syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

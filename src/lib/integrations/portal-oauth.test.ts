@@ -44,7 +44,7 @@ describe("authorizeUrl", () => {
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("client_id")).toBe("id-123");
     expect(url.searchParams.get("redirect_uri")).toBe(redirect);
-    expect(url.searchParams.get("scope")).toBe("basic_user_info autoupload");
+    expect(url.searchParams.get("scope")).toBe("basic_user_info autoupload autoservice");
     expect(url.searchParams.get("state")).toBe("estado-assinado");
   });
 

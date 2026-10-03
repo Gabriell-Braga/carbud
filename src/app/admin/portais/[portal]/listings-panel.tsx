@@ -3,16 +3,19 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink, Search } from "lucide-react";
+import { ArrowUpToLine, ExternalLink, Search } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/field";
-import { SelectMenu } from "@/components/ui/select-menu";
+import { SelectMenu, type SelectOption } from "@/components/ui/select-menu";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { apiPatch } from "@/lib/client/api";
+import { apiPatch, apiPost } from "@/lib/client/api";
 import { PUBLICATION_LABELS, type PublicationStatus } from "@/lib/integrations/portals";
+import type { AdTypesInfo, Quota } from "@/lib/services/portal-ad-types";
 import { formatDateTime } from "@/lib/utils";
 
 type Listing = {
@@ -27,9 +30,15 @@ type Listing = {
   detail: string | null;
   url: string | null;
   syncedAt: string | null;
+  /** Tipo pedido para este carro (null = padrão da loja). */
+  listingType: string | null;
+  /** Tipo que o portal confirmou. */
+  appliedListingType: string | null;
+  highlightedAt: string | null;
+  nextHighlights: string[];
+  /** OLX: só anúncio aprovado (com id da OLX) pode ser destacado. */
+  canHighlight: boolean;
 };
-
-type ListingTypes = { current: string | null; available: { id: string; name: string }[] };
 
 const TONE: Record<PublicationStatus, BadgeTone> = {
   publicado: "success",
@@ -42,6 +51,9 @@ const TONE: Record<PublicationStatus, BadgeTone> = {
 /** Ordem de leitura: o que precisa de ação primeiro, o que já passou por último. */
 const ORDER: PublicationStatus[] = ["erro", "pendente", "removendo", "publicado", "removido"];
 
+/** Valor do seletor que significa "seguir o padrão" (o SelectMenu não aceita vazio como opção). */
+const DEFAULT_VALUE = "__padrao__";
+
 export function ListingsPanel({
   portalKey,
   portalName,
@@ -49,7 +61,7 @@ export function ListingsPanel({
   canWrite,
   connectionError,
   lastSyncAt,
-  listingTypes,
+  adTypes,
   listings,
 }: {
   portalKey: string;
@@ -58,7 +70,7 @@ export function ListingsPanel({
   canWrite: boolean;
   connectionError: string | null;
   lastSyncAt: string | null;
-  listingTypes: ListingTypes | null;
+  adTypes: AdTypesInfo | null;
   listings: Listing[];
 }) {
   const [query, setQuery] = useState("");
@@ -86,12 +98,21 @@ export function ListingsPanel({
       );
   }, [listings, query, status]);
 
+  const typeNames = new Map(
+    adTypes?.mode === "plan" ? adTypes.options.map((option) => [option.id, option.name]) : [],
+  );
+
   return (
     <div className="space-y-4">
       {connectionError ? <Alert tone="danger">{connectionError}</Alert> : null}
 
-      {listingTypes ? (
-        <ListingTypeCard portalKey={portalKey} canWrite={canWrite} types={listingTypes} />
+      {adTypes ? (
+        <AdTypesCard
+          portalKey={portalKey}
+          portalName={portalName}
+          canWrite={canWrite}
+          info={adTypes}
+        />
       ) : null}
 
       <Card>
@@ -154,6 +175,8 @@ export function ListingsPanel({
                 <Tr>
                   <Th>Veículo</Th>
                   <Th>Situação</Th>
+                  {adTypes?.mode === "plan" ? <Th>Tipo de anúncio</Th> : null}
+                  {adTypes?.mode === "bump" ? <Th>Destaque</Th> : null}
                   <Th>Detalhe</Th>
                   <Th>Atualizado</Th>
                   <Th />
@@ -178,6 +201,26 @@ export function ListingsPanel({
                         {PUBLICATION_LABELS[listing.status]}
                       </Badge>
                     </Td>
+                    {adTypes?.mode === "plan" ? (
+                      <Td className="min-w-44">
+                        <ListingTypeCell
+                          portalKey={portalKey}
+                          listing={listing}
+                          info={adTypes}
+                          names={typeNames}
+                          disabled={!canWrite || listing.status === "removido"}
+                        />
+                      </Td>
+                    ) : null}
+                    {adTypes?.mode === "bump" ? (
+                      <Td className="whitespace-nowrap">
+                        <HighlightCell
+                          portalKey={portalKey}
+                          listing={listing}
+                          canWrite={canWrite}
+                        />
+                      </Td>
+                    ) : null}
                     <Td className="max-w-md">
                       {listing.detail ? (
                         <p
@@ -220,17 +263,6 @@ export function ListingsPanel({
   );
 }
 
-/** Nomes dos tipos do ML, para quando ele não devolve o rótulo. */
-const LISTING_TYPE_NAMES: Record<string, string> = {
-  free: "Gratuito",
-  bronze: "Bronze",
-  silver: "Prata",
-  gold: "Ouro",
-  gold_special: "Clássico",
-  gold_premium: "Diamante",
-  gold_pro: "Premium",
-};
-
 const CHIP_ACTIVE: Record<BadgeTone, string> = {
   neutral: "border-border bg-surface-2 text-text",
   success: "border-positive/40 bg-positive-soft text-positive",
@@ -265,76 +297,313 @@ function FilterChip({
   );
 }
 
+function quotaLabel(quota: Quota | undefined): string {
+  return quota ? `${quota.used} de ${quota.total} em uso` : "";
+}
+
+/* ------------------------------------------------------------------------ */
+/* Painel de tipos                                                           */
+/* ------------------------------------------------------------------------ */
+
 /**
- * O tipo de anúncio é o plano que a conta usa no portal. O gratuito acaba
- * rápido em veículos; sem esta escolha a revenda fica presa nele.
+ * O plano da loja no portal, num painel só: o tipo padrão e quanto de cada
+ * tipo já está em uso (Webmotors, ML), ou as vagas e o saldo de destaques
+ * (OLX). É o que a loja precisa ver antes de pôr um carro em destaque.
  */
-function ListingTypeCard({
+function AdTypesCard({
+  portalKey,
+  portalName,
+  canWrite,
+  info,
+}: {
+  portalKey: string;
+  portalName: string;
+  canWrite: boolean;
+  info: AdTypesInfo;
+}) {
+  if (info.mode === "bump") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Plano e destaques</CardTitle>
+          <CardDescription>
+            Destacar leva o anúncio de volta ao topo da busca da {portalName}, e o plano agenda as
+            próximas voltas para a semana. Cada destaque gasta saldo — por isso só acontece quando
+            você clica, na linha do carro.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {info.error ? (
+            <p className="text-sm text-muted">{info.error}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Stat label="Plano" value={info.planName ?? "—"} />
+              <Stat
+                label="Anúncios"
+                value={info.ads ? `${info.ads.used} de ${info.ads.total}` : "—"}
+                meter={info.ads}
+              />
+              <Stat
+                label="Destaques usados"
+                value={
+                  info.bumps
+                    ? `${info.bumps.used} de ${info.bumps.total}`
+                    : "Sem destaques no plano"
+                }
+                meter={info.bumps}
+                hint={
+                  info.renewsAt ? `Renova em ${formatDateTime(new Date(info.renewsAt))}` : undefined
+                }
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <PlanTypesCard portalKey={portalKey} canWrite={canWrite} info={info} />;
+}
+
+function PlanTypesCard({
   portalKey,
   canWrite,
-  types,
+  info,
 }: {
   portalKey: string;
   canWrite: boolean;
-  types: ListingTypes;
+  info: Extract<AdTypesInfo, { mode: "plan" }>;
 }) {
   const router = useRouter();
   const toast = useToast();
-  const [value, setValue] = useState(types.current ?? "");
+  const [value, setValue] = useState(info.current ?? DEFAULT_VALUE);
   const [saving, setSaving] = useState(false);
 
-  const options = types.available.map((type) => ({ value: type.id, label: type.name }));
-  // o tipo em uso pode ter sumido da lista (cota esgotada): continua legível
-  if (value && !options.some((option) => option.value === value)) {
-    options.unshift({ value, label: `${LISTING_TYPE_NAMES[value] ?? value} (indisponível agora)` });
+  const options: SelectOption[] = [
+    { value: DEFAULT_VALUE, label: "Automático (o de maior cota livre)" },
+    ...info.options.map((option) => ({
+      value: option.id,
+      label: option.quota ? `${option.name} · ${quotaLabel(option.quota)}` : option.name,
+    })),
+  ];
+  // o padrão salvo pode ter saído do plano: continua legível
+  if (info.current && !info.options.some((option) => option.id === info.current)) {
+    options.push({ value: info.current, label: `${info.current} (fora do plano agora)` });
   }
 
   async function handleSelect(next: string) {
     setValue(next);
     setSaving(true);
     const result = await apiPatch(`/api/admin/portals/${portalKey}/settings`, {
-      listingTypeId: next,
+      listingTypeId: next === DEFAULT_VALUE ? null : next,
     });
     setSaving(false);
     if (!result.ok) {
       toast.error("Não consegui salvar", result.error);
       return;
     }
-    toast.success(
-      "Tipo de anúncio salvo",
-      "Vale para os próximos envios. Sincronize para aplicar.",
-    );
+    toast.success("Tipo padrão salvo", "Vale para os próximos anúncios novos.");
     router.refresh();
   }
+
+  const withQuota = info.options.filter((option) => option.quota);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tipo de anúncio</CardTitle>
+        <CardTitle>Tipos de anúncio</CardTitle>
         <CardDescription>
-          O plano que a conta usa em cada anúncio novo. Cada tipo tem um limite na conta — o
-          gratuito acaba em poucos carros. Quando o portal recusar por limite, escolha outro tipo
-          aqui e sincronize de novo.
+          Cada carro sobe num tipo do plano da loja (ex.: padrão, destaque, super destaque), e cada
+          tipo tem cota própria. O padrão vale para anúncios novos; para mudar um carro já no ar,
+          escolha o tipo na linha dele.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {options.length === 0 ? (
-          <p className="text-sm text-muted">
-            Não consegui listar os tipos disponíveis para esta conta agora. Tente de novo mais
-            tarde.
-          </p>
-        ) : (
+      <CardContent className="space-y-4">
+        {info.error ? <p className="text-sm text-muted">{info.error}</p> : null}
+
+        {info.options.length ? (
           <div className="max-w-sm">
+            <p className="label-instrument mb-1.5 text-muted">Tipo padrão</p>
             <SelectMenu
               value={value}
               options={options}
-              placeholder="Escolher automaticamente"
               disabled={!canWrite || saving}
               onSelect={handleSelect}
             />
           </div>
-        )}
+        ) : !info.error ? (
+          <p className="text-sm text-muted">
+            Não consegui listar os tipos disponíveis para esta conta agora. Tente de novo mais
+            tarde.
+          </p>
+        ) : null}
+
+        {withQuota.length ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {withQuota.map((option) => (
+              <Stat
+                key={option.id}
+                label={option.name}
+                value={`${option.quota!.used} de ${option.quota!.total}`}
+                meter={option.quota}
+              />
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  meter,
+  hint,
+}: {
+  label: string;
+  value: string;
+  meter?: Quota | null;
+  hint?: string;
+}) {
+  const ratio = meter && meter.total > 0 ? Math.min(1, meter.used / meter.total) : null;
+  return (
+    <div className="min-w-0">
+      <p className="label-instrument truncate text-muted">{label}</p>
+      <p className="truncate tabular-nums text-text">{value}</p>
+      {ratio !== null ? (
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-surface-2">
+          <div
+            className={ratio >= 1 ? "h-full bg-danger" : "h-full bg-accent"}
+            style={{ width: `${Math.round(ratio * 100)}%` }}
+          />
+        </div>
+      ) : null}
+      {hint ? <p className="mt-1 text-xs text-faint">{hint}</p> : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* Células por carro                                                         */
+/* ------------------------------------------------------------------------ */
+
+function ListingTypeCell({
+  portalKey,
+  listing,
+  info,
+  names,
+  disabled,
+}: {
+  portalKey: string;
+  listing: Listing;
+  info: Extract<AdTypesInfo, { mode: "plan" }>;
+  names: Map<string, string>;
+  disabled: boolean;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [value, setValue] = useState(listing.listingType ?? DEFAULT_VALUE);
+  const [saving, setSaving] = useState(false);
+
+  const applied = listing.appliedListingType;
+  const defaultLabel = applied ? `Manter (${names.get(applied) ?? applied})` : "Padrão da loja";
+  const options: SelectOption[] = [
+    { value: DEFAULT_VALUE, label: defaultLabel },
+    ...info.options.map((option) => ({ value: option.id, label: option.name })),
+  ];
+
+  async function handleSelect(next: string) {
+    if (next === value) return;
+    const previous = value;
+    setValue(next);
+    setSaving(true);
+    const result = await apiPatch(`/api/admin/portals/${portalKey}/listings/${listing.id}`, {
+      listingType: next === DEFAULT_VALUE ? null : next,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      setValue(previous);
+      toast.error("Não consegui trocar o tipo", result.error);
+      return;
+    }
+    toast.success("Tipo trocado", "Enviando para o portal agora.");
+    router.refresh();
+  }
+
+  // pedido e ainda não confirmado pelo portal: diz que está a caminho
+  const pending = listing.listingType && listing.listingType !== applied;
+
+  return (
+    <div className="space-y-1">
+      <SelectMenu
+        value={value}
+        options={options}
+        disabled={disabled || saving}
+        onSelect={handleSelect}
+      />
+      {pending && listing.status !== "erro" ? (
+        <p className="text-xs text-faint">Aplicando no portal…</p>
+      ) : null}
+    </div>
+  );
+}
+
+function HighlightCell({
+  portalKey,
+  listing,
+  canWrite,
+}: {
+  portalKey: string;
+  listing: Listing;
+  canWrite: boolean;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+
+  // a OLX só aceita outro destaque 7 dias depois do anterior
+  const last = listing.highlightedAt ? new Date(listing.highlightedAt) : null;
+  const active = last ? Date.now() - last.getTime() < 7 * 24 * 60 * 60 * 1000 : false;
+
+  async function handleHighlight() {
+    const confirmed = await confirm({
+      title: `Destacar ${listing.vehicle}`,
+      description:
+        "O anúncio volta ao topo agora, e o plano agenda as próximas voltas da semana. Isso gasta um destaque do saldo da conta.",
+      confirmLabel: "Destacar",
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    const result = await apiPost(
+      `/api/admin/portals/${portalKey}/listings/${listing.id}/highlight`,
+      {},
+    );
+    setBusy(false);
+    if (!result.ok) {
+      toast.error("Não deu para destacar", result.error);
+      return;
+    }
+    toast.success("Anúncio destacado", "Ele volta ao topo da busca em instantes.");
+    router.refresh();
+  }
+
+  if (active && last) {
+    return (
+      <div>
+        <Badge tone="info">Em destaque</Badge>
+        <p className="mt-1 text-xs text-faint">desde {formatDateTime(last)}</p>
+      </div>
+    );
+  }
+  if (!listing.canHighlight) return <span className="text-faint">—</span>;
+  return canWrite ? (
+    <Button type="button" variant="secondary" size="sm" loading={busy} onClick={handleHighlight}>
+      <ArrowUpToLine className="h-3.5 w-3.5" />
+      Destacar
+    </Button>
+  ) : (
+    <span className="text-faint">—</span>
   );
 }

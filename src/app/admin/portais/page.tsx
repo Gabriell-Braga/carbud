@@ -9,7 +9,11 @@ import { leadInboxToken } from "@/lib/integrations/portal-lead-inbox";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 import { isVaultConfigured } from "@/lib/security/vault";
-import { listConnections, publicationSummary } from "@/lib/services/portals";
+import {
+  connectionPublishes,
+  listConnections,
+  publicationSummary,
+} from "@/lib/services/portals";
 import { PortalsPanel } from "./portals-panel";
 
 export const metadata: Metadata = { title: "Portais" };
@@ -72,12 +76,17 @@ export default async function PortalsPage({
         vaultReady={isVaultConfigured()}
         canWrite={can(context.role, "tenant:settings")}
         tenantSlug={context.tenant.slug}
+        origin={origin}
         connections={connections.map((connection) => ({
           portal: connection.portal,
           status: connection.status,
           hasCredentials: Boolean(connection.credentials),
           lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
           lastError: connection.lastError,
+          publishes: connectionPublishes(connection),
+          // OLX: a URL de leads foi cadastrada pela API (ou o motivo de não ter sido)
+          leadsConfigured: Boolean(connection.settings?.leadConfigId),
+          leadsError: (connection.settings?.leadConfigError as string | undefined) ?? null,
         }))}
         summary={summary}
       />

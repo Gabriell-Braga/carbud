@@ -234,5 +234,11 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `platform_settings` ADD `email_templates` text;"
     ]
+  },
+  {
+    "tag": "0021_publication_meta",
+    "statements": [
+      "ALTER TABLE `vehicle_publications` ADD `meta` text;"
+    ]
   }
 ];

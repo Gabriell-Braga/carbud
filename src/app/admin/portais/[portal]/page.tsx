@@ -5,7 +5,7 @@ import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { getPortal } from "@/lib/integrations/portals";
-import { mercadoLivreListingTypes } from "@/lib/services/portal-sync";
+import { portalAdTypes } from "@/lib/services/portal-ad-types";
 import { getConnection, portalListings } from "@/lib/services/portals";
 import { ListingsPanel } from "./listings-panel";
 import { SyncButton } from "../sync-button";
@@ -39,9 +39,9 @@ export default async function PortalListingsPage({ params }: Params) {
   const connection = await getConnection(context.tenant.id, key);
   const connected = connection?.status === "conectado";
 
-  const [listings, listingTypes] = await Promise.all([
+  const [listings, adTypes] = await Promise.all([
     portalListings(context.tenant.id, key),
-    key === "mercadolivre" && connected ? mercadoLivreListingTypes(context.tenant.id) : null,
+    connected ? portalAdTypes(context.tenant.id, key) : null,
   ]);
 
   const canWrite = can(context.role, "tenant:settings");
@@ -69,7 +69,7 @@ export default async function PortalListingsPage({ params }: Params) {
         canWrite={canWrite}
         connectionError={connection?.lastError ?? null}
         lastSyncAt={connection?.lastSyncAt?.toISOString() ?? null}
-        listingTypes={listingTypes}
+        adTypes={adTypes}
         listings={listings.map((listing) => ({
           id: listing.id,
           vehicleId: listing.vehicleId,
@@ -81,6 +81,11 @@ export default async function PortalListingsPage({ params }: Params) {
           detail: listing.detail,
           url: listing.url,
           syncedAt: listing.syncedAt?.toISOString() ?? null,
+          listingType: listing.meta?.listingType ?? null,
+          appliedListingType: listing.meta?.appliedListingType ?? null,
+          highlightedAt: listing.meta?.highlightedAt ?? null,
+          nextHighlights: listing.meta?.nextHighlights ?? [],
+          canHighlight: Boolean(listing.meta?.listId) && listing.status === "publicado",
         }))}
       />
     </>

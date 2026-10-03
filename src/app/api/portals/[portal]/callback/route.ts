@@ -8,6 +8,7 @@ import { getPortal } from "@/lib/integrations/portals";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
 import { open } from "@/lib/security/vault";
+import { afterOlxConnect } from "@/lib/services/portal-sync-olx";
 import { connectOauthPortal, queueTenantStock } from "@/lib/services/portals";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +70,13 @@ export async function GET(request: Request, { params }: Params) {
     const tokens = await exchangeCode(portal, app, state.redirectUri, code, codeVerifier);
     await connectOauthPortal(context.tenant.id, context.user.id, key, tokens);
     await queueTenantStock(context.tenant.id);
+
+    // OLX: a URL de leads é cadastrada pela API; se falhar, o card avisa e a sincronização tenta de novo
+    if (key === "olx") {
+      await afterOlxConnect(context.tenant.id, origin).catch((error) =>
+        console.warn("[portais] leads da OLX não configurados na conexão", error),
+      );
+    }
 
     await logAuditFor(
       context,

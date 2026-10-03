@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ portal: string }> };
 
 const schema = z.object({
-  listingTypeId: z.string().min(1).max(40),
+  /** Tipo de anúncio padrão da loja no portal; null = escolher sozinho. */
+  listingTypeId: z.string().min(1).max(40).nullable(),
 });
 
-/** Ajustes que a revenda controla no portal. Hoje só o tipo de anúncio do ML. */
+/** Ajustes que a revenda controla no portal. Hoje: o tipo de anúncio padrão. */
 export const PATCH = withApi(async (request: Request, { params }: Params) => {
   const context = await requireApiTenant("tenant:settings");
   await requireFeature(context.tenant.id, "integracao_classificados");

@@ -195,6 +195,38 @@ resolve cidade/estado para os ids do ML uma vez por endereço, guardando em
 `portal_connections.settings`. Exige preço, ao menos uma foto e cidade/estado no
 Site ou na unidade; erros do ML aparecem por carro no card do portal.
 
+**Publicação na OLX** (`olx.ts`, `portal-sync-olx.ts`): autoupload em lote
+(`PUT apps.olx.com.br/autoupload/import`, categoria 2020). O `id` do anúncio é
+nosso (19 primeiros hex do uuid do carro). Marca/modelo/versão viram ids do
+`car_info` da OLX por nome (`catalog-match.ts`; na dúvida, erro com as versões
+mais parecidas, nunca chute). Placa é obrigatória para usado. Lote com um
+anúncio inválido é cancelado inteiro pela OLX (-4): os recusados viram erro e o
+resto é reenviado. A moderação é assíncrona: o carro fica "publicado" com a
+nota "aguardando moderação" até o status do lote trazer `list_id` e URL.
+Destaque = bump (`/autoupload/v1/bump/ad/{list_id}`), só por clique, gasta
+saldo do plano; plano, vagas e saldo vêm de `/autoupload/balance`. Leads: o
+OAuth pede `autoservice` e a conexão cadastra sozinha a URL de leads da loja
+(`/autoservice/v1/lead`); `OLX_OAUTH_SCOPE` tira o escopo sem deploy se a OLX
+recusar. Exige plano profissional **para Empresas** (erro -6 sem ele).
+
+**Estoque no Webmotors** (`webmotors-stock.ts`, `portal-sync-webmotors.ts`):
+não é o Sensedia (lá só há leads). É o SOAP do gestor de estoque terceiro,
+`integracao.webmotors.com.br/wsEstoqueRevendedorWebMotors.asmx`, com login em
+`wsLoginSistemaRevendedor.asmx` (CNPJ + usuário **"Integração Revendedor"**,
+pedido pela loja ao atendimento; é outro usuário, diferente do "Integrador de
+API" dos leads). Opcional no card: sem ele, o Webmotors só integra leads.
+Tudo vai como código do catálogo dele (ObterMarca/Modelo/Versao/Cores/
+Combustivel/Cambio/Opcionais), na ordem do WSDL (ASMX ignora elemento fora de
+ordem). `CodigoRetorno` é estilo HTTP (conferido no serviço real: 400 login
+errado, 401 hash inválido). Campos S/N (blindado, único dono…) não são
+enviados: não temos o dado e o formato não é documentado.
+
+**Tipos de anúncio**: `vehicle_publications.meta` (migração 0021) guarda o tipo
+pedido por carro e o aplicado. Webmotors = modalidades do plano (`ObterModalidade`,
+com cota; troca por `TrocarModalidadeCarro`); ML = listing types (troca por
+`POST /items/{id}/listing_type`). O padrão da loja vale para anúncios novos;
+anúncio no ar só muda de tipo quando escolhido na linha do carro.
+
 ### App dos sites (`sites/.env.local` local, Environment Variables na Vercel)
 
 | Variável | Valor |

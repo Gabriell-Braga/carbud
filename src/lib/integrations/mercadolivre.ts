@@ -499,6 +499,11 @@ export class MercadoLivreClient {
     return this.call<unknown>("GET", `/users/${userId}`);
   }
 
+  /** Troca o tipo de um anúncio no ar (ex.: de gratuito para um pago). */
+  changeListingType(itemId: string, listingTypeId: string) {
+    return this.call("POST", `/items/${itemId}/listing_type`, { id: listingTypeId });
+  }
+
   /** Encerrado não volta: é o que se quer para carro vendido. */
   closeItem(itemId: string) {
     return this.call<{ id: string; status: string }>("PUT", `/items/${itemId}`, {

@@ -47,5 +47,12 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
     redirectUri,
     ...(pkce ? { codeVerifier: await seal(pkce.verifier) } : {}),
   });
-  return jsonOk({ url: authorizeUrl(portal.oauth, app, redirectUri, state, pkce?.challenge) });
+  /*
+   * O escopo pode ser trocado pelo ambiente (<PREFIXO>_OAUTH_SCOPE): se o app
+   * no portal não tiver uma permissão liberada e o portal recusar o pedido
+   * inteiro, tira-se a permissão sem deploy.
+   */
+  const scope = portal.appEnvPrefix ? process.env[`${portal.appEnvPrefix}_OAUTH_SCOPE`] : undefined;
+  const oauth = scope ? { ...portal.oauth, scope } : portal.oauth;
+  return jsonOk({ url: authorizeUrl(oauth, app, redirectUri, state, pkce?.challenge) });
 });

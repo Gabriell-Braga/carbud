@@ -30,6 +30,10 @@ export type PortalField = {
   /** Vai para o cofre cifrado e nunca volta para a tela. */
   secret: boolean;
   hint?: string;
+  /** Pode ficar em branco: liga uma parte da integração que a loja talvez não use. */
+  optional?: boolean;
+  /** Título do bloco no formulário; campos do mesmo grupo ficam juntos. */
+  group?: string;
 };
 
 /** Endereços do fluxo OAuth 2.0 (authorization code) do portal. */
@@ -67,6 +71,15 @@ export type PortalDefinition = {
    * não mostra a URL de leads com token.
    */
   appLeadWebhook?: boolean;
+  /**
+   * Como o portal entende "tipo de anúncio":
+   * - `plan`: cada anúncio vai num tipo do plano da conta (Padrão, Destaque,
+   *   Super Destaque…), com cota por tipo. Escolhe-se um padrão e, se quiser,
+   *   outro por carro (Webmotors, Mercado Livre).
+   * - `bump`: o anúncio é um só; destacar é uma ação que o leva ao topo e
+   *   gasta saldo do plano (OLX).
+   */
+  adTypes?: "plan" | "bump";
   fields: PortalField[];
   /** O que a revenda precisa fazer, uma única vez, para conseguir o acesso. */
   howToConnect: string;
@@ -83,6 +96,7 @@ export const PORTALS: PortalDefinition[] = [
     // o client id/secret são do integrador (nós), não da loja: ficam no ambiente
     appEnvPrefix: "WEBMOTORS",
     appLeadWebhook: true,
+    adTypes: "plan",
     fields: [
       {
         key: "cnpj",
@@ -94,15 +108,33 @@ export const PORTALS: PortalDefinition[] = [
         key: "username",
         label: "E-mail do usuário Integrador de API",
         secret: false,
+        group: "Leads",
+        hint: 'Criado no Cockpit, em Usuários, com o perfil "Integrador de API".',
       },
       {
         key: "password",
         label: "Senha do usuário Integrador de API",
         secret: true,
+        group: "Leads",
+      },
+      {
+        key: "stockEmail",
+        label: 'E-mail do usuário "Integração Revendedor"',
+        secret: false,
+        optional: true,
+        group: "Publicação do estoque",
+        hint: "Outro usuário, pedido ao atendimento do Webmotors pelo chat do Cockpit, para integração com gestor de estoque terceiro. Em branco, só os leads são integrados.",
+      },
+      {
+        key: "stockPassword",
+        label: 'Senha do usuário "Integração Revendedor"',
+        secret: true,
+        optional: true,
+        group: "Publicação do estoque",
       },
     ],
     howToConnect:
-      'No Cockpit do Webmotors, em Usuários, crie um usuário com o perfil "Integrador de API" (a loja só pode ter um). Depois, na aba Integrações, ative a Integração com CRM de terceiros. Informe aqui o CNPJ da loja e o e-mail e a senha desse usuário: os leads do Webmotors passam a entrar no CRM sozinhos.',
+      'Leads: no Cockpit, em Usuários, crie um usuário "Integrador de API" e ative a Integração com CRM de terceiros na aba Integrações. Estoque: com um plano Webmotors ativo e o termo de adesão aceito, peça ao atendimento um usuário "Integração Revendedor" para gestor de estoque terceiro. Os carros publicados por aqui aparecem no Cockpit com a etiqueta WS.',
   },
   {
     key: "icarros",
@@ -120,11 +152,13 @@ export const PORTALS: PortalDefinition[] = [
     oauth: {
       authorizeUrl: "https://auth.olx.com.br/oauth",
       tokenUrl: "https://auth.olx.com.br/oauth/token",
-      scope: "basic_user_info autoupload",
+      // autoservice é o que deixa cadastrar a URL de leads pela API, sem a loja
+      scope: "basic_user_info autoupload autoservice",
     },
+    adTypes: "bump",
     fields: [],
     howToConnect:
-      "Clique em conectar e autorize com a conta da loja na OLX. A autorização é única e pode ser revogada por aqui.",
+      "Clique em conectar e autorize com a conta da loja na OLX. A integração exige um plano profissional para Empresas (Essencial, Plus ou Premium Empresa); os de autônomo não liberam a API. Os leads passam a chegar no CRM sozinhos.",
   },
   {
     key: "mercadolivre",
@@ -137,6 +171,7 @@ export const PORTALS: PortalDefinition[] = [
       // sem isso a troca volta "code_verifier is a required param"
       pkce: true,
     },
+    adTypes: "plan",
     fields: [],
     howToConnect:
       "Clique em conectar e autorize com a conta da loja no Mercado Livre. A autorização é única e pode ser revogada por aqui.",

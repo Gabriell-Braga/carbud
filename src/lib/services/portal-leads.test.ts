@@ -44,7 +44,7 @@ describe("mercadoLivreLeadKey", () => {
 
 describe("normalizeInboundLead", () => {
   it("le o formato mais comum, em portugues", () => {
-    const result = normalizeInboundLead("olx", {
+    const result = normalizeInboundLead("icarros", {
       nome: "Ana Souza",
       telefone: "(31) 98888-7777",
       email: "ANA@EXEMPLO.COM",
@@ -56,8 +56,8 @@ describe("normalizeInboundLead", () => {
     expect(result).toEqual({
       ok: true,
       lead: {
-        portal: "olx",
-        externalId: "olx:OLX-123:31988887777",
+        portal: "icarros",
+        externalId: "icarros:OLX-123:31988887777",
         name: "Ana Souza",
         phone: "31988887777",
         email: "ana@exemplo.com",
@@ -65,6 +65,35 @@ describe("normalizeInboundLead", () => {
         messageId: null,
         adExternalId: "OLX-123",
         url: "https://olx.com.br/anuncio/123",
+      },
+    });
+  });
+
+  it("le o formato documentado da OLX sem confundir o id do lead com o do anuncio", () => {
+    const result = normalizeInboundLead("olx", {
+      source: "whatsapp",
+      adId: "a1234",
+      listId: "12345689",
+      linkAd: "https://www.olx.com.br/vi/12345689",
+      name: "Nome do cliente",
+      email: "Cliente@Gmail.com",
+      phone: "2199999999",
+      message: "Olá, gostaria de saber mais",
+      createdAt: "2019-02-12T14:30:00.500Z",
+      externalId: "123jdanjkdna-danjndaada",
+    });
+    expect(result).toEqual({
+      ok: true,
+      lead: {
+        portal: "olx",
+        externalId: "olx:lead:123jdanjkdna-danjndaada",
+        name: "Nome do cliente",
+        phone: "2199999999",
+        email: "cliente@gmail.com",
+        message: "WhatsApp: Olá, gostaria de saber mais",
+        messageId: "123jdanjkdna-danjndaada",
+        adExternalId: "a1234",
+        url: "https://www.olx.com.br/vi/12345689",
       },
     });
   });

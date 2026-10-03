@@ -1,16 +1,10 @@
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   portalConnections,
-  stores,
-  tenantSites,
-  tenants,
-  vehiclePhotos,
   vehiclePublications,
   vehicles,
-  type PhotoVariants,
   type PortalConnection,
-  type Vehicle,
   type VehiclePublication,
 } from "@/db/schema";
 import { ApiError } from "@/lib/http";
@@ -28,10 +22,14 @@ import {
 import { portalApp } from "@/lib/integrations/portal-apps";
 import type { OauthTokens } from "@/lib/integrations/portal-oauth";
 import { getPortal, shouldBePublished } from "@/lib/integrations/portals";
-import { mediaUrl } from "@/lib/paths";
 import { seal } from "@/lib/security/vault";
 import { pullPortalLeads, retryWebmotorsLeads } from "./portal-leads";
-import { getConnection, readCredentials } from "./portals";
+import { connectionPublishes, getConnection, readCredentials } from "./portals";
+import { openOlx, syncOlx } from "./portal-sync-olx";
+import { closeWebmotorsAds, syncWebmotorsStock } from "./portal-sync-webmotors";
+import { emptyReport, pictureUrls, sellerInfo, type SyncReport } from "./portal-sync-shared";
+
+export type { SyncReport } from "./portal-sync-shared";
 
 /**
  * Executa a fila de publicações contra os portais.
@@ -41,9 +39,8 @@ import { getConnection, readCredentials } from "./portals";
  * em que estado está, e processar duas vezes não cria anúncio em dobro —
  * quem já tem externalId é atualizado, não recriado.
  *
- * Por enquanto o único adaptador é o Mercado Livre. Os outros portais
- * conectados ficam com a fila parada, sem erro: o que falta neles é código
- * nosso, não configuração da revenda.
+ * Adaptadores: Mercado Livre e OLX (API REST, OAuth) e Webmotors (SOAP do
+ * gestor de estoque terceiro, quando a loja informou o usuário de estoque).
  */
 
 /** O que o adaptador guarda na conexão, fora do cofre (nada disso é segredo). */
@@ -51,18 +48,6 @@ type MlSettings = {
   externalUserId?: string;
   location?: MlLocation;
   listingTypeId?: string;
-};
-
-export type SyncReport = {
-  portal: string;
-  published: number;
-  updated: number;
-  removed: number;
-  failed: number;
-  /** Leads que vieram do portal nesta passada (perguntas viram lead no CRM). */
-  leads: number;
-  /** Erro que parou a conexão inteira (token, plano), não de um carro só. */
-  error?: string;
 };
 
 export async function syncTenantPortals(tenantId: string, origin: string): Promise<SyncReport[]> {
@@ -73,18 +58,26 @@ export async function syncTenantPortals(tenantId: string, origin: string): Promi
     reports.push(await syncMercadoLivre(connection, origin));
   }
 
-  // Webmotors: só a volta existe; aqui entram os avisos de lead que falharam
+  const olx = await getConnection(tenantId, "olx");
+  if (olx && olx.status === "conectado") reports.push(await syncOlx(olx, origin));
+
+  // Webmotors: estoque pelo SOAP (se configurado) e os avisos de lead que falharam
   const webmotors = await getConnection(tenantId, "webmotors");
   if (webmotors && webmotors.status === "conectado") {
+    const report = connectionPublishes(webmotors)
+      ? await syncWebmotorsStock(webmotors, origin)
+      : emptyReport("webmotors");
     const ingest = await retryWebmotorsLeads(tenantId);
-    reports.push({
-      portal: "webmotors",
-      published: 0,
-      updated: 0,
-      removed: 0,
-      failed: ingest.failed,
-      leads: ingest.created,
-    });
+    report.failed += ingest.failed;
+    report.leads += ingest.created;
+    if (!report.error) {
+      const db = await getDb();
+      await db
+        .update(portalConnections)
+        .set({ lastSyncAt: new Date(), lastError: null })
+        .where(eq(portalConnections.id, webmotors.id));
+    }
+    reports.push(report);
   }
 
   return reports;
@@ -286,26 +279,29 @@ async function processPublication(
     throw new ApiError(400, "O Mercado Livre exige preço; este veículo está como 'sob consulta'.");
   }
 
-  const photos = await db
-    .select()
-    .from(vehiclePhotos)
-    .where(eq(vehiclePhotos.vehicleId, vehicle.id))
-    .orderBy(asc(vehiclePhotos.position));
-  const pictureUrls = photos
-    .sort((a, b) => Number(b.isCover) - Number(a.isCover))
-    .map((photo) => mediaUrl((photo.variants as PhotoVariants).full))
-    .filter((url): url is string => !!url)
-    .map((url) => `${origin}${url}`);
-  if (pictureUrls.length === 0) {
+  const pictures = await pictureUrls(vehicle.id, origin);
+  if (pictures.length === 0) {
     throw new ApiError(400, "O Mercado Livre exige pelo menos uma foto.");
   }
 
   const seller = await sellerInfo(vehicle);
   const location = await resolveLocation(session, seller);
-  const listingTypeId = await resolveListingType(session);
-  const input = { vehicle, pictureUrls, seller, location, listingTypeId };
+  /*
+   * Tipo: o pedido para este carro; senão o que o anúncio já tem (trocar o
+   * padrão da conta não mexe em anúncio no ar); senão o padrão.
+   */
+  const listingTypeId =
+    publication.meta?.listingType ??
+    publication.meta?.appliedListingType ??
+    (await resolveListingType(session));
+  const input = { vehicle, pictureUrls: pictures, seller, location, listingTypeId };
 
   if (publication.externalId) {
+    // anúncio no ar não muda de tipo pelo PUT do item: é um endpoint próprio
+    const wanted = publication.meta?.listingType;
+    if (wanted && wanted !== publication.meta?.appliedListingType) {
+      await session.client.changeListingType(publication.externalId, listingTypeId);
+    }
     const updated = await session.client.updateItem(publication.externalId, updatePayload(input));
     await session.client.setDescription(
       publication.externalId,
@@ -313,7 +309,12 @@ async function processPublication(
     );
     await db
       .update(vehiclePublications)
-      .set({ status: "publicado", lastError: itemStatusNote(updated), syncedAt: new Date() })
+      .set({
+        status: "publicado",
+        lastError: itemStatusNote(updated),
+        meta: { ...(publication.meta ?? {}), appliedListingType: listingTypeId },
+        syncedAt: new Date(),
+      })
       .where(eq(vehiclePublications.id, publication.id));
     return "updated";
   }
@@ -327,43 +328,11 @@ async function processPublication(
       externalUrl: created.permalink ?? null,
       // publicado com nota: o ML aceitou, mas ainda não mostra (revisão, pagamento)
       lastError: itemStatusNote(created),
+      meta: { ...(publication.meta ?? {}), appliedListingType: listingTypeId },
       syncedAt: new Date(),
     })
     .where(eq(vehiclePublications.id, publication.id));
   return "published";
-}
-
-/**
- * Contato e endereço do anúncio: a unidade dona do carro, ou o site da
- * revenda quando não há unidade. Nome vem da revenda em qualquer caso.
- */
-async function sellerInfo(vehicle: Vehicle): Promise<SellerInfo> {
-  const db = await getDb();
-  const tenantRows = await db
-    .select({ tenant: tenants, site: tenantSites })
-    .from(tenants)
-    .leftJoin(tenantSites, eq(tenantSites.tenantId, tenants.id))
-    .where(eq(tenants.id, vehicle.tenantId))
-    .limit(1);
-  const tenant = tenantRows[0]?.tenant;
-  const site = tenantRows[0]?.site ?? null;
-
-  const store = vehicle.storeId
-    ? ((await db.select().from(stores).where(eq(stores.id, vehicle.storeId)).limit(1))[0] ?? null)
-    : null;
-
-  const source = store?.addressCity ? store : site;
-  return {
-    name: tenant?.name ?? "",
-    email: store?.email ?? site?.email ?? null,
-    whatsapp: store?.whatsapp ?? site?.whatsapp ?? store?.phone ?? site?.phone ?? null,
-    street: source?.addressStreet ?? null,
-    number: source?.addressNumber ?? null,
-    district: source?.addressDistrict ?? null,
-    city: source?.addressCity ?? null,
-    state: source?.addressState ?? null,
-    zip: source?.addressZip ?? null,
-  };
 }
 
 /**
@@ -465,22 +434,26 @@ export async function closePublicationsBeforeDelete(
     .select()
     .from(vehiclePublications)
     .where(
-      and(
-        eq(vehiclePublications.tenantId, tenantId),
-        eq(vehiclePublications.vehicleId, vehicleId),
-        eq(vehiclePublications.portal, "mercadolivre"),
-      ),
+      and(eq(vehiclePublications.tenantId, tenantId), eq(vehiclePublications.vehicleId, vehicleId)),
     );
   const open = rows.filter((row) => row.externalId && row.status !== "removido");
-  if (open.length === 0) return;
 
-  const connection = await getConnection(tenantId, "mercadolivre");
-  if (!connection || connection.status !== "conectado") return;
-
-  try {
-    const session = await openSession(connection);
-    for (const row of open) await session.client.closeItem(row.externalId!);
-  } catch (error) {
-    console.error("[portais] não fechou anúncio antes de apagar o veículo", error);
+  for (const portal of new Set(open.map((row) => row.portal))) {
+    const ids = open.filter((row) => row.portal === portal).map((row) => row.externalId!);
+    const connection = await getConnection(tenantId, portal);
+    if (!connection || connection.status !== "conectado") continue;
+    try {
+      if (portal === "mercadolivre") {
+        const session = await openSession(connection);
+        for (const id of ids) await session.client.closeItem(id);
+      } else if (portal === "olx") {
+        const client = await openOlx(connection);
+        await client.importAds(ids.map((id) => ({ id, operation: "delete" })));
+      } else if (portal === "webmotors" && connectionPublishes(connection)) {
+        await closeWebmotorsAds(connection, ids);
+      }
+    } catch (error) {
+      console.error("[portais] não removeu anúncio antes de apagar o veículo", portal, error);
+    }
   }
 }

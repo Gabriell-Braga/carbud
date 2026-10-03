@@ -111,9 +111,18 @@ describe("cliente", () => {
 describe("catálogo", () => {
   it("a loja informa CNPJ e o usuário Integrador de API, e não cadastra URL de leads", () => {
     const webmotors = getPortal("webmotors")!;
-    expect(webmotors.fields.map((field) => field.key)).toEqual(["cnpj", "username", "password"]);
+    const required = webmotors.fields.filter((field) => !field.optional);
+    expect(required.map((field) => field.key)).toEqual(["cnpj", "username", "password"]);
     expect(webmotors.fields.find((field) => field.key === "password")?.secret).toBe(true);
     expect(webmotors.appLeadWebhook).toBe(true);
     expect(webmotors.importsFeed).toBeFalsy();
+  });
+
+  it("o estoque é opcional e usa outro usuário, o Integração Revendedor", () => {
+    const webmotors = getPortal("webmotors")!;
+    const stock = webmotors.fields.filter((field) => field.optional);
+    expect(stock.map((field) => field.key)).toEqual(["stockEmail", "stockPassword"]);
+    expect(stock.find((field) => field.key === "stockPassword")?.secret).toBe(true);
+    expect(webmotors.adTypes).toBe("plan");
   });
 });

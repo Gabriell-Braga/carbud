@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, Link2, Link2Off, ListChecks, Rss } from "lucide-react";
+import { Check, Inbox, Link2, Link2Off, ListChecks, Minus, Rss, Settings2 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,6 +25,10 @@ type Connection = {
   hasCredentials: boolean;
   lastSyncAt: string | null;
   lastError: string | null;
+  /** A conexão publica anúncios (Webmotors só publica com o usuário de estoque). */
+  publishes: boolean;
+  leadsConfigured: boolean;
+  leadsError: string | null;
 };
 
 type Summary = {
@@ -44,6 +48,7 @@ export function PortalsPanel({
   vaultReady,
   canWrite,
   tenantSlug,
+  origin,
   notice,
 }: {
   portals: PortalCard[];
@@ -54,6 +59,8 @@ export function PortalsPanel({
   vaultReady: boolean;
   canWrite: boolean;
   tenantSlug: string;
+  /** Origem pública do painel, para montar o endereço do feed. */
+  origin: string;
   /** Resultado do retorno do OAuth, lido da URL pela página. */
   notice: { portal: string; error: string | null } | null;
 }) {
@@ -158,6 +165,10 @@ export function PortalsPanel({
                   </div>
                 ) : null}
 
+                {connected && connection ? (
+                  <Capabilities portal={portal} connection={connection} />
+                ) : null}
+
                 {connection?.lastSyncAt ? (
                   <p className="mb-3 text-xs text-faint">
                     Última sincronização em {formatDateTime(new Date(connection.lastSyncAt))}
@@ -169,13 +180,28 @@ export function PortalsPanel({
                     {connected ? (
                       <>
                         <SyncButton portalKey={portal.key} portalName={portal.name} />
-                        <Link
-                          href={`/admin/portais/${portal.key}`}
-                          className={buttonVariants({ variant: "secondary", size: "sm" })}
-                        >
-                          <ListChecks className="h-3.5 w-3.5" />
-                          Ver anúncios
-                        </Link>
+                        {connection?.publishes ? (
+                          <Link
+                            href={`/admin/portais/${portal.key}`}
+                            className={buttonVariants({ variant: "secondary", size: "sm" })}
+                          >
+                            <ListChecks className="h-3.5 w-3.5" />
+                            Anúncios e tipos
+                          </Link>
+                        ) : null}
+                        {portal.method === "credentials" ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setConnecting(portal)}
+                          >
+                            <Settings2 className="h-3.5 w-3.5" />
+                            {portal.key === "webmotors" && !connection?.publishes
+                              ? "Configurar estoque"
+                              : "Credenciais"}
+                          </Button>
+                        ) : null}
                         <Button
                           type="button"
                           variant="outlineDanger"
@@ -203,11 +229,11 @@ export function PortalsPanel({
                 ) : null}
 
                 {portal.importsFeed ? (
-                  <StockFeed slug={tenantSlug} portalName={portal.name} />
+                  <StockFeed origin={origin} slug={tenantSlug} portalName={portal.name} />
                 ) : null}
 
-                {/* leads por aviso ao nosso app: a loja não cadastra URL nenhuma */}
-                {portal.appLeadWebhook ? null : (
+                {/* leads por aviso ao nosso app, ou URL já cadastrada pela API: nada a fazer */}
+                {portal.appLeadWebhook || connection?.leadsConfigured ? null : (
                   <LeadInbox url={leadInboxes[portal.key]} portalName={portal.name} />
                 )}
 
@@ -246,10 +272,17 @@ export function PortalsPanel({
  * Quando a revenda tem domínio próprio, o melhor endereço é o dela — o do
  * painel funciona, mas amarra o site do cliente ao nosso domínio.
  */
-function StockFeed({ slug, portalName }: { slug: string; portalName: string }) {
-  const url = `${typeof window === "undefined" ? "" : window.location.origin}${withBasePath(
-    `/r/${slug}/estoque.xml`,
-  )}`;
+function StockFeed({
+  origin,
+  slug,
+  portalName,
+}: {
+  origin: string;
+  slug: string;
+  portalName: string;
+}) {
+  // a origem vem do servidor: ler window aqui dava outro HTML na hidratação
+  const url = `${origin}${withBasePath(`/r/${slug}/estoque.xml`)}`;
 
   return (
     <details className="mt-3 rounded-inner border border-border bg-surface-2/40 px-3 py-2">
@@ -311,6 +344,48 @@ function LeadInbox({ url, portalName }: { url?: string; portalName: string }) {
         Trate como senha: quem tiver o endereço consegue criar lead nesta revenda.
       </p>
     </details>
+  );
+}
+
+/**
+ * O que a conexão faz hoje, em duas linhas: leads e estoque. Responde a
+ * pergunta que a loja tem depois de conectar ("está tudo ligado?") sem ela
+ * precisar abrir a tela de anúncios.
+ */
+function Capabilities({ portal, connection }: { portal: PortalCard; connection: Connection }) {
+  const leads =
+    portal.appLeadWebhook || connection.leadsConfigured
+      ? { on: true, text: "Leads entram no CRM sozinhos" }
+      : portal.key === "olx"
+        ? {
+            on: false,
+            text: connection.leadsError
+              ? `Leads: ${connection.leadsError}`
+              : "Leads: configurando na próxima sincronização",
+          }
+        : null;
+  const stock = connection.publishes
+    ? { on: true, text: "Estoque publicado e atualizado daqui" }
+    : portal.key === "webmotors"
+      ? { on: false, text: "Estoque: não configurado (só leads)" }
+      : null;
+
+  const rows = [leads, stock].filter((row): row is { on: boolean; text: string } => Boolean(row));
+  if (rows.length === 0) return null;
+
+  return (
+    <ul className="mb-3 space-y-1 text-[13px]">
+      {rows.map((row) => (
+        <li key={row.text} className="flex items-start gap-1.5">
+          {row.on ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-positive" />
+          ) : (
+            <Minus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" />
+          )}
+          <span className={row.on ? "text-text" : "text-muted"}>{row.text}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -379,28 +454,33 @@ function ConnectDialog({
       }
     >
       <form id="connect-form" onSubmit={handleSubmit} noValidate autoComplete="off">
-        {portal.fields.map((field) => (
-          <FormField
-            key={field.key}
-            label={field.label}
-            htmlFor={`field-${field.key}`}
-            hint={field.hint}
-          >
-            <Input
-              id={`field-${field.key}`}
-              type={field.secret ? "password" : "text"}
-              autoComplete="new-password"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              data-1p-ignore
-              data-lpignore="true"
-              value={values[field.key] ?? ""}
-              onChange={(event) =>
-                setValues((current) => ({ ...current, [field.key]: event.target.value }))
-              }
-            />
-          </FormField>
+        {portal.fields.map((field, index) => (
+          <div key={field.key}>
+            {/* título do bloco quando o grupo começa: leads e estoque são usuários diferentes */}
+            {field.group && field.group !== portal.fields[index - 1]?.group ? (
+              <p className="label-instrument mb-2 mt-4 text-muted first:mt-0">{field.group}</p>
+            ) : null}
+            <FormField
+              label={field.optional ? `${field.label} (opcional)` : field.label}
+              htmlFor={`field-${field.key}`}
+              hint={field.hint}
+            >
+              <Input
+                id={`field-${field.key}`}
+                type={field.secret ? "password" : "text"}
+                autoComplete="new-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                data-1p-ignore
+                data-lpignore="true"
+                value={values[field.key] ?? ""}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, [field.key]: event.target.value }))
+                }
+              />
+            </FormField>
+          </div>
         ))}
 
         <Alert tone="info">
