@@ -2,6 +2,7 @@ import { SignJWT } from "jose/jwt/sign";
 import { jwtVerify } from "jose/jwt/verify";
 import { sessionSecretKey } from "@/lib/auth/session";
 import { ApiError, badRequest } from "@/lib/http";
+import { seal } from "@/lib/security/vault";
 import type { PortalApp } from "./portal-apps";
 import type { PortalDefinition, PortalOauth } from "./portals";
 
@@ -29,6 +30,8 @@ export type OauthState = {
    * histórico do navegador; o verificador em claro ali anularia o PKCE.
    */
   codeVerifier?: string;
+  /** O escopo pedido nesta tentativa; diz se ainda cabe recomeçar com o reduzido. */
+  scope?: string;
 };
 
 /**
@@ -47,6 +50,7 @@ export async function signOauthState(state: OauthState): Promise<string> {
     tenantId: state.tenantId,
     redirectUri: state.redirectUri,
     ...(state.codeVerifier ? { codeVerifier: state.codeVerifier } : {}),
+    ...(state.scope ? { scope: state.scope } : {}),
   })
     .setProtectedHeader({ alg: "HS256" })
     .setJti(crypto.randomUUID())
@@ -70,6 +74,7 @@ export async function verifyOauthState(token: string): Promise<OauthState | null
       tenantId: payload.tenantId,
       redirectUri: payload.redirectUri,
       ...(typeof payload.codeVerifier === "string" ? { codeVerifier: payload.codeVerifier } : {}),
+      ...(typeof payload.scope === "string" ? { scope: payload.scope } : {}),
     };
   } catch {
     return null;
@@ -111,6 +116,48 @@ export function authorizeUrl(
     url.searchParams.set("code_challenge_method", "S256");
   }
   return url.toString();
+}
+
+/**
+ * URL de autorização completa: estado assinado, PKCE quando o portal pede, e
+ * o escopo desta tentativa. Usada no começo do fluxo e no recomeço com o
+ * escopo reduzido.
+ *
+ * Sem `scope`, vale o do ambiente (<PREFIXO>_OAUTH_SCOPE, para emergência)
+ * ou o do catálogo.
+ */
+export async function startAuthorization(
+  portal: PortalDefinition,
+  app: PortalApp,
+  tenantId: string,
+  redirectUri: string,
+  scope?: string,
+): Promise<string> {
+  if (!portal.oauth) throw badRequest(`${portal.name} não conecta por OAuth`);
+  const chosen =
+    scope ??
+    (portal.appEnvPrefix ? process.env[`${portal.appEnvPrefix}_OAUTH_SCOPE`] : undefined) ??
+    portal.oauth.scope;
+
+  const pkce = portal.oauth.pkce ? await createPkce() : null;
+  const state = await signOauthState({
+    portal: portal.key,
+    tenantId,
+    redirectUri,
+    ...(pkce ? { codeVerifier: await seal(pkce.verifier) } : {}),
+    ...(chosen ? { scope: chosen } : {}),
+  });
+  return authorizeUrl({ ...portal.oauth, scope: chosen }, app, redirectUri, state, pkce?.challenge);
+}
+
+/**
+ * O escopo reduzido para recomeçar, se ainda não foi ele o recusado.
+ * Null quando não há para onde reduzir: aí o erro vai para a tela.
+ */
+export function fallbackScopeFor(portal: PortalDefinition, state: OauthState): string | null {
+  const fallback = portal.oauth?.fallbackScope;
+  if (!fallback || state.scope === fallback) return null;
+  return fallback;
 }
 
 /** O que guardamos no cofre depois da autorização. Tudo string: é JSON cifrado. */

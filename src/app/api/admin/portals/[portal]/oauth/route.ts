@@ -2,10 +2,10 @@ import { requireApiTenant } from "@/lib/auth/guards";
 import { requireFeature } from "@/lib/api/feature-guard";
 import { badRequest, conflict, jsonOk, withApi } from "@/lib/http";
 import { portalApp } from "@/lib/integrations/portal-apps";
-import { authorizeUrl, createPkce, signOauthState } from "@/lib/integrations/portal-oauth";
+import { startAuthorization } from "@/lib/integrations/portal-oauth";
 import { getPortal, oauthCallbackPath } from "@/lib/integrations/portals";
 import { withBasePath } from "@/lib/paths";
-import { isVaultConfigured, seal } from "@/lib/security/vault";
+import { isVaultConfigured } from "@/lib/security/vault";
 import { getOrigin } from "@/lib/seo/urls";
 
 export const dynamic = "force-dynamic";
@@ -40,19 +40,8 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
     : (request.headers.get("origin") ?? (await getOrigin()));
   const redirectUri = `${origin}${withBasePath(oauthCallbackPath(key))}`;
 
-  const pkce = portal.oauth.pkce ? await createPkce() : null;
-  const state = await signOauthState({
-    portal: key,
-    tenantId: context.tenant.id,
-    redirectUri,
-    ...(pkce ? { codeVerifier: await seal(pkce.verifier) } : {}),
+  // escopo, PKCE e estado assinado: o mesmo caminho do recomeço no retorno
+  return jsonOk({
+    url: await startAuthorization(portal, app, context.tenant.id, redirectUri),
   });
-  /*
-   * O escopo pode ser trocado pelo ambiente (<PREFIXO>_OAUTH_SCOPE): se o app
-   * no portal não tiver uma permissão liberada e o portal recusar o pedido
-   * inteiro, tira-se a permissão sem deploy.
-   */
-  const scope = portal.appEnvPrefix ? process.env[`${portal.appEnvPrefix}_OAUTH_SCOPE`] : undefined;
-  const oauth = scope ? { ...portal.oauth, scope } : portal.oauth;
-  return jsonOk({ url: authorizeUrl(oauth, app, redirectUri, state, pkce?.challenge) });
 });

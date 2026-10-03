@@ -4,7 +4,9 @@ import {
   authorizeUrl,
   createPkce,
   exchangeCode,
+  fallbackScopeFor,
   signOauthState,
+  startAuthorization,
   verifyOauthState,
 } from "./portal-oauth";
 import { getPortal, oauthCallbackPath } from "./portals";
@@ -138,5 +140,38 @@ describe("exchangeCode", () => {
       status: 502,
       message: "OLX Autos não aceitou a autorização: invalid_grant",
     });
+  });
+});
+
+describe("recomeço com escopo reduzido", () => {
+  it("a primeira tentativa pede o escopo completo e o guarda no estado", async () => {
+    const url = new URL(await startAuthorization(olx, app, "t1", redirect));
+    expect(url.searchParams.get("scope")).toBe("basic_user_info autoupload autoservice");
+    const state = await verifyOauthState(url.searchParams.get("state")!);
+    expect(state?.scope).toBe("basic_user_info autoupload autoservice");
+  });
+
+  it("recusado o completo, recomeça sem autoservice; recusado o reduzido, para", async () => {
+    const full = {
+      portal: "olx",
+      tenantId: "t1",
+      redirectUri: redirect,
+      scope: "basic_user_info autoupload autoservice",
+    };
+    const fallback = fallbackScopeFor(olx, full);
+    expect(fallback).toBe("basic_user_info autoupload");
+
+    const url = new URL(await startAuthorization(olx, app, "t1", redirect, fallback!));
+    expect(url.searchParams.get("scope")).toBe("basic_user_info autoupload");
+    const state = await verifyOauthState(url.searchParams.get("state")!);
+    // sem laço: a segunda recusa vai para a tela
+    expect(fallbackScopeFor(olx, state!)).toBeNull();
+  });
+
+  it("portal sem escopo reduzido não recomeça", () => {
+    const ml = getPortal("mercadolivre")!;
+    expect(
+      fallbackScopeFor(ml, { portal: "mercadolivre", tenantId: "t1", redirectUri: redirect }),
+    ).toBeNull();
   });
 });

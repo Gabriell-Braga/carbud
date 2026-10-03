@@ -42,6 +42,12 @@ export type PortalOauth = {
   tokenUrl: string;
   /** Separado por espaço, como o portal espera no `scope`. */
   scope?: string;
+  /**
+   * O mínimo para publicar. Se o portal recusar `scope` (invalid_scope, quando
+   * o nosso app lá não tem uma permissão liberada), a autorização recomeça
+   * sozinha com este, e a loja conecta mesmo assim.
+   */
+  fallbackScope?: string;
   /** O portal exige PKCE (code_challenge na ida, code_verifier na troca). */
   pkce?: boolean;
 };
@@ -154,6 +160,8 @@ export const PORTALS: PortalDefinition[] = [
       tokenUrl: "https://auth.olx.com.br/oauth/token",
       // autoservice é o que deixa cadastrar a URL de leads pela API, sem a loja
       scope: "basic_user_info autoupload autoservice",
+      // sem autoservice: publica igual, e a URL de leads aparece no card para cadastro manual
+      fallbackScope: "basic_user_info autoupload",
     },
     adTypes: "bump",
     fields: [],

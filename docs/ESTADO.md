@@ -206,8 +206,10 @@ nota "aguardando moderação" até o status do lote trazer `list_id` e URL.
 Destaque = bump (`/autoupload/v1/bump/ad/{list_id}`), só por clique, gasta
 saldo do plano; plano, vagas e saldo vêm de `/autoupload/balance`. Leads: o
 OAuth pede `autoservice` e a conexão cadastra sozinha a URL de leads da loja
-(`/autoservice/v1/lead`); `OLX_OAUTH_SCOPE` tira o escopo sem deploy se a OLX
-recusar. Exige plano profissional **para Empresas** (erro -6 sem ele).
+(`/autoservice/v1/lead`). Se o nosso app na OLX não tiver `autoservice`
+liberado e ela responder `invalid_scope`, o retorno recomeça a autorização
+sozinho só com `basic_user_info autoupload` (`fallbackScope`): a loja conecta
+igual e a URL de leads aparece no card para cadastro manual. Exige plano profissional **para Empresas** (erro -6 sem ele).
 
 **Estoque no Webmotors** (`webmotors-stock.ts`, `portal-sync-webmotors.ts`):
 não é o Sensedia (lá só há leads). É o SOAP do gestor de estoque terceiro,

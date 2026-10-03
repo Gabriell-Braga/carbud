@@ -61,9 +61,8 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 # WEBMOTORS_API_URL="https://hlg-webmotors.sensedia.com"
 # OLX_CLIENT_ID="..."
 # OLX_CLIENT_SECRET="..."
-# Escopo do OAuth da OLX. Padrao: "basic_user_info autoupload autoservice"
-# (autoservice cadastra a URL de leads sozinho). Se a OLX recusar a autorizacao
-# por escopo, tire o autoservice aqui, sem deploy.
+# Opcional: forca o escopo do OAuth da OLX. Nao precisa: se a OLX recusar o
+# autoservice (invalid_scope), a conexao recomeca sozinha sem ele.
 # OLX_OAUTH_SCOPE="basic_user_info autoupload"
 # MERCADOLIVRE_CLIENT_ID="..."
 # MERCADOLIVRE_CLIENT_SECRET="..."
