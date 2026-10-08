@@ -23,12 +23,15 @@ export function portalApp(portal: PortalDefinition): PortalApp | null {
 }
 
 /**
- * Feed está sempre pronto: não há o que autenticar. Os outros ficam prontos
- * quando o app tem credenciais — e, no OAuth, quando sabemos para onde mandar.
+ * Feed está sempre pronto: não há o que autenticar. Portal de credenciais
+ * sem app nosso (Chaves na Mão: o token é da loja) também. Os outros ficam
+ * prontos quando o app tem credenciais — e, no OAuth, quando sabemos para
+ * onde mandar.
  */
 export function portalAvailability(portal: PortalDefinition): PortalAvailability {
   if (portal.method === "feed") return "pronto";
   if (portal.method === "oauth" && !portal.oauth) return "aguardando_acesso";
+  if (portal.method === "credentials" && !portal.appEnvPrefix) return "pronto";
   return portalApp(portal) ? "pronto" : "aguardando_acesso";
 }
 

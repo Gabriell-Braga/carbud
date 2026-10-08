@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { badRequest, conflict } from "@/lib/http";
 import { portalApp, portalAvailability } from "@/lib/integrations/portal-apps";
+import { ChavesNaMaoClient } from "@/lib/integrations/chavesnamao";
 import { webmotorsToken } from "@/lib/integrations/webmotors";
 import { WebmotorsStockClient } from "@/lib/integrations/webmotors-stock";
 import { onlyDigits } from "@/lib/utils";
@@ -99,6 +100,9 @@ export async function connectPortal(
       });
     }
   }
+
+  // token errado aparece agora, e não como erro em cada carro da fila
+  if (portal === "chavesnamao") await ChavesNaMaoClient.open(credentials.token?.trim() ?? "");
 
   await storeConnection(tenantId, userId, portal, credentials, settings);
 }
@@ -193,7 +197,7 @@ export async function disconnectPortal(tenantId: string, portal: string): Promis
  */
 export function connectionPublishes(connection: Pick<PortalConnection, "portal" | "settings">) {
   if (connection.portal === "webmotors") return Boolean(connection.settings?.stockEmail);
-  return connection.portal === "mercadolivre" || connection.portal === "olx";
+  return ["mercadolivre", "olx", "chavesnamao"].includes(connection.portal);
 }
 
 /** Credenciais decifradas, para o adaptador do portal usar. */

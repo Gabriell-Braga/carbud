@@ -177,6 +177,21 @@ export const PORTALS: PortalDefinition[] = [
       "Clique em conectar e autorize com a conta da loja no Mercado Livre. A autorização é única e pode ser revogada por aqui.",
   },
   {
+    key: "chavesnamao",
+    name: "Chaves na Mão",
+    method: "credentials",
+    fields: [
+      {
+        key: "token",
+        label: "Token de integração",
+        secret: true,
+        hint: "No Chaves na Mão, em Meus dados → Token de integração, no fim da página.",
+      },
+    ],
+    howToConnect:
+      "Copie o token de integração da conta da loja (Meus dados → Token de integração) e cole aqui. Os carros entram no ar enquanto houver vaga no plano contratado, e podem levar até 45 minutos para aparecer no portal.",
+  },
+  {
     key: "feed",
     name: "Outros portais (por feed)",
     method: "feed",

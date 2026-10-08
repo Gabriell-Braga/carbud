@@ -25,6 +25,7 @@ import { getPortal, shouldBePublished } from "@/lib/integrations/portals";
 import { seal } from "@/lib/security/vault";
 import { pullPortalLeads, retryWebmotorsLeads } from "./portal-leads";
 import { connectionPublishes, getConnection, readCredentials } from "./portals";
+import { closeChavesNaMaoAds, syncChavesNaMao } from "./portal-sync-chavesnamao";
 import { openOlx, syncOlx } from "./portal-sync-olx";
 import { closeWebmotorsAds, syncWebmotorsStock } from "./portal-sync-webmotors";
 import { emptyReport, pictureUrls, sellerInfo, type SyncReport } from "./portal-sync-shared";
@@ -39,8 +40,9 @@ export type { SyncReport } from "./portal-sync-shared";
  * em que estado está, e processar duas vezes não cria anúncio em dobro —
  * quem já tem externalId é atualizado, não recriado.
  *
- * Adaptadores: Mercado Livre e OLX (API REST, OAuth) e Webmotors (SOAP do
- * gestor de estoque terceiro, quando a loja informou o usuário de estoque).
+ * Adaptadores: Mercado Livre e OLX (API REST, OAuth), Webmotors (SOAP do
+ * gestor de estoque terceiro, quando a loja informou o usuário de estoque) e
+ * Chaves na Mão (API REST, com o token de integração da loja).
  */
 
 /** O que o adaptador guarda na conexão, fora do cofre (nada disso é segredo). */
@@ -60,6 +62,11 @@ export async function syncTenantPortals(tenantId: string, origin: string): Promi
 
   const olx = await getConnection(tenantId, "olx");
   if (olx && olx.status === "conectado") reports.push(await syncOlx(olx, origin));
+
+  const chavesNaMao = await getConnection(tenantId, "chavesnamao");
+  if (chavesNaMao && chavesNaMao.status === "conectado") {
+    reports.push(await syncChavesNaMao(chavesNaMao, origin));
+  }
 
   // Webmotors: estoque pelo SOAP (se configurado) e os avisos de lead que falharam
   const webmotors = await getConnection(tenantId, "webmotors");
@@ -451,6 +458,8 @@ export async function closePublicationsBeforeDelete(
         await client.importAds(ids.map((id) => ({ id, operation: "delete" })));
       } else if (portal === "webmotors" && connectionPublishes(connection)) {
         await closeWebmotorsAds(connection, ids);
+      } else if (portal === "chavesnamao") {
+        await closeChavesNaMaoAds(connection, ids);
       }
     } catch (error) {
       console.error("[portais] não removeu anúncio antes de apagar o veículo", portal, error);
