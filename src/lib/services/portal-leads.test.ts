@@ -44,7 +44,7 @@ describe("mercadoLivreLeadKey", () => {
 
 describe("normalizeInboundLead", () => {
   it("le o formato mais comum, em portugues", () => {
-    const result = normalizeInboundLead("icarros", {
+    const result = normalizeInboundLead("feed", {
       nome: "Ana Souza",
       telefone: "(31) 98888-7777",
       email: "ANA@EXEMPLO.COM",
@@ -56,8 +56,8 @@ describe("normalizeInboundLead", () => {
     expect(result).toEqual({
       ok: true,
       lead: {
-        portal: "icarros",
-        externalId: "icarros:OLX-123:31988887777",
+        portal: "feed",
+        externalId: "feed:OLX-123:31988887777",
         name: "Ana Souza",
         phone: "31988887777",
         email: "ana@exemplo.com",
@@ -117,13 +117,13 @@ describe("normalizeInboundLead", () => {
    * e reenvio.
    */
   it("usa o protocolo do portal como identidade quando ele vem", () => {
-    const comId = normalizeInboundLead("icarros", {
+    const comId = normalizeInboundLead("feed", {
       nome: "Ana",
       telefone: "31988887777",
       lead_id: "IC-77",
       anuncio: "IC-1",
     });
-    expect(comId.ok && comId.lead.externalId).toBe("icarros:lead:IC-77");
+    expect(comId.ok && comId.lead.externalId).toBe("feed:lead:IC-77");
     expect(comId.ok && comId.lead.messageId).toBe("IC-77");
   });
 

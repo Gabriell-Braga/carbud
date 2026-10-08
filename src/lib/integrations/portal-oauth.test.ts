@@ -33,9 +33,8 @@ describe("disponibilidade", () => {
     expect(portalAvailability(getPortal("webmotors")!)).toBe("aguardando_acesso");
   });
 
-  it("feed está sempre pronto; OAuth sem endereço nunca está", () => {
+  it("feed está sempre pronto", () => {
     expect(portalAvailability(getPortal("feed")!)).toBe("pronto");
-    expect(portalAvailability(getPortal("icarros")!)).toBe("aguardando_acesso");
   });
 });
 

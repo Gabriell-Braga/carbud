@@ -16,7 +16,7 @@ type Params = { params: Promise<{ portal: string }> };
  *
  * É o endereço que a loja (ou o integrador dela) cadastra no portal como
  * "URL de leads". Vale para QUALQUER portal: o Mercado Livre, que também
- * tem API de perguntas, e a OLX, o Webmotors, o iCarros e os que só recebem
+ * tem API de perguntas, e a OLX, o Webmotors e os que só recebem
  * nosso feed — para esses, é o único caminho que existe hoje, e é o que faz
  * o lead deles aparecer no CRM em vez de ficar só no e-mail do vendedor.
  *

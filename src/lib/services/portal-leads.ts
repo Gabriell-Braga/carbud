@@ -331,7 +331,7 @@ async function appendMessage(
  * Adaptador de leitura de leads de um portal.
  *
  * Só o Mercado Livre tem um hoje: é o único com aviso por webhook e API de
- * perguntas liberada para o vendedor. OLX, Webmotors e iCarros entram aqui
+ * perguntas liberada para o vendedor. OLX e Webmotors entram aqui
  * quando tivermos acesso de integrador à API de leads de cada um — até lá,
  * eles recebem lead pelo caminho 2, que não depende de acordo nenhum.
  */

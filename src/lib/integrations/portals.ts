@@ -143,14 +143,6 @@ export const PORTALS: PortalDefinition[] = [
       'Leads: no Cockpit, em Usuários, crie um usuário "Integrador de API" e ative a Integração com CRM de terceiros na aba Integrações. Estoque: com um plano Webmotors ativo e o termo de adesão aceito, peça ao atendimento um usuário "Integração Revendedor" para gestor de estoque terceiro. Os carros publicados por aqui aparecem no Cockpit com a etiqueta WS.',
   },
   {
-    key: "icarros",
-    name: "iCarros",
-    method: "oauth",
-    fields: [],
-    howToConnect:
-      "Clique em conectar: você é levado ao login do iCarros, autoriza o acesso e volta para cá. Nenhuma configuração acontece dentro do portal.",
-  },
-  {
     key: "olx",
     name: "OLX Autos",
     method: "oauth",
