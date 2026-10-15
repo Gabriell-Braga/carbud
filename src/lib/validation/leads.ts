@@ -57,7 +57,7 @@ export const publicLeadSchema = z.object({
    * avaliação em rascunho. Sem isso, o vendedor receberia três leads iguais e
    * teria que redigitar no painel o que o cliente já digitou no site.
    */
-  kind: z.enum(["contato", "financiamento", "venda"]).default("contato"),
+  kind: z.enum(["contato", "financiamento", "venda", "whatsapp"]).default("contato"),
 
   /** Só quando `kind` é "financiamento". */
   financing: z

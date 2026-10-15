@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { SiteData, SiteLinks } from "../contract";
 import { headlineHours, summarizeHours } from "../shared/hours";
 import { ShowroomHeader } from "./menu";
-import { MessageCircle } from "lucide-react";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
  * Gradiente do herói.
@@ -186,7 +186,7 @@ export function TalkBand({
             rel="noreferrer"
             className="inline-flex items-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            <WhatsappIcon />
             Falar no WhatsApp
           </a>
         ) : null}

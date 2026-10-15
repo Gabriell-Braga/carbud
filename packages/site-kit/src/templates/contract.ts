@@ -62,6 +62,8 @@ export type SiteContact = {
   phone: string | null;
   whatsapp: string | null;
   whatsappDigits: string | null;
+  /** Pede nome e telefone antes de abrir o WhatsApp (vira lead). */
+  whatsappForm: boolean;
   email: string | null;
   address: {
     street: string | null;

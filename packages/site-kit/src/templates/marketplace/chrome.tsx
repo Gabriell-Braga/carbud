@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { MapPin, MessageCircle, Search } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import type { SiteData, SiteLinks } from "../contract";
 import { summarizeHours } from "../shared/hours";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 export const SHELL = "mx-auto w-full max-w-[1200px] px-6";
 
@@ -189,7 +190,7 @@ export function HelpBand({
             style={{ backgroundColor: "var(--site-whatsapp)" }}
             className="inline-flex items-center gap-2 rounded-[var(--site-radius)] px-6 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
           >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            <WhatsappIcon />
             Ir para o WhatsApp
           </a>
         ) : null}

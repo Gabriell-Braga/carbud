@@ -139,6 +139,7 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
       phone: formatPhoneBR(site?.phone),
       whatsapp: formatPhoneBR(site?.whatsapp),
       whatsappDigits: site?.whatsapp ? normalizeWhatsapp(site.whatsapp) : null,
+      whatsappForm: site?.whatsappForm ?? false,
       email: site?.email ?? null,
       address: {
         street: site?.addressStreet ?? null,

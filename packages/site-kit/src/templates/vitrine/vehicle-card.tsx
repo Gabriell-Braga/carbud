@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
 import type { SiteLinks, VehicleView } from "../contract";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
  * Card de veículo do template Vitrine.
@@ -104,12 +104,13 @@ export function VehicleCard({
           {whatsapp ? (
             <a
               href={whatsapp}
+              data-vehicle-id={vehicle.id}
               target="_blank"
               rel="noreferrer"
               style={{ backgroundColor: "var(--site-whatsapp)" }}
               className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <WhatsappIcon />
               Falar no WhatsApp
             </a>
           ) : null}

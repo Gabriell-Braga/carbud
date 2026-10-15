@@ -146,6 +146,8 @@ export const tenantSites = sqliteTable("tenant_sites", {
   gtmCode: text("gtm_code"),
   phone: text("phone"),
   whatsapp: text("whatsapp"),
+  /** Botão de WhatsApp do site abre um formulário antes, e o contato vira lead. */
+  whatsappForm: integer("whatsapp_form", { mode: "boolean" }).notNull().default(false),
   email: text("email"),
   addressStreet: text("address_street"),
   addressNumber: text("address_number"),

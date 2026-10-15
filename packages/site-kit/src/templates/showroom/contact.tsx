@@ -3,7 +3,7 @@ import type { ContactProps } from "../contract";
 import { mapsEmbedUrl } from "../../lib/maps";
 import { summarizeHours } from "../shared/hours";
 import { SHELL, SectionHeading, Shell, TalkBand } from "./chrome";
-import { MessageCircle } from "lucide-react";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 export function Contact({ site, links, contactForm }: ContactProps) {
   const hours = summarizeHours(site.contact.businessHours);
@@ -158,7 +158,7 @@ export function Contact({ site, links, contactForm }: ContactProps) {
                 rel="noreferrer"
                 className="mt-auto inline-flex w-full items-center justify-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 pt-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
               >
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                <WhatsappIcon />
                 Falar no WhatsApp
               </a>
             ) : null}

@@ -112,6 +112,7 @@ export default async function SitePage({
           initial={{
             phone: site?.phone ?? "",
             whatsapp: site?.whatsapp ?? "",
+            whatsappForm: site?.whatsappForm ?? false,
             email: site?.email ?? "",
             addressStreet: site?.addressStreet ?? "",
             addressNumber: site?.addressNumber ?? "",

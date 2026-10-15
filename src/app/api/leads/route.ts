@@ -35,6 +35,9 @@ export const POST = withApi(async (request: Request) => {
   const tenant = await getTenantCoreBySlug(input.tenantSlug);
   if (!tenant || !isPublicSiteAvailable(tenant)) throw notFound("Site indisponível");
 
+  // o formulário antes do WhatsApp é outro canal: o vendedor sabe que a conversa segue lá
+  const source = input.kind === "whatsapp" ? "whatsapp" : "form";
+
   const db = await getDb();
   let vehicleLabel: string | null = null;
   let vehicleId: string | null = null;
@@ -85,7 +88,7 @@ export const POST = withApi(async (request: Request) => {
       phone: input.phone,
       email: input.email || null,
       message: composeLeadMessage(input),
-      source: "form",
+      source,
       status: "new",
       stageId: firstStage?.id ?? null,
       assignedToUserId,
@@ -100,7 +103,7 @@ export const POST = withApi(async (request: Request) => {
     leadId,
     type: "created",
     body: vehicleLabel ? `Lead pelo site, sobre ${vehicleLabel}.` : "Lead pelo site.",
-    metadata: { source: "form", stage: firstStage?.name ?? null },
+    metadata: { source, stage: firstStage?.name ?? null },
   });
 
   /*
@@ -177,7 +180,7 @@ export const POST = withApi(async (request: Request) => {
     phone: input.phone,
     email: input.email || null,
     vehicle: vehicleLabel,
-    source: "form",
+    source,
   });
 
   return jsonOk({ id: leadId, received: true });

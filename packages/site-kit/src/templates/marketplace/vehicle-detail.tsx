@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, MapPin, MessageCircle } from "lucide-react";
+import { Check, MapPin } from "lucide-react";
 import type { VehicleDetailProps, VehicleView } from "../contract";
 import { mapsEmbedUrl } from "../../lib/maps";
 import { PhotoGallery } from "../shared/gallery";
@@ -9,6 +9,7 @@ import { StickyCta } from "../shared/sticky-cta";
 import { ViewItem } from "../shared/tracking";
 import { HelpBand, SHELL, SectionHeading, Shell } from "./chrome";
 import { VehicleGrid } from "./vehicle-card";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 const GARANTIAS = [
   "Estoque atualizado",
@@ -117,12 +118,13 @@ export function VehicleDetail({ site, links, vehicle, related }: VehicleDetailPr
             {whatsapp ? (
               <a
                 href={whatsapp}
+                data-vehicle-id={vehicle.id}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--site-radius)] px-5 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                 style={{ backgroundColor: "var(--site-whatsapp)" }}
               >
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                <WhatsappIcon />
                 Falar no WhatsApp
               </a>
             ) : null}
@@ -351,10 +353,12 @@ export function VehicleDetail({ site, links, vehicle, related }: VehicleDetailPr
               {whatsapp ? (
                 <a
                   href={whatsapp}
+                  data-vehicle-id={vehicle.id}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-auto inline-flex justify-center rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-3 pt-3 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
+                  className="mt-auto inline-flex items-center justify-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-3 pt-3 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
                 >
+                  <WhatsappIcon />
                   Falar com a loja no WhatsApp
                 </a>
               ) : null}

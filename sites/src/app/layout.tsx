@@ -3,6 +3,7 @@ import { Archivo, Barlow_Condensed, DM_Sans, Manrope } from "next/font/google";
 import { themeToCssVariables } from "@carbud/site-kit/contract";
 import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
+import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
 import { fetchSite } from "~/lib/panel";
 import { currentSlug } from "~/lib/site";
 import "./globals.css";
@@ -103,6 +104,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <>
             <GoogleTagManager containerId={gtmCode} />
             <TrackingScripts ids={tracking ?? {}} />
+            <WhatsappGate tenantSlug={slug} enabled={site.contact.whatsappForm ?? false} />
           </>
         ) : null}
         {children}

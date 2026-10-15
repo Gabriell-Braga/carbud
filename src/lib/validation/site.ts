@@ -41,6 +41,7 @@ export const siteSettingsSchema = z.object({
   ),
   phone: optional(z.string().trim().max(20)),
   whatsapp: optional(z.string().trim().max(20)),
+  whatsappForm: z.boolean().optional(),
   email: optional(z.string().trim().toLowerCase().email("E-mail inválido")),
   addressStreet: optional(z.string().trim().max(160)),
   addressNumber: optional(z.string().trim().max(20)),

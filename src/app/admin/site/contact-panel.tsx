@@ -12,6 +12,7 @@ import { usePublishConfirm } from "./use-publish-confirm";
 export type ContactValues = {
   phone: string;
   whatsapp: string;
+  whatsappForm: boolean;
   email: string;
   addressStreet: string;
   addressNumber: string;
@@ -71,6 +72,7 @@ export function ContactPanel({
     const result = await apiPatch("/api/admin/site", {
       phone: values.phone,
       whatsapp: values.whatsapp,
+      whatsappForm: values.whatsappForm,
       email: values.email,
       addressStreet: values.addressStreet,
       addressNumber: values.addressNumber,
@@ -134,6 +136,21 @@ export function ContactPanel({
               />
             </FormField>
           </div>
+          <label className="mt-1 flex items-start gap-2 text-[13px] text-text">
+            <Checkbox
+              className="mt-0.5"
+              checked={values.whatsappForm}
+              disabled={readOnly}
+              onChange={(event) => update("whatsappForm", event.target.checked)}
+            />
+            <span>
+              Pedir nome e telefone antes de abrir o WhatsApp
+              <span className="block text-muted">
+                O botão abre um formulário curto; o contato entra como lead e a pessoa segue
+                para o WhatsApp. Quem já preencheu vai direto nas próximas vezes.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 

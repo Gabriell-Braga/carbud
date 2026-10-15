@@ -240,5 +240,11 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `vehicle_publications` ADD `meta` text;"
     ]
+  },
+  {
+    "tag": "0022_whatsapp_form",
+    "statements": [
+      "ALTER TABLE `tenant_sites` ADD `whatsapp_form` integer DEFAULT false NOT NULL;"
+    ]
   }
 ];

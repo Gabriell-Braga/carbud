@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, MessageCircle } from "lucide-react";
+import { Check } from "lucide-react";
 import type { VehicleDetailProps, VehicleView } from "../contract";
 import { formatCurrency } from "../../lib/format";
 import { mapsEmbedUrl } from "../../lib/maps";
@@ -10,6 +10,7 @@ import { Tabs } from "../shared/tabs";
 import { StickyCta } from "../shared/sticky-cta";
 import { ViewItem } from "../shared/tracking";
 import { VehicleGrid } from "./vehicle-card";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 function specBoxes(vehicle: VehicleView) {
   return [
@@ -116,11 +117,12 @@ export function VehicleDetail({
               {whatsapp ? (
                 <a
                   href={whatsapp}
+                  data-vehicle-id={vehicle.id}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex w-full items-center justify-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                 >
-                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  <WhatsappIcon />
                   Falar no WhatsApp
                 </a>
               ) : null}
@@ -341,11 +343,12 @@ export function VehicleDetail({
           {whatsapp ? (
             <a
               href={whatsapp}
+              data-vehicle-id={vehicle.id}
               target="_blank"
               rel="noreferrer"
               className="mt-auto inline-flex w-fit items-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 pt-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <WhatsappIcon />
               Falar no WhatsApp
             </a>
           ) : null}

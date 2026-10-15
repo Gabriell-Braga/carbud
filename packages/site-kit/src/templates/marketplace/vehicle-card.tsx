@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
 import type { SiteData, SiteLinks, VehicleView } from "../contract";
 import { ServiceCard } from "./chrome";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
  * Card do Marketplace.
@@ -88,6 +88,7 @@ export function VehicleCard({
           {whatsapp ? (
             <a
               href={whatsapp}
+              data-vehicle-id={vehicle.id}
               target="_blank"
               rel="noreferrer"
               /* verde fixo: o WhatsApp e marca de terceiro, e uma revenda que
@@ -96,7 +97,7 @@ export function VehicleCard({
               style={{ borderColor: "var(--site-whatsapp)", color: "var(--site-whatsapp)" }}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--site-radius)] border px-3 py-2.5 text-center text-[13px] font-medium transition-opacity hover:opacity-80"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <WhatsappIcon />
               WhatsApp
             </a>
           ) : null}

@@ -13,6 +13,7 @@
     "./shared/sell-car-form": "./src/templates/shared/sell-car-form.tsx",
     "./shared/gtm": "./src/templates/shared/gtm.tsx",
     "./shared/tracking": "./src/templates/shared/tracking.tsx",
+    "./shared/whatsapp-gate": "./src/templates/shared/whatsapp-gate.tsx",
     "./catalog": "./src/lib/catalog.ts",
     "./format": "./src/lib/format.ts",
     "./paths": "./src/lib/paths.ts",
@@ -22,6 +23,7 @@
     "./links": "./src/lib/links.ts",
     "./jsonld": "./src/lib/jsonld.tsx",
     "./maps": "./src/lib/maps.ts",
+    "./masks": "./src/lib/masks.ts",
     "./shared/filter-form": "./src/templates/shared/filter-form.tsx"
   },
   "peerDependencies": {

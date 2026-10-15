@@ -116,7 +116,7 @@ export function VehicleDetail({
           </div>
 
           <div className="mt-6 flex flex-col gap-2.5">
-            <WhatsappButton href={whatsapp} className="w-full !rounded-lg" />
+            <WhatsappButton href={whatsapp} vehicleId={vehicle.id} className="w-full !rounded-lg" />
             {!vehicle.priceOnRequest ? (
               <Link
                 href={`${links.financing}?veiculo=${vehicle.id}`}
@@ -310,7 +310,7 @@ export function VehicleDetail({
                 </ul>
 
                 <div className="mt-auto pt-5">
-                  <WhatsappButton href={whatsapp} className="w-full !rounded-lg" />
+                  <WhatsappButton href={whatsapp} vehicleId={vehicle.id} className="w-full !rounded-lg" />
                 </div>
               </div>
             </div>

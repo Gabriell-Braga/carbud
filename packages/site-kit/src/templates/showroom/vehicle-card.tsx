@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { SiteLinks, VehicleView } from "../contract";
-import { MessageCircle } from "lucide-react";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
  * Card do Showroom.
@@ -97,11 +97,12 @@ export function VehicleCard({
           {whatsapp ? (
             <a
               href={whatsapp}
+              data-vehicle-id={vehicle.id}
               target="_blank"
               rel="noreferrer"
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-3 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <WhatsappIcon />
               WhatsApp
             </a>
           ) : null}

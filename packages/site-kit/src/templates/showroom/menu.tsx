@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, MessageCircle, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 export type MenuItem = { label: string; href: string };
 
 /**
@@ -172,7 +173,7 @@ export function ShowroomHeader({
               rel="noreferrer"
               className="inline-flex items-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
-              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              <WhatsappIcon />
               <span className="sm:hidden">WhatsApp</span>
               <span className="hidden sm:inline">Falar no WhatsApp</span>
             </a>
@@ -242,8 +243,9 @@ export function ShowroomHeader({
                     href={whatsapp}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-5 inline-flex w-full items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-whatsapp)] px-5 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
                   >
+                    <WhatsappIcon />
                     Falar no WhatsApp
                   </a>
                 ) : null}

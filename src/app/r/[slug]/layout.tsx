@@ -7,6 +7,7 @@ import { getOrigin, tenantAbsoluteUrl } from "@/lib/seo/urls";
 import { themeToCssVariables } from "@carbud/site-kit/contract";
 import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
+import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,7 @@ export default async function PublicSiteLayout({ children, params }: Props) {
         <>
           <GoogleTagManager containerId={site?.gtmCode ?? null} />
           <TrackingScripts ids={site?.tracking ?? {}} />
+          <WhatsappGate tenantSlug={slug} enabled={site?.contact.whatsappForm ?? false} />
         </>
       ) : null}
       {children}

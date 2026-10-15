@@ -1,5 +1,5 @@
-import { MessageCircle } from "lucide-react";
 import type { SiteLinks, VehicleView } from "../contract";
+import { WhatsappIcon } from "./whatsapp-icon";
 
 /**
  * A chamada da ficha presa no rodapé da tela, só no celular.
@@ -76,12 +76,13 @@ export function StickyCta({ vehicle, links, storeName }: {
 
           <a
             href={action.href}
+            data-vehicle-id={vehicle.id}
             target={action.external ? "_blank" : undefined}
             rel={action.external ? "noreferrer" : undefined}
             style={action.style}
             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--site-radius)] px-4 text-sm font-medium transition-opacity hover:opacity-90"
           >
-            {action.external ? <MessageCircle className="h-4 w-4" aria-hidden="true" /> : null}
+            {action.external ? <WhatsappIcon /> : null}
             {action.label}
           </a>
         </div>

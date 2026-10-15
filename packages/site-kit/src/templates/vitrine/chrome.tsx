@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Check, MessageCircle } from "lucide-react";
+import { Check } from "lucide-react";
 import type { SiteData, SiteLinks, StockFacets } from "../contract";
 import { BODY_TYPE_LABELS } from "../../lib/catalog";
 import { headlineHours, summarizeHours } from "../shared/hours";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
  * Moldura do template Vitrine: barra de serviço, cabeçalho e rodapé.
@@ -21,8 +22,11 @@ export function WhatsappButton({
   href,
   children = "Falar no WhatsApp",
   className = "",
+  vehicleId,
 }: {
   href: string | null;
+  /** Liga o lead do formulário antes do WhatsApp ao carro. */
+  vehicleId?: string;
   children?: React.ReactNode;
   className?: string;
 }) {
@@ -32,12 +36,13 @@ export function WhatsappButton({
   return (
     <a
       href={href}
+      data-vehicle-id={vehicleId}
       target="_blank"
       rel="noreferrer"
       style={{ backgroundColor: "var(--site-whatsapp)" }}
       className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 ${className}`}
     >
-      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+      <WhatsappIcon />
       {children}
     </a>
   );

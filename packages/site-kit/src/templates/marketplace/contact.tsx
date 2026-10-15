@@ -3,6 +3,7 @@ import type { ContactProps } from "../contract";
 import { mapsEmbedUrl } from "../../lib/maps";
 import { summarizeHours } from "../shared/hours";
 import { HelpBand, SHELL, SectionHeading, Shell } from "./chrome";
+import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 export function Contact({ site, links, contactForm }: ContactProps) {
   const hours = summarizeHours(site.contact.businessHours);
@@ -143,8 +144,9 @@ export function Contact({ site, links, contactForm }: ContactProps) {
                 href={whatsapp}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-auto inline-flex justify-center rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-3 pt-3 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
+                className="mt-auto inline-flex items-center justify-center gap-2 rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-3 pt-3 text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
               >
+                <WhatsappIcon />
                 Falar no WhatsApp
               </a>
             ) : null}
