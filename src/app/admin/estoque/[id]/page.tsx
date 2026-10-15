@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
@@ -42,17 +42,25 @@ export default async function EditVehiclePage({ params }: Props) {
         title={`${vehicle.brand} ${vehicle.model}`}
         description={vehicle.version ?? undefined}
         actions={
-          vehicle.status !== "draft" ? (
-            <Link
-              href={tenantPublicPath(context.tenant.slug, `/veiculo/${vehicle.slug}`)}
-              target="_blank"
-            >
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/admin/estoque/${vehicle.id}/venda`}>
               <Button variant="secondary">
-                Ver no site
-                <ExternalLink className="h-3.5 w-3.5" />
+                <FileText className="h-3.5 w-3.5" />
+                Contrato de venda
               </Button>
             </Link>
-          ) : null
+            {vehicle.status !== "draft" ? (
+              <Link
+                href={tenantPublicPath(context.tenant.slug, `/veiculo/${vehicle.slug}`)}
+                target="_blank"
+              >
+                <Button variant="secondary">
+                  Ver no site
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
