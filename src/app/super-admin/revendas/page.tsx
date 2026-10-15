@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/shell";
 import { BillingStatusBadge, TenantStatusBadge } from "@/components/admin/status-badges";
@@ -55,7 +56,7 @@ export default async function TenantsPage({
       />
 
       <Card className="mb-3">
-        <form className="flex flex-wrap items-end gap-3 px-4 py-3.5" action="/super-admin/revendas">
+        <Form className="flex flex-wrap items-end gap-3 px-4 py-3.5" action="/super-admin/revendas">
           <div className="min-w-56 flex-1">
             <Label htmlFor="q">Buscar</Label>
             <Input id="q" name="q" defaultValue={params.q ?? ""} placeholder="Nome ou slug" />
@@ -85,7 +86,7 @@ export default async function TenantsPage({
           <Button type="submit" variant="secondary">
             Filtrar
           </Button>
-        </form>
+        </Form>
       </Card>
 
       <Card>

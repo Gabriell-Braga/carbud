@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/shell";
 import { Pagination } from "@/components/admin/pagination";
@@ -140,7 +141,7 @@ export default async function AuditPage({
       />
 
       <Card className="mb-3">
-        <form className="flex flex-wrap items-end gap-3 px-4 py-3.5" action="/super-admin/auditoria">
+        <Form className="flex flex-wrap items-end gap-3 px-4 py-3.5" action="/super-admin/auditoria">
           <div className="min-w-56 flex-1">
             <Label htmlFor="q">Responsável ou ação</Label>
             <Input id="q" name="q" defaultValue={params.q ?? ""} placeholder="admin@…" />
@@ -159,7 +160,7 @@ export default async function AuditPage({
           <Button type="submit" variant="secondary">
             Filtrar
           </Button>
-        </form>
+        </Form>
       </Card>
 
       <Card>

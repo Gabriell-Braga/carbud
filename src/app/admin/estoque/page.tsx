@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/layout/shell";
@@ -75,7 +76,7 @@ export default async function StockPage({
           e o botão atravessando as duas. Empilhados um por linha, os filtros
           ocupavam uma tela inteira antes do primeiro carro aparecer.
         */}
-        <form
+        <Form
           className="grid grid-cols-2 items-end gap-3 px-4 py-3.5 sm:flex sm:flex-wrap"
           action="/admin/estoque"
         >
@@ -117,7 +118,7 @@ export default async function StockPage({
           <Button type="submit" variant="secondary" className="col-span-2 sm:col-span-1">
             Filtrar
           </Button>
-        </form>
+        </Form>
       </Card>
 
       {/*

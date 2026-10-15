@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import { PageHeader } from "@/components/layout/shell";
 import { Pagination } from "@/components/admin/pagination";
 import { StatCard, StatGrid } from "@/components/admin/stat-card";
@@ -63,7 +64,7 @@ export default async function LeadsPage({
       </StatGrid>
 
       <Card className="mb-3">
-        <form
+        <Form
           className="grid grid-cols-2 items-end gap-3 px-4 py-3.5 sm:flex sm:flex-wrap"
           action="/admin/leads"
         >
@@ -90,7 +91,7 @@ export default async function LeadsPage({
           <Button type="submit" variant="secondary">
             Filtrar
           </Button>
-        </form>
+        </Form>
       </Card>
 
       <Card>
