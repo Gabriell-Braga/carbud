@@ -32,15 +32,33 @@ export function RouteProgress() {
 
       const destination = new URL(anchor.href, window.location.href);
       if (destination.origin !== window.location.origin) return;
-      if (destination.href === window.location.href) return;
+      // mesma rota (só muda o hash, ou é o link da página atual): o Next não
+      // troca pathname nem searchParams, e a barra nunca desligaria
+      const here = new URL(window.location.href);
+      if (samePage(destination, here)) return;
 
       setActive(true);
     }
 
+    function handlePopState() {
+      setActive(true);
+    }
+
     document.addEventListener("click", handleClick, true);
-    window.addEventListener("popstate", () => setActive(true));
-    return () => document.removeEventListener("click", handleClick, true);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      document.removeEventListener("click", handleClick, true);
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, []);
+
+  // rede: navegação que falha ou é cancelada não muda a rota; não deixa a barra
+  // presa para sempre
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setTimeout(() => setActive(false), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [active]);
 
   if (!active) return null;
 
@@ -56,4 +74,9 @@ export function RouteProgress() {
       />
     </div>
   );
+}
+
+function samePage(a: URL, b: URL) {
+  const path = (url: URL) => url.pathname.replace(/\/+$/, "") || "/";
+  return path(a) === path(b) && a.search === b.search;
 }
