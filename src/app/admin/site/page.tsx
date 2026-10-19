@@ -89,6 +89,7 @@ export default async function SitePage({
       {tab === "identidade" ? (
         <IdentityPanel
           readOnly={readOnly}
+          slug={context.tenant.slug}
           initial={{
             templateId: context.tenant.templateId,
             logoKey: site?.logoKey ?? null,

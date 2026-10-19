@@ -45,6 +45,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       icon: <LayoutDashboard className={ICON} />,
       exact: true,
     },
+    /*
+     * O site sobe para o topo: ficava no fim, em "Configuração", e quem
+     * acabou de entrar não achava onde montar o site — que é a primeira
+     * coisa que uma revenda nova precisa fazer.
+     */
+    ...(can(context.role, "site:read")
+      ? [{ href: "/admin/site", label: "Meu site", icon: <Palette className={ICON} /> }]
+      : []),
   ];
 
   const stock = [
@@ -94,9 +102,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ];
 
   const settings = [
-    ...(can(context.role, "site:read")
-      ? [{ href: "/admin/site", label: "Site", icon: <Palette className={ICON} /> }]
-      : []),
     ...(can(context.role, "users:read")
       ? [{ href: "/admin/usuarios", label: "Usuários", icon: <Users className={ICON} /> }]
       : []),

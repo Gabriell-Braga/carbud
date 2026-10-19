@@ -11,6 +11,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { useConfirm } from "@/components/ui/confirm";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, Input, Select, Textarea } from "@/components/ui/field";
+import { maskPhone } from "@carbud/site-kit/masks";
 import { CurrencyInput, IntegerInput } from "@/components/ui/number-field";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
@@ -482,6 +483,8 @@ function AppraisalEditor({
           <FormField label="Telefone" htmlFor="av-phone">
             <Input
               id="av-phone"
+              inputMode="tel"
+              mask={maskPhone}
               value={draft.customerPhone ?? ""}
               onChange={(event) => set("customerPhone", event.target.value)}
             />

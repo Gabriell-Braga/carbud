@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, FormField, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
+import { maskCep, maskPhone } from "@carbud/site-kit/masks";
 import { apiPatch } from "@/lib/client/api";
+import { lookupCep } from "@/lib/client/cep";
 import { usePublishConfirm } from "./use-publish-confirm";
 
 export type ContactValues = {
@@ -36,6 +38,9 @@ const WEEKDAYS = [
   "Sábado",
 ];
 
+const DEFAULT_OPEN = "08:00";
+const DEFAULT_CLOSE = "18:00";
+
 export function ContactPanel({
   initial,
   readOnly,
@@ -49,6 +54,16 @@ export function ContactPanel({
   const [values, setValues] = useState(initial);
   const [hours, setHours] = useState(() =>
     WEEKDAYS.map((_, weekday) => {
+      // revenda que nunca salvou horário começa com o comercial de segunda a sexta
+      if (initial.businessHours.length === 0) {
+        const weekdayOpen = weekday >= 1 && weekday <= 5;
+        return {
+          weekday,
+          open: weekdayOpen ? DEFAULT_OPEN : "",
+          close: weekdayOpen ? DEFAULT_CLOSE : "",
+          closed: !weekdayOpen,
+        };
+      }
       const found = initial.businessHours.find((hour) => hour.weekday === weekday);
       return {
         weekday,
@@ -62,6 +77,20 @@ export function ContactPanel({
 
   function update<K extends keyof ContactValues>(key: K, value: ContactValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleZip(zip: string) {
+    update("addressZip", zip);
+    const found = await lookupCep(zip);
+    if (!found) return;
+    setValues((current) => ({
+      ...current,
+      addressStreet: found.street || current.addressStreet,
+      addressDistrict: found.district || current.addressDistrict,
+      addressCity: found.city || current.addressCity,
+      addressState: found.state || current.addressState,
+    }));
+    document.getElementById("addressNumber")?.focus();
   }
 
   async function handleSave() {
@@ -111,6 +140,8 @@ export function ContactPanel({
             <FormField label="Telefone" htmlFor="phone">
               <Input
                 id="phone"
+                inputMode="tel"
+                mask={maskPhone}
                 value={values.phone}
                 disabled={readOnly}
                 onChange={(event) => update("phone", event.target.value)}
@@ -120,6 +151,8 @@ export function ContactPanel({
             <FormField label="WhatsApp" htmlFor="whatsapp" hint="Com DDD">
               <Input
                 id="whatsapp"
+                inputMode="tel"
+                mask={maskPhone}
                 value={values.whatsapp}
                 disabled={readOnly}
                 onChange={(event) => update("whatsapp", event.target.value)}
@@ -160,6 +193,17 @@ export function ContactPanel({
         </CardHeader>
         <CardContent>
           <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
+            <FormField label="CEP" htmlFor="addressZip" hint="Preenche rua, bairro e cidade">
+              <Input
+                id="addressZip"
+                inputMode="numeric"
+                mask={maskCep}
+                value={values.addressZip}
+                disabled={readOnly}
+                onChange={(event) => handleZip(event.target.value)}
+                placeholder="00000-000"
+              />
+            </FormField>
             <FormField label="Rua" htmlFor="addressStreet" className="lg:col-span-2">
               <Input
                 id="addressStreet"
@@ -190,14 +234,6 @@ export function ContactPanel({
                 value={values.addressDistrict}
                 disabled={readOnly}
                 onChange={(event) => update("addressDistrict", event.target.value)}
-              />
-            </FormField>
-            <FormField label="CEP" htmlFor="addressZip">
-              <Input
-                id="addressZip"
-                value={values.addressZip}
-                disabled={readOnly}
-                onChange={(event) => update("addressZip", event.target.value)}
               />
             </FormField>
             <FormField label="Cidade" htmlFor="addressCity">
@@ -251,7 +287,14 @@ export function ContactPanel({
                     disabled={readOnly}
                     onChange={(event) => {
                       const next = [...hours];
-                      next[index] = { ...hour, closed: event.target.checked };
+                      const closed = event.target.checked;
+                      // reabrir um dia vazio já traz o horário comercial
+                      next[index] = {
+                        ...hour,
+                        closed,
+                        open: !closed && !hour.open ? DEFAULT_OPEN : hour.open,
+                        close: !closed && !hour.close ? DEFAULT_CLOSE : hour.close,
+                      };
                       setHours(next);
                     }}
                   />

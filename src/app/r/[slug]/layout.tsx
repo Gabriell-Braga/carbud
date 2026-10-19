@@ -2,12 +2,15 @@ import { notFound } from "next/navigation";
 import { Archivo, Barlow_Condensed, DM_Sans, Manrope } from "next/font/google";
 import type { Metadata } from "next";
 import { getSiteData } from "@/lib/services/site";
+import { applySitePreview, readSitePreview } from "@/lib/services/site-preview";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
 import { getOrigin, tenantAbsoluteUrl } from "@/lib/seo/urls";
 import { themeToCssVariables } from "@carbud/site-kit/contract";
 import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
 import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
+import { findTemplateManifest } from "@carbud/site-kit/manifests";
+import { PreviewBar } from "./preview-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -103,14 +106,22 @@ export default async function PublicSiteLayout({ children, params }: Props) {
   const tenant = await getTenantCoreBySlug(slug);
   if (!tenant) notFound();
 
-  const site = await getSiteData(slug);
+  const preview = await readSitePreview(slug);
+  const saved = await getSiteData(slug);
+  const site = saved ? applySitePreview(saved, preview) : null;
   const cssVariables = site ? themeToCssVariables(site.theme) : {};
   const available = isPublicSiteAvailable(tenant);
 
   return (
     <div className={FONTES} style={cssVariables as React.CSSProperties}>
-      {/* GTM só carrega em site no ar — página de indisponibilidade não dispara tag */}
-      {available ? (
+      {preview ? (
+        <PreviewBar templateName={findTemplateManifest(preview.templateId)?.name ?? ""} />
+      ) : null}
+      {/*
+        GTM só carrega em site no ar — página de indisponibilidade não dispara
+        tag. Prévia também não: a visita é da própria loja e sujaria o pixel.
+      */}
+      {available && !preview ? (
         <>
           <GoogleTagManager containerId={site?.gtmCode ?? null} />
           <TrackingScripts ids={site?.tracking ?? {}} />

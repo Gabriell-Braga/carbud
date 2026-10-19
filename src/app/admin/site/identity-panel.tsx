@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Upload } from "lucide-react";
+import { Eye, Trash2, Upload } from "lucide-react";
 import { TemplatePicker } from "@/components/admin/template-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiDelete, apiPatch, apiUpload } from "@/lib/client/api";
 import { ACCEPTED_INPUT, blobFileName, resizeSingle } from "@/lib/client/images";
 import { mediaUrl } from "@/lib/paths";
+import { openSitePreview } from "@/lib/client/site-preview";
 import { usePublishConfirm } from "./use-publish-confirm";
 
 export type IdentityValues = {
@@ -37,9 +38,11 @@ const FONT_OPTIONS = [
 
 export function IdentityPanel({
   initial,
+  slug,
   readOnly,
 }: {
   initial: IdentityValues;
+  slug: string;
   readOnly?: boolean;
 }) {
   const router = useRouter();
@@ -354,7 +357,9 @@ export function IdentityPanel({
         <CardHeader>
           <CardTitle>Template do site</CardTitle>
           <CardDescription>
-            Trocar o template muda só a aparência. Estoque, fotos e leads continuam intactos.
+            Trocar o template muda só a aparência. Estoque, fotos e leads continuam intactos. Use
+            &quot;Ver prévia&quot; para navegar pelo seu site com o template e as cores acima antes
+            de publicar.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -364,16 +369,27 @@ export function IdentityPanel({
             onChange={(value) => {
               setTemplateId(value);
             }}
+            onPreview={(value) => openSitePreview(slug, { templateId: value, theme })}
           />
         </CardContent>
       </Card>
 
 
-      {!readOnly ? (
-        <Button type="button" loading={busy} onClick={handleSave}>
-          Salvar identidade
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => openSitePreview(slug, { templateId, theme })}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Ver prévia
         </Button>
-      ) : null}
+        {!readOnly ? (
+          <Button type="button" loading={busy} onClick={handleSave}>
+            Salvar identidade
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -11,7 +11,9 @@ import { Dialog } from "@/components/ui/dialog";
 import { Checkbox, FormField, Input } from "@/components/ui/field";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { maskCep, maskPhone } from "@carbud/site-kit/masks";
 import { apiDelete, apiPatch, apiPost, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
+import { lookupCep } from "@/lib/client/cep";
 
 export type StoreRow = {
   id: string;
@@ -198,6 +200,20 @@ function StoreEditor({
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  async function handleZip(zip: string) {
+    set("addressZip", zip);
+    const found = await lookupCep(zip);
+    if (!found) return;
+    setDraft((current) => ({
+      ...current,
+      addressStreet: found.street || current.addressStreet,
+      addressDistrict: found.district || current.addressDistrict,
+      addressCity: found.city || current.addressCity,
+      addressState: found.state || current.addressState,
+    }));
+    document.getElementById("store-number")?.focus();
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -265,6 +281,8 @@ function StoreEditor({
           <FormField label="WhatsApp" htmlFor="store-whatsapp">
             <Input
               id="store-whatsapp"
+              inputMode="tel"
+              mask={maskPhone}
               value={draft.whatsapp ?? ""}
               onChange={(event) => set("whatsapp", event.target.value)}
             />
@@ -272,6 +290,8 @@ function StoreEditor({
           <FormField label="Telefone" htmlFor="store-phone">
             <Input
               id="store-phone"
+              inputMode="tel"
+              mask={maskPhone}
               value={draft.phone ?? ""}
               onChange={(event) => set("phone", event.target.value)}
             />
@@ -292,8 +312,11 @@ function StoreEditor({
             <FormField label="CEP" htmlFor="store-zip">
               <Input
                 id="store-zip"
+                inputMode="numeric"
+                mask={maskCep}
+                placeholder="00000-000"
                 value={draft.addressZip ?? ""}
-                onChange={(event) => set("addressZip", event.target.value)}
+                onChange={(event) => handleZip(event.target.value)}
               />
             </FormField>
             <FormField label="Rua" htmlFor="store-street" className="lg:col-span-2">

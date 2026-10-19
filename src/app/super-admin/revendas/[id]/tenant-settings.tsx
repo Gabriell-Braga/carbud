@@ -6,6 +6,7 @@ import { TemplatePicker } from "@/components/admin/template-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField, Input, Select, Textarea } from "@/components/ui/field";
+import { maskCnpj } from "@carbud/site-kit/masks";
 import { useToast } from "@/components/ui/toast";
 import { apiPatch } from "@/lib/client/api";
 import { slugify } from "@/lib/utils";
@@ -82,7 +83,13 @@ export function TenantSettingsForm({ tenant }: { tenant: TenantSettingsValues })
             </FormField>
 
             <FormField label="CNPJ" htmlFor="cnpj">
-              <Input id="cnpj" name="cnpj" defaultValue={tenant.cnpj ?? ""} />
+              <Input
+                id="cnpj"
+                name="cnpj"
+                inputMode="numeric"
+                mask={maskCnpj}
+                defaultValue={tenant.cnpj ?? ""}
+              />
             </FormField>
 
             <FormField

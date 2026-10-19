@@ -122,6 +122,24 @@ export function isValidCpf(value: string): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
+/* CNPJ e CEP                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export function maskCnpj(value: string): string {
+  const d = digitsOf(value).slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+export function maskCep(value: string): string {
+  const d = digitsOf(value).slice(0, 8);
+  return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Quilometragem                                                               */
 /* -------------------------------------------------------------------------- */
 

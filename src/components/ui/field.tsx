@@ -28,9 +28,33 @@ const baseField = [
   "aria-[invalid=true]:border-danger",
 ].join(" ");
 
-export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
-    <input ref={ref} className={cn(baseField, "h-10", className)} {...props} />
+type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  /**
+   * Máscara de `@carbud/site-kit/masks`. Vale para campo controlado e para o
+   * não-controlado dos formulários com `name`: o valor é reescrito no próprio
+   * evento, antes de chegar a quem escuta — e o que veio do banco sem máscara
+   * já aparece formatado.
+   */
+  mask?: (value: string) => string;
+};
+
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, mask, value, defaultValue, onChange, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(baseField, "h-10", className)}
+      value={mask && typeof value === "string" ? mask(value) : value}
+      defaultValue={mask && typeof defaultValue === "string" ? mask(defaultValue) : defaultValue}
+      onChange={
+        mask
+          ? (event) => {
+              event.target.value = mask(event.target.value);
+              onChange?.(event);
+            }
+          : onChange
+      }
+      {...props}
+    />
   ),
 );
 Input.displayName = "Input";
@@ -63,6 +87,16 @@ type SelectProps = Omit<
   onChange?: (event: { target: { value: string; name?: string } }) => void;
 };
 
+/*
+ * `<option>{plan.name} · {price}</option>` chega como array, não string — o
+ * rótulo caía no value e o select de planos mostrava UUIDs.
+ */
+function textOf(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  return "";
+}
+
 function readOptions(children: React.ReactNode): SelectOption[] {
   const options: SelectOption[] = [];
 
@@ -83,10 +117,7 @@ function readOptions(children: React.ReactNode): SelectOption[] {
       disabled?: boolean;
     };
     const value = option.value === undefined ? "" : String(option.value);
-    const label =
-      typeof option.children === "string" || typeof option.children === "number"
-        ? String(option.children)
-        : value;
+    const label = textOf(option.children) || value;
 
     options.push({ value, label, disabled: option.disabled });
   });

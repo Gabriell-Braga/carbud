@@ -6,6 +6,7 @@ import { TemplatePicker } from "@/components/admin/template-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/field";
+import { maskCnpj, maskPhone } from "@carbud/site-kit/masks";
 import { PasswordInput, PasswordRequirements } from "@/components/ui/password-input";
 import { useToast } from "@/components/ui/toast";
 import { apiPost, errorMessageFrom, fieldErrorsFrom } from "@/lib/client/api";
@@ -122,15 +123,33 @@ export function NewTenantForm() {
             </FormField>
 
             <FormField label="CNPJ" htmlFor="cnpj">
-              <Input id="cnpj" name="cnpj" placeholder="Opcional" />
+              <Input
+                id="cnpj"
+                name="cnpj"
+                inputMode="numeric"
+                mask={maskCnpj}
+                placeholder="Opcional"
+              />
             </FormField>
 
             <FormField label="Telefone" htmlFor="phone">
-              <Input id="phone" name="phone" placeholder="(11) 3333-4444" />
+              <Input
+                id="phone"
+                name="phone"
+                inputMode="tel"
+                mask={maskPhone}
+                placeholder="(11) 3333-4444"
+              />
             </FormField>
 
             <FormField label="WhatsApp" htmlFor="whatsapp">
-              <Input id="whatsapp" name="whatsapp" placeholder="(11) 99999-8888" />
+              <Input
+                id="whatsapp"
+                name="whatsapp"
+                inputMode="tel"
+                mask={maskPhone}
+                placeholder="(11) 99999-8888"
+              />
             </FormField>
 
             <FormField label="E-mail de contato" htmlFor="email">

@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { FileDown } from "lucide-react";
-import { centsToMoney, maskCpf, maskMoney, maskPhone, moneyToCents } from "@carbud/site-kit/masks";
+import {
+  centsToMoney,
+  maskCep,
+  maskCpf,
+  maskMoney,
+  maskPhone,
+  moneyToCents,
+} from "@carbud/site-kit/masks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField, Input, Textarea } from "@/components/ui/field";
@@ -176,7 +183,13 @@ export function SaleDocument({
                 <Input id="b-city" value={buyer.city} onChange={setB("city")} />
               </FormField>
               <FormField label="CEP" htmlFor="b-zip">
-                <Input id="b-zip" inputMode="numeric" value={buyer.zip} onChange={setB("zip")} />
+                <Input
+                  id="b-zip"
+                  inputMode="numeric"
+                  mask={maskCep}
+                  value={buyer.zip}
+                  onChange={setB("zip")}
+                />
               </FormField>
             </div>
           </CardContent>

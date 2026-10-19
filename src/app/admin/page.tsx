@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Palette } from "lucide-react";
 import { PageHeader } from "@/components/layout/shell";
 import { StatCard, StatGrid } from "@/components/admin/stat-card";
 import { LeadStatusBadge } from "@/components/admin/status-badges";
@@ -45,12 +45,22 @@ export default async function AdminHome() {
         title="Visão geral"
         description="Estoque e contatos recebidos pelo site da revenda."
         actions={
-          <Link href={enderecoVisivel} target="_blank">
-            <Button variant="secondary">
-              Ver meu site
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
+          <>
+            <Link href={enderecoVisivel} target="_blank">
+              <Button variant="secondary">
+                Ver meu site
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+            {can(context.role, "site:read") ? (
+              <Link href="/admin/site">
+                <Button>
+                  <Palette className="h-3.5 w-3.5" />
+                  Configurar site
+                </Button>
+              </Link>
+            ) : null}
+          </>
         }
       />
 
@@ -149,11 +159,11 @@ export default async function AdminHome() {
               Rascunhos ficam visíveis apenas aqui.
             </p>
             {can(context.role, "site:read") ? (
-              <Link
-                href="/admin/site"
-                className="mt-4 inline-block text-[13px] text-accent-text hover:underline"
-              >
-                Configurar o site
+              <Link href="/admin/site" className="mt-4 inline-block">
+                <Button variant="secondary">
+                  <Palette className="h-3.5 w-3.5" />
+                  Configurar o site
+                </Button>
               </Link>
             ) : null}
           </CardContent>

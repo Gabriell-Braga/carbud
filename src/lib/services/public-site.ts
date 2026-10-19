@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { buildSiteLinks, getSiteData } from "./site";
+import { applySitePreview, readSitePreview } from "./site-preview";
 import type { AppliedFilters, SiteData, SiteLinks } from "@carbud/site-kit/contract";
 import type { VehicleFilters } from "@/lib/validation/vehicles";
 import { getTemplate } from "@carbud/site-kit/registry";
@@ -29,8 +30,9 @@ export async function loadPublicSite(slug: string): Promise<PublicContext> {
     redirect(tenantPublicPath(slug, "/indisponivel"));
   }
 
-  const site = await getSiteData(slug);
-  if (!site) notFound();
+  const saved = await getSiteData(slug);
+  if (!saved) notFound();
+  const site = applySitePreview(saved, await readSitePreview(slug));
 
   return {
     site,

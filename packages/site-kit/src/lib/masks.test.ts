@@ -3,6 +3,8 @@ import {
   centsToMoney,
   isValidCpf,
   isValidPhone,
+  maskCep,
+  maskCnpj,
   maskCpf,
   maskInteger,
   maskMoney,
@@ -110,5 +112,16 @@ describe("maskInteger", () => {
     expect(maskInteger("45000")).toBe("45.000");
     expect(maskInteger("120")).toBe("120");
     expect(maskInteger("")).toBe("");
+  });
+});
+
+describe("maskCnpj e maskCep", () => {
+  it("formatam conforme a pessoa digita e cortam o excesso", () => {
+    expect(maskCnpj("11222333000181")).toBe("11.222.333/0001-81");
+    expect(maskCnpj("112223")).toBe("11.222.3");
+    expect(maskCnpj("11.222.333/0001-8199")).toBe("11.222.333/0001-81");
+    expect(maskCep("29100")).toBe("29100");
+    expect(maskCep("29100000")).toBe("29100-000");
+    expect(maskCep("29100-000abc9")).toBe("29100-000");
   });
 });
