@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import type { HomeProps, SiteLinks, StockFacets } from "../contract";
 import { BODY_TYPE_LABELS } from "../../lib/catalog";
@@ -195,13 +196,13 @@ function CaminhoCard({
       >
         {title}
       </p>
-      <a
+      <Link
         href={href}
         {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
         className="mt-auto pt-5 text-[13px] font-medium text-[var(--site-primary)] hover:underline"
       >
         {cta} →
-      </a>
+      </Link>
     </div>
   );
 }
@@ -233,9 +234,8 @@ function SearchPanel({ links, facets }: { links: SiteLinks; facets: StockFacets 
         ))}
       </div>
 
-      <form
+      <Form
         action={links.stock}
-        method="get"
         className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
       >
         <select name="marca" defaultValue="" className={campo} aria-label="Marca">
@@ -272,7 +272,7 @@ function SearchPanel({ links, facets }: { links: SiteLinks; facets: StockFacets 
         >
           Buscar veículos
         </button>
-      </form>
+      </Form>
     </div>
   );
 }

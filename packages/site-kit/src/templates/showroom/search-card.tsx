@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import type { SiteLinks, StockFacets } from "../contract";
 
@@ -53,7 +54,7 @@ export function SearchCard({
         ))}
       </div>
 
-      <form action={links.stock} method="get" className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+      <Form action={links.stock} className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
         <select name="marca" defaultValue="" className={campo} aria-label="Marca">
           <option value="">Todas as marcas</option>
           {facets.brands.map((item) => (
@@ -99,7 +100,7 @@ export function SearchCard({
         >
           Buscar
         </button>
-      </form>
+      </Form>
     </div>
   );
 }

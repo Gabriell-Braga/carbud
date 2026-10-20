@@ -21,6 +21,7 @@ npm run build:sites    # exige PANEL_URL
 
 npm run db:generate    # migration a partir do schema Drizzle
 npm run db:bundle      # regenera src/db/migrations.generated.ts — commitar junto com a migration (CI confere)
+node scripts/smoke-prod.mjs   # depois do deploy: todo link da demo em produção que não dá 200
 ```
 
 Primeira execução local: copie `.dev.vars.example` para `.dev.vars`, depois `POST /api/ops/migrate` e `POST /api/ops/bootstrap` com header `x-ops-secret` (ver README).

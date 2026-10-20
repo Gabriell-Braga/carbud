@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { HomeProps } from "../contract";
@@ -47,7 +48,7 @@ export function Home({
             Formulário de verdade em vez de estado: o template é servidor, e o
             resultado precisa ser um endereço que a pessoa consiga compartilhar.
           */}
-          <form action={links.stock} method="get" className="mt-8 flex max-w-2xl gap-2">
+          <Form action={links.stock} className="mt-8 flex max-w-2xl gap-2">
             <div className="relative flex-1">
               <Search
                 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--site-muted)]"
@@ -67,7 +68,7 @@ export function Home({
             >
               Buscar
             </button>
-          </form>
+          </Form>
 
           <CategoryChips items={atalhos} />
         </div>

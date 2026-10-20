@@ -28,8 +28,3 @@ export function requireEnvVar(name: string): string {
   }
   return value;
 }
-
-/** Mount path do app no site Webflow (ex.: "/app"). */
-export function getBasePath(): string {
-  return process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_URL || "";
-}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { SiteLinks, VehicleView } from "../contract";
 import { WhatsappIcon } from "./whatsapp-icon";
 
@@ -74,7 +75,7 @@ export function StickyCta({ vehicle, links, storeName }: {
             </p>
           </div>
 
-          <a
+          <Link
             href={action.href}
             data-vehicle-id={vehicle.id}
             target={action.external ? "_blank" : undefined}
@@ -84,7 +85,7 @@ export function StickyCta({ vehicle, links, storeName }: {
           >
             {action.external ? <WhatsappIcon /> : null}
             {action.label}
-          </a>
+          </Link>
         </div>
       </div>
     </>

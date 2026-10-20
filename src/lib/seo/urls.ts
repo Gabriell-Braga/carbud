@@ -65,9 +65,4 @@ export async function tenantAbsoluteUrl(slug: string, subPath = ""): Promise<str
   return `${origin}${withBasePath(tenantPublicPath(slug, subPath))}`;
 }
 
-export function absoluteFromOrigin(origin: string, path: string): string {
-  if (path.startsWith("http")) return path;
-  return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
-}
-
 export { BASE_PATH };

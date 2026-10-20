@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { TENANT_WEBHOOK_EVENTS } from "@/db/schema";
 import { WEBHOOK_HEADER_SIGNATURE } from "@/lib/brand";
 import { apiDelete, apiPatch, apiPost } from "@/lib/client/api";
+import { withBasePath } from "@/lib/paths";
 import { formatDateTime } from "@/lib/utils";
 
 type KeyRow = {
@@ -443,7 +444,7 @@ function Endpoint({
     <div className="border-b border-border pb-3 last:border-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={method === "GET" ? "info" : "success"}>{method}</Badge>
-        <code className="break-all text-xs text-text">{path}</code>
+        <code className="break-all text-xs text-text">{withBasePath(path)}</code>
       </div>
       <p className="mt-1 text-xs text-muted">{description}</p>
     </div>
@@ -563,7 +564,7 @@ function StockFeedCard({
 
   // montado no cliente porque depende do endereço em que a pessoa está
   useEffect(() => {
-    setOrigin(window.location.origin + (document.documentElement.dataset.basePath ?? ""));
+    setOrigin(window.location.origin + withBasePath(""));
   }, []);
 
   const xml = `${origin}/r/${tenantSlug}/estoque.xml`;

@@ -384,6 +384,13 @@ especialista em marketing, e mudanças de desenho não são nossa alçada.
 | Campo opcional vazio virando `undefined` | no update, `undefined` é "não mexer": o campo apagado volta no F5. Campo que a pessoa pode apagar vira `null` (`clearable` em `validation/site.ts`, `emptyToNull` em `validation/vehicles.ts`). |
 | Atributo de lista do Mercado Livre por nome | o ML recusa o anúncio inteiro se o texto não bater ("Sedán"). Mande `value_id` do catálogo `MLB1744`. |
 | Link digitado pela loja direto em `href` | `javascript:` executa no visitante. Passe por `safeHref` (`@carbud/site-kit/links`). |
+| `<a>` ou `<form action>` cru com link interno nos templates | sem o `/app` na prévia `/app/r/<slug>`: 404 só em produção (o dev não tem mount path). Use `<Link>` e `<Form>` (`next/form`); `templates/raw-anchor.test.ts` barra. |
+| `process.env.BASE_URL ?? ...` | no Worker ele existe e vem **vazio**, e o `??` para nele. Mount path no cliente é `withBasePath()`, nunca `data-base-path` lido à mão. |
+| Redirect para o domínio oficial com 308 | o navegador guarda para sempre; trocar o oficial vira loop para quem já visitou. Use 307. |
+| Lead repassado pelo app dos sites | chega com o IP da Vercel em `cf-connecting-ip`. O IP do visitante vai em `x-visitor-ip`, que só vale com `x-sites-key`. |
+| Tema salvo inteiro a partir do padrão genérico | apagava o tema do template. Salve só as escolhas da revenda e mostre `composeTheme`. |
+
+Depois de cada deploy: `node scripts/smoke-prod.mjs` varre a demo em produção e lista todo link que não dá 200.
 
 ---
 

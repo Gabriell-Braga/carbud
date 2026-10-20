@@ -11,8 +11,8 @@ import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { listLeads } from "@/lib/services/leads";
 import { getVehicleStats } from "@/lib/services/vehicles";
-import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { publicSiteUrl } from "@/lib/services/domains";
+import { tenantAbsoluteUrl } from "@/lib/seo/urls";
 import { formatDateTime, formatNumber, formatPhone } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Painel da revenda" };
@@ -28,7 +28,6 @@ export default async function AdminHome() {
       : null,
   ]);
 
-  const publicPath = tenantPublicPath(context.tenant.slug);
   /*
    * O endereco que a revenda divulga e o dominio dela, quando existe.
    *
@@ -37,7 +36,9 @@ export default async function AdminHome() {
    * que ela nunca vai passar para um cliente.
    */
   const siteUrl = await publicSiteUrl(context.tenant.id);
-  const enderecoVisivel = siteUrl ?? publicPath;
+  // absoluto, com o /app: é texto para copiar, e o caminho cru dava 404
+  const previewUrl = await tenantAbsoluteUrl(context.tenant.slug);
+  const enderecoVisivel = siteUrl ?? previewUrl;
 
   return (
     <>
@@ -150,7 +151,7 @@ export default async function AdminHome() {
             */}
             {siteUrl ? (
               <p className="mt-2 text-xs text-faint">
-                Também responde por <span className="font-mono">{publicPath}</span>
+                Também responde por <span className="font-mono">{previewUrl}</span>
               </p>
             ) : null}
             <p className="mt-3 text-[13px] leading-relaxed text-muted">

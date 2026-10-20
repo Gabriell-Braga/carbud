@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { MapPin, Search } from "lucide-react";
 import type { SiteData, SiteLinks } from "../contract";
@@ -54,7 +55,7 @@ function Header({ site, links }: { site: SiteData; links: SiteLinks }) {
         </Link>
 
         {/* a busca mora no cabeçalho: é a ação central deste desenho */}
-        <form action={links.stock} method="get" className="relative hidden flex-1 md:block">
+        <Form action={links.stock} className="relative hidden flex-1 md:block">
           <Search
             className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--site-muted)]"
             aria-hidden="true"
@@ -65,7 +66,7 @@ function Header({ site, links }: { site: SiteData; links: SiteLinks }) {
             aria-label="Buscar veículos"
             className="h-10 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-background)] pl-10 pr-3 text-[13px] outline-none transition-colors focus:border-[var(--site-primary)]"
           />
-        </form>
+        </Form>
 
         <nav className="ml-auto hidden items-center gap-5 text-[13px] lg:flex">
           {cidade ? (
@@ -94,14 +95,14 @@ function Header({ site, links }: { site: SiteData; links: SiteLinks }) {
 
       {/* no celular a navegação vira faixa rolável, e a busca desce para cá */}
       <div className="border-t border-[var(--site-border)] lg:hidden">
-        <form action={links.stock} method="get" className="px-6 py-2.5 md:hidden">
+        <Form action={links.stock} className="px-6 py-2.5 md:hidden">
           <input
             name="q"
             placeholder="Pesquise por marca, modelo ou versão"
             aria-label="Buscar veículos"
             className="h-10 w-full rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-background)] px-3 text-[13px] outline-none focus:border-[var(--site-primary)]"
           />
-        </form>
+        </Form>
         <nav className="flex gap-5 overflow-x-auto px-6 pb-2.5 text-[13px]">
           <Link href={links.stock} className="shrink-0">
             Comprar
@@ -235,13 +236,13 @@ export function ServiceCard({
       </p>
       <p className="mt-2 text-[13px] leading-relaxed text-[var(--site-muted)]">{text}</p>
 
-      <a
+      <Link
         href={href}
         {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
         className="mt-auto inline-flex justify-center rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-2.5 pt-2.5 text-center text-[13px] font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
       >
         {cta}
-      </a>
+      </Link>
     </article>
   );
 }

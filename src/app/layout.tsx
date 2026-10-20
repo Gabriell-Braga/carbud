@@ -5,6 +5,7 @@ import "./globals.css";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { ToastProvider } from "@/components/ui/toast";
 import { APP_DESCRIPTION, APP_NAME, APP_TITLE_TEMPLATE } from "@/lib/brand";
+import { BASE_PATH } from "@/lib/paths";
 import { THEME_COOKIE, isThemePreference, themeClassName } from "@/lib/theme";
 
 /**
@@ -35,7 +36,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   // O mount path pode só existir no runtime do Worker; publicamos no <html>
   // para o cliente montar URLs de fetch e de imagem sem depender do build.
-  const basePath = process.env.BASE_URL ?? process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  // `||`, não `??`: no Worker o BASE_URL existe e vem vazio, e o `??` parava nele
+  const basePath = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_PATH || BASE_PATH;
 
   return (
     <html

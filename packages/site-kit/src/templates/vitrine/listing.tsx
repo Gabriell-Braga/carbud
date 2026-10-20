@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { ListingProps, StockFacets } from "../contract";
@@ -410,7 +411,7 @@ export function Listing({
             Explore o estoque da loja, compare opções e fale diretamente com a nossa equipe.
           </p>
 
-          <form action={links.stock} method="get" className="mt-7 flex max-w-2xl gap-2">
+          <Form action={links.stock} className="mt-7 flex max-w-2xl gap-2">
             <div className="relative flex-1">
               <Search
                 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--site-muted)]"
@@ -431,7 +432,7 @@ export function Listing({
             >
               Buscar
             </button>
-          </form>
+          </Form>
 
           <CategoryChips items={categoryShortcuts(facets, links)} />
         </div>

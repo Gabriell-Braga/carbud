@@ -301,10 +301,6 @@ function StockFeed({
         </code>
         <CopyButton value={url} />
       </div>
-      <p className="mt-2 text-xs text-faint">
-        Com domínio próprio, prefira o endereço da loja:{" "}
-        <code>https://seu-dominio/estoque.xml</code>.
-      </p>
     </details>
   );
 }

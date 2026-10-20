@@ -12,6 +12,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { FormField, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { apiDelete, apiPost, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
+import { withBasePath } from "@/lib/paths";
 import { formatDateTime } from "@/lib/utils";
 
 export type WhatsappStatus = {
@@ -54,8 +55,9 @@ export function WhatsappConnection({
   const [webhookUrl, setWebhookUrl] = useState("");
 
   useEffect(() => {
-    const basePath = document.documentElement.dataset.basePath ?? "";
-    setWebhookUrl(`${window.location.origin}${basePath}/api/webhooks/whatsapp`);
+    // withBasePath, e não o data-base-path cru: em produção o atributo vem
+    // vazio e a URL saía sem o /app, cadastrando um webhook que dá 404
+    setWebhookUrl(`${window.location.origin}${withBasePath("/api/webhooks/whatsapp")}`);
   }, []);
 
   async function handleDisconnect() {

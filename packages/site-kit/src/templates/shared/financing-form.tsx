@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiPost } from "../../lib/client-api";
 import { DEFAULT_MONTHLY_RATE, monthlyInstallmentCents } from "../../lib/installment";
@@ -212,7 +213,7 @@ export function FinancingEstimator({
         ) : null}
       </div>
 
-      <a
+      <Link
         href={continueUrl(continueHref, {
           veiculo: modoEstoque ? vehicleId : undefined,
           valor: modoEstoque ? undefined : priceCents,
@@ -222,7 +223,7 @@ export function FinancingEstimator({
         className="inline-flex items-center justify-center rounded-[var(--site-radius)] bg-[var(--site-primary)] px-5 py-3 text-sm font-medium text-[var(--site-primary-foreground)] transition-colors hover:bg-[var(--site-primary-hover)]"
       >
         {continueLabel}
-      </a>
+      </Link>
     </div>
   );
 }

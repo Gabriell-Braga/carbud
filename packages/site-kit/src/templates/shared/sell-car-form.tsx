@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { apiPost } from "../../lib/client-api";
 import { readUtm } from "./utm";
@@ -256,12 +257,12 @@ export function SellCarTeaser({ href }: { href: string }) {
         onChange={(event) => setMileage(event.target.value)}
       />
 
-      <a
+      <Link
         href={query.toString() ? `${href}?${query.toString()}` : href}
         className="inline-flex items-center justify-center rounded-[var(--site-radius)] bg-white px-5 py-3 text-sm font-medium text-[var(--site-text)] transition-opacity hover:opacity-90"
       >
         Avaliar meu usado
-      </a>
+      </Link>
     </div>
   );
 }
