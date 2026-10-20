@@ -380,6 +380,10 @@ especialista em marketing, e mudanças de desenho não são nossa alçada.
 | Heredoc com regex | as barras invertidas somem. Escrever o script com a ferramenta de escrita, não com heredoc. |
 | Contador de módulo para id de componente | quebra a hidratação. Usar `useId()`. |
 | Commitar antes de ler o resultado do build | já aconteceu. **Conferir o código de saída antes de commitar.** |
+| `.partial()` de schema com `.default()` (Zod 4) | o default é aplicado mesmo no PATCH: salvar só a carroceria voltava o carro para rascunho, editar o título do banner o reativava. Use `parsePatch` (`src/lib/validation/patch.ts`) ou schema de update sem default. |
+| Campo opcional vazio virando `undefined` | no update, `undefined` é "não mexer": o campo apagado volta no F5. Campo que a pessoa pode apagar vira `null` (`clearable` em `validation/site.ts`, `emptyToNull` em `validation/vehicles.ts`). |
+| Atributo de lista do Mercado Livre por nome | o ML recusa o anúncio inteiro se o texto não bater ("Sedán"). Mande `value_id` do catálogo `MLB1744`. |
+| Link digitado pela loja direto em `href` | `javascript:` executa no visitante. Passe por `safeHref` (`@carbud/site-kit/links`). |
 
 ---
 
