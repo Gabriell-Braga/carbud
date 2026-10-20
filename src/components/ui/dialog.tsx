@@ -54,6 +54,11 @@ export function Dialog({
   const openerRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const descriptionId = React.useId();
+  // quem usa passa `onClose` inline, nova a cada render; se ela entrasse nas
+  // dependências do efeito, cada tecla digitada num campo do diálogo
+  // devolveria o foco para quem abriu e depois para o primeiro botão
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
 
   React.useEffect(() => {
     if (!open) return;
@@ -69,7 +74,7 @@ export function Dialog({
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -103,7 +108,7 @@ export function Dialog({
       document.body.style.overflow = previousOverflow;
       openerRef.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
