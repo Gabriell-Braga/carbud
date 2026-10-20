@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
 import {
@@ -33,9 +33,18 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{3,40}$/).default("demo"),
-  adminEmail: z.string().trim().toLowerCase().email(),
-  adminPassword: strongPasswordSchema,
+  /** Só completa as fotos da demo que já existe; dispensa e-mail e senha. */
+  photos: z.boolean().optional(),
+  adminEmail: z.string().trim().toLowerCase().email().optional(),
+  adminPassword: strongPasswordSchema.optional(),
 });
+
+/*
+ * O proxy do Webflow corta a request em ~100s, e baixar 22 fotos passa disso.
+ * As fotos vão em chamadas à parte, cada uma parando antes do corte; quem
+ * chama repete enquanto `photosPending` > 0.
+ */
+const PHOTO_BUDGET_MS = 60_000;
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -45,7 +54,8 @@ const DAY = 24 * 60 * 60 * 1000;
  *
  * Rodar de novo apaga a revenda do mesmo slug e recria do zero: é o jeito de
  * "resetar" a demo depois que alguém mexeu nela numa reunião. As fotos vêm do
- * Wikimedia Commons; foto que não baixar só deixa o carro sem capa.
+ * Wikimedia Commons, numa segunda etapa: `{"photos": true}`, repetida até
+ * `photosPending` chegar a zero.
  */
 export const POST = withApi(async (request: Request) => {
   assertOpsSecret(request);
@@ -55,6 +65,13 @@ export const POST = withApi(async (request: Request) => {
   const { slug, adminEmail, adminPassword } = parsed.data;
 
   const db = await getDb();
+
+  if (parsed.data.photos) {
+    const [demo] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, slug));
+    if (!demo) throw badRequest("Crie a demo antes de completar as fotos");
+    return jsonOk(await attachPhotos(demo.id));
+  }
+  if (!adminEmail || !adminPassword) throw badRequest("Informe adminEmail e adminPassword");
 
   const [owner] = await db
     .select({ tenantId: users.tenantId })
@@ -166,7 +183,6 @@ export const POST = withApi(async (request: Request) => {
   const sellers = team.slice(1);
 
   const stock = await createStock(tenantId, [matriz.id, filial.id]);
-  const photos = await attachPhotos(tenantId, stock);
 
   const stages = await ensureStages(tenantId);
   const leadCount = await createLeads(tenantId, stock, stages, sellers, [matriz.id, filial.id]);
@@ -179,7 +195,13 @@ export const POST = withApi(async (request: Request) => {
     cacheKeys.tenantSite(slug),
   );
 
-  return jsonOk({ tenantId, slug, vehicles: stock.length, photos, leads: leadCount });
+  return jsonOk({
+    tenantId,
+    slug,
+    vehicles: stock.length,
+    leads: leadCount,
+    photosPending: stock.length,
+  });
 });
 
 /* ------------------------------------------------------------------------ */
@@ -281,7 +303,7 @@ const OPTIONS = [
   ["ar-digital", "banco-couro", "teto-solar", "piloto-automatico", "gps", "carplay", "abs", "airbag", "alarme"],
 ];
 
-type StockItem = { id: string; label: string; priceCents: number; status: string; photo: string };
+type StockItem = { id: string; label: string; priceCents: number; status: string };
 
 async function createStock(tenantId: string, storeIds: string[]): Promise<StockItem[]> {
   const db = await getDb();
@@ -322,18 +344,28 @@ async function createStock(tenantId: string, storeIds: string[]): Promise<StockI
         createdAt: new Date(now - (3 + ((index * 7) % 85)) * DAY),
       })
       .returning({ id: vehicles.id });
-    items.push({ id: row.id, label: `${car.brand} ${car.model} ${car.version} ${car.year}`, priceCents, status, photo: car.photo });
+    items.push({ id: row.id, label: `${car.brand} ${car.model} ${car.version} ${car.year}`, priceCents, status });
   }
   return items;
 }
 
-async function attachPhotos(tenantId: string, stock: StockItem[]): Promise<number> {
+/** Baixa as fotos que faltam até o orçamento de tempo acabar. */
+async function attachPhotos(tenantId: string): Promise<{ photos: number; photosPending: number }> {
   const db = await getDb();
+  const deadline = Date.now() + PHOTO_BUDGET_MS;
+  const missing = await db
+    .select({ id: vehicles.id, slug: vehicles.slug })
+    .from(vehicles)
+    .where(and(eq(vehicles.tenantId, tenantId), eq(vehicles.photosCount, 0)));
   let saved = 0;
 
-  for (const item of stock) {
+  for (const item of missing) {
+    if (Date.now() > deadline) break;
+    // o slug termina no índice do carro em CARS
+    const car = CARS[Number(item.slug.split("-").pop())];
+    if (!car) continue;
     try {
-      const response = await fetchPhoto(item.photo);
+      const response = await fetchPhoto(car.photo);
       if (!response) continue;
       const type = response.headers.get("content-type") ?? "image/jpeg";
       const body = await response.arrayBuffer();
@@ -356,10 +388,10 @@ async function attachPhotos(tenantId: string, stock: StockItem[]): Promise<numbe
         .where(eq(vehicles.id, item.id));
       saved += 1;
     } catch {
-      // ponytail: carro sem foto se o Wikimedia recusar; rodar de novo resolve
+      // fica para a próxima chamada
     }
   }
-  return saved;
+  return { photos: saved, photosPending: missing.length - saved };
 }
 
 /** O Wikimedia responde 429 a rajadas: espera e tenta de novo antes de desistir. */

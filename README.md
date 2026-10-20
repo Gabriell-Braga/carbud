@@ -217,7 +217,7 @@ Todas exigem o header `x-ops-secret`.
 | `POST /api/ops/migrate` | Aplica as migrations pendentes no banco do ambiente |
 | `POST /api/ops/bootstrap` | Cria o primeiro super-admin e popula o catálogo de marcas |
 | `POST /api/ops/billing` | Roda a régua de inadimplência (aceita `?dryRun=1`) |
-| `POST /api/ops/seed-demo` | Cria (ou recria do zero) a revenda de demonstração "Prime Motors", com estoque, fotos, leads, funil, avaliações e financiamentos. Corpo: `{"adminEmail", "adminPassword", "slug"?}` (slug padrão `demo`) |
+| `POST /api/ops/seed-demo` | Cria (ou recria do zero) a revenda de demonstração "Prime Motors", com estoque, fotos, leads, funil, avaliações e financiamentos. Corpo: `{"adminEmail", "adminPassword", "slug"?}` (slug padrão `demo`). As fotos vêm depois, com `{"photos": true}`, repetido até `photosPending` zerar (cada chamada para em ~60s, antes do corte do proxy) |
 
 ### Régua de cobrança
 
