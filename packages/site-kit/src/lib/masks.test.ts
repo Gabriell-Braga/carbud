@@ -57,6 +57,11 @@ describe("maskPhone", () => {
     expect(maskPhone("3135550199")).toBe("(31) 3555-0199");
   });
 
+  it("tira o 55 do pais em vez de cortar o fim do numero", () => {
+    expect(maskPhone("5527996361212")).toBe("(27) 99636-1212");
+    expect(maskPhone("+55 (27) 3322-1100")).toBe("(27) 3322-1100");
+  });
+
   it("nao deixa passar de onze digitos", () => {
     expect(maskPhone("319730654991234")).toBe("(31) 97306-5499");
   });

@@ -125,7 +125,11 @@ export default async function PublicSiteLayout({ children, params }: Props) {
         <>
           <GoogleTagManager containerId={site?.gtmCode ?? null} />
           <TrackingScripts ids={site?.tracking ?? {}} />
-          <WhatsappGate tenantSlug={slug} enabled={site?.contact.whatsappForm ?? false} />
+          <WhatsappGate
+            tenantSlug={slug}
+            enabled={site?.contact.whatsappForm ?? false}
+            fields={site?.contact.whatsappFormFields}
+          />
         </>
       ) : null}
       {children}

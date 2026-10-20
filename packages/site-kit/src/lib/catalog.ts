@@ -56,3 +56,20 @@ export const BODY_TYPE_LABELS: Record<BodyType, string> = {
   conversivel: "Conversível",
   utilitario: "Utilitário",
 };
+
+/**
+ * Campos opcionais do formulário antes do WhatsApp. O telefone não entra na
+ * lista porque é sempre pedido: sem ele o lead não tem como ser atendido.
+ */
+export const WHATSAPP_FORM_FIELDS = ["name", "email", "message", "tradeIn"] as const;
+export type WhatsappFormField = (typeof WHATSAPP_FORM_FIELDS)[number];
+
+export const WHATSAPP_FORM_FIELD_LABELS: Record<WhatsappFormField, string> = {
+  name: "Nome",
+  email: "E-mail",
+  message: "O que procura",
+  tradeIn: "Carro para a troca",
+};
+
+/** O que o formulário pedia antes de dar para escolher: nome e telefone. */
+export const DEFAULT_WHATSAPP_FORM_FIELDS: WhatsappFormField[] = ["name"];

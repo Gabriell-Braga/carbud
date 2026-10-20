@@ -104,7 +104,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <>
             <GoogleTagManager containerId={gtmCode} />
             <TrackingScripts ids={tracking ?? {}} />
-            <WhatsappGate tenantSlug={slug} enabled={site.contact.whatsappForm ?? false} />
+            <WhatsappGate
+              tenantSlug={slug}
+              enabled={site.contact.whatsappForm ?? false}
+              fields={site.contact.whatsappFormFields}
+            />
           </>
         ) : null}
         {children}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { DEFAULT_WHATSAPP_FORM_FIELDS } from "@carbud/site-kit/catalog";
 import Link from "next/link";
 import { asc, eq } from "drizzle-orm";
 import { PageHeader } from "@/components/layout/shell";
@@ -114,6 +115,7 @@ export default async function SitePage({
             phone: site?.phone ?? "",
             whatsapp: site?.whatsapp ?? "",
             whatsappForm: site?.whatsappForm ?? false,
+            whatsappFormFields: site?.whatsappFormFields ?? DEFAULT_WHATSAPP_FORM_FIELDS,
             email: site?.email ?? "",
             addressStreet: site?.addressStreet ?? "",
             addressNumber: site?.addressNumber ?? "",

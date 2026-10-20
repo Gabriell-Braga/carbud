@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiPost } from "../../lib/client-api";
+import { DEFAULT_WHATSAPP_FORM_FIELDS, type WhatsappFormField } from "../../lib/catalog";
 import { maskPhone } from "../../lib/masks";
 import { readUtm } from "./utm";
 import { newBrowserEventId, readTrackingContext, trackBrowserEvent } from "./tracking";
@@ -18,7 +19,16 @@ import { WhatsappIcon } from "./whatsapp-icon";
  * Quem já preencheu uma vez segue direto nas próximas: pedir nome e telefone
  * a cada clique faria a pessoa desistir do contato que a loja queria.
  */
-export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enabled: boolean }) {
+export function WhatsappGate({
+  tenantSlug,
+  enabled,
+  fields = DEFAULT_WHATSAPP_FORM_FIELDS,
+}: {
+  tenantSlug: string;
+  enabled: boolean;
+  /** Campos escolhidos pela revenda, além do telefone, que é sempre pedido. */
+  fields?: WhatsappFormField[];
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const eventId = useRef("");
   const [target, setTarget] = useState<{ href: string; vehicleId: string; text: string } | null>(
@@ -68,14 +78,24 @@ export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enab
     setError(null);
 
     const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") ?? "");
+    const read = (key: string) => String(form.get(key) ?? "").trim();
+    // o lead exige nome; sem o campo, o vendedor vê de onde veio
+    const name = fields.includes("name") ? read("name") : "Contato pelo WhatsApp";
+    const message = [
+      target.text,
+      read("message") && `O que procura: ${read("message")}`,
+      read("tradeIn") && `Carro para a troca: ${read("tradeIn")}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
     const result = await apiPost("/api/leads", {
       tenantSlug,
       kind: "whatsapp",
       vehicleId: target.vehicleId,
       name,
       phone,
-      message: target.text,
+      email: read("email"),
+      message,
       website: String(form.get("website") ?? ""),
       utm: readUtm(),
       tracking: readTrackingContext(eventId.current),
@@ -103,6 +123,8 @@ export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enab
     dialogRef.current?.close();
   }
 
+  // o primeiro campo não precisa do respiro de cima
+  const label = "mb-1 mt-3 block text-xs font-medium text-slate-500 first-of-type:mt-0";
   const field =
     "w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-[var(--site-primary)]";
 
@@ -117,7 +139,7 @@ export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enab
           <div>
             <p className="text-base font-semibold">Falar no WhatsApp</p>
             <p className="mt-1 text-sm text-slate-500">
-              Deixe seu nome e telefone para a loja te atender.
+              Deixe seus dados para a loja te atender.
             </p>
           </div>
           <button
@@ -130,12 +152,16 @@ export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enab
           </button>
         </div>
 
-        <label className="mb-1 block text-xs font-medium text-slate-500" htmlFor="wa-name">
-          Nome
-        </label>
-        <input id="wa-name" name="name" required minLength={2} autoComplete="name" className={field} />
+        {fields.includes("name") ? (
+          <>
+            <label className={label} htmlFor="wa-name">
+              Nome
+            </label>
+            <input id="wa-name" name="name" required minLength={2} autoComplete="name" className={field} />
+          </>
+        ) : null}
 
-        <label className="mb-1 mt-3 block text-xs font-medium text-slate-500" htmlFor="wa-phone">
+        <label className={label} htmlFor="wa-phone">
           Telefone / WhatsApp
         </label>
         <input
@@ -149,6 +175,39 @@ export function WhatsappGate({ tenantSlug, enabled }: { tenantSlug: string; enab
           value={phone}
           onChange={(event) => setPhone(maskPhone(event.target.value))}
         />
+
+        {fields.includes("email") ? (
+          <>
+            <label className={label} htmlFor="wa-email">
+              E-mail
+            </label>
+            <input id="wa-email" name="email" type="email" required autoComplete="email" className={field} />
+          </>
+        ) : null}
+
+        {fields.includes("message") ? (
+          <>
+            <label className={label} htmlFor="wa-message">
+              O que você procura? <span className="font-normal text-slate-400">(opcional)</span>
+            </label>
+            <input id="wa-message" name="message" maxLength={300} className={field} />
+          </>
+        ) : null}
+
+        {fields.includes("tradeIn") ? (
+          <>
+            <label className={label} htmlFor="wa-trade">
+              Tem carro para dar na troca? <span className="font-normal text-slate-400">(opcional)</span>
+            </label>
+            <input
+              id="wa-trade"
+              name="tradeIn"
+              maxLength={120}
+              placeholder="Modelo e ano, ex.: Gol 2018"
+              className={field}
+            />
+          </>
+        ) : null}
 
         {/* honeypot anti-spam: invisível para pessoas */}
         <input

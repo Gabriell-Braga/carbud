@@ -1,5 +1,11 @@
 import type { ComponentType } from "react";
-import type { BodyType, Fuel, Transmission, VehicleStatus } from "../lib/catalog";
+import type {
+  BodyType,
+  Fuel,
+  Transmission,
+  VehicleStatus,
+  WhatsappFormField,
+} from "../lib/catalog";
 import { hoverShade } from "../lib/color";
 
 /**
@@ -64,6 +70,8 @@ export type SiteContact = {
   whatsappDigits: string | null;
   /** Pede nome e telefone antes de abrir o WhatsApp (vira lead). */
   whatsappForm: boolean;
+  /** Campos pedidos além do telefone. Opcional: painel antigo não manda. */
+  whatsappFormFields?: WhatsappFormField[];
   email: string | null;
   address: {
     street: string | null;

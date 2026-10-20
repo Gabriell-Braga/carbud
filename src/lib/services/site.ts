@@ -17,6 +17,7 @@ import {
 } from "@/lib/catalog/labels";
 import { OPTION_LABELS, VEHICLE_OPTIONS } from "@/lib/catalog/options";
 import { formatPhoneBR } from "@carbud/site-kit/format";
+import { DEFAULT_WHATSAPP_FORM_FIELDS } from "@carbud/site-kit/catalog";
 import { plateEnd } from "@/lib/format/plate";
 import { mediaUrl } from "@/lib/paths";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
@@ -140,6 +141,7 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
       whatsapp: formatPhoneBR(site?.whatsapp),
       whatsappDigits: site?.whatsapp ? normalizeWhatsapp(site.whatsapp) : null,
       whatsappForm: site?.whatsappForm ?? false,
+      whatsappFormFields: site?.whatsappFormFields ?? DEFAULT_WHATSAPP_FORM_FIELDS,
       email: site?.email ?? null,
       address: {
         street: site?.addressStreet ?? null,

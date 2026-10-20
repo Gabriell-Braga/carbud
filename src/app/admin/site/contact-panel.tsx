@@ -7,6 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox, FormField, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { maskCep, maskPhone } from "@carbud/site-kit/masks";
+import {
+  WHATSAPP_FORM_FIELDS,
+  WHATSAPP_FORM_FIELD_LABELS,
+  type WhatsappFormField,
+} from "@carbud/site-kit/catalog";
 import { apiPatch } from "@/lib/client/api";
 import { lookupCep } from "@/lib/client/cep";
 import { usePublishConfirm } from "./use-publish-confirm";
@@ -15,6 +20,7 @@ export type ContactValues = {
   phone: string;
   whatsapp: string;
   whatsappForm: boolean;
+  whatsappFormFields: WhatsappFormField[];
   email: string;
   addressStreet: string;
   addressNumber: string;
@@ -102,6 +108,7 @@ export function ContactPanel({
       phone: values.phone,
       whatsapp: values.whatsapp,
       whatsappForm: values.whatsappForm,
+      whatsappFormFields: values.whatsappFormFields,
       email: values.email,
       addressStreet: values.addressStreet,
       addressNumber: values.addressNumber,
@@ -177,13 +184,43 @@ export function ContactPanel({
               onChange={(event) => update("whatsappForm", event.target.checked)}
             />
             <span>
-              Pedir nome e telefone antes de abrir o WhatsApp
+              Pedir os dados antes de abrir o WhatsApp
               <span className="block text-muted">
-                O botão abre um formulário curto; o contato entra como lead e a pessoa segue
-                para o WhatsApp. Quem já preencheu vai direto nas próximas vezes.
+                Todo botão de WhatsApp do site abre um formulário curto; o contato entra como lead
+                e a pessoa segue para o WhatsApp. Quem já preencheu vai direto nas próximas vezes.
               </span>
             </span>
           </label>
+
+          {values.whatsappForm ? (
+            <fieldset className="ml-6 mt-3">
+              <legend className="mb-1.5 text-[13px] text-muted">Campos do formulário</legend>
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-text">
+                {/* sem telefone o lead não tem como ser atendido: fica fixo */}
+                <label className="flex items-center gap-2 text-muted">
+                  <Checkbox checked disabled onChange={() => {}} />
+                  Telefone (sempre)
+                </label>
+                {WHATSAPP_FORM_FIELDS.map((field) => (
+                  <label key={field} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={values.whatsappFormFields.includes(field)}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        update(
+                          "whatsappFormFields",
+                          event.target.checked
+                            ? [...values.whatsappFormFields, field]
+                            : values.whatsappFormFields.filter((item) => item !== field),
+                        )
+                      }
+                    />
+                    {WHATSAPP_FORM_FIELD_LABELS[field]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
         </CardContent>
       </Card>
 

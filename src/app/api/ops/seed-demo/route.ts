@@ -93,6 +93,8 @@ export const POST = withApi(async (request: Request) => {
     tenantId,
     phone: "2733221100",
     whatsapp: "5527999887766",
+    whatsappForm: true,
+    whatsappFormFields: ["name", "message", "tradeIn"],
     email: "contato@primemotors.com.br",
     addressStreet: "Av. Nossa Senhora da Penha",
     addressNumber: "1500",

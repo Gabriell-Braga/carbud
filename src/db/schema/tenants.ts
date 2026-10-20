@@ -1,5 +1,6 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { createdAt, idColumn, updatedAt } from "./_shared";
+import type { WhatsappFormField } from "@carbud/site-kit/catalog";
 
 export const TENANT_STATUS = ["active", "suspended", "deleted"] as const;
 export type TenantStatus = (typeof TENANT_STATUS)[number];
@@ -148,6 +149,8 @@ export const tenantSites = sqliteTable("tenant_sites", {
   whatsapp: text("whatsapp"),
   /** Botão de WhatsApp do site abre um formulário antes, e o contato vira lead. */
   whatsappForm: integer("whatsapp_form", { mode: "boolean" }).notNull().default(false),
+  /** Campos que esse formulário pede além do telefone; nulo é o padrão (só o nome). */
+  whatsappFormFields: text("whatsapp_form_fields", { mode: "json" }).$type<WhatsappFormField[]>(),
   email: text("email"),
   addressStreet: text("address_street"),
   addressNumber: text("address_number"),

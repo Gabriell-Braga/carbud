@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WHATSAPP_FORM_FIELDS } from "@carbud/site-kit/catalog";
 
 const hexColor = z
   .string()
@@ -42,6 +43,7 @@ export const siteSettingsSchema = z.object({
   phone: optional(z.string().trim().max(20)),
   whatsapp: optional(z.string().trim().max(20)),
   whatsappForm: z.boolean().optional(),
+  whatsappFormFields: z.array(z.enum(WHATSAPP_FORM_FIELDS)).max(WHATSAPP_FORM_FIELDS.length).optional(),
   email: optional(z.string().trim().toLowerCase().email("E-mail inválido")),
   addressStreet: optional(z.string().trim().max(160)),
   addressNumber: optional(z.string().trim().max(20)),

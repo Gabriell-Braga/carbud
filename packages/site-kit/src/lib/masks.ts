@@ -66,9 +66,15 @@ export function centsToMoney(cents: number): string {
  * Cresce conforme a pessoa digita: "31" vira "(31)", o nono dígito empurra o
  * hífen. Corta em onze porque é o máximo com DDD, e deixar digitar além disso
  * só produziria um número que a loja não consegue discar.
+ *
+ * O 55 do país sai antes do corte: WhatsApp gravado como "5527996361212"
+ * aparecia como "(55) 27996-3612", e salvar o formulário gravava o número
+ * cortado.
  */
 export function maskPhone(value: string): string {
-  const d = digitsOf(value).slice(0, 11);
+  let all = digitsOf(value);
+  if (all.length > 11 && all.startsWith("55")) all = all.slice(2);
+  const d = all.slice(0, 11);
   if (d.length === 0) return "";
   if (d.length <= 2) return `(${d}`;
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
