@@ -46,9 +46,9 @@ export const PATCH = withApi(async (request: Request) => {
 
     const mudou =
       (siteFields.legalPrivacy !== undefined &&
-        siteFields.legalPrivacy !== (atual[0]?.privacy ?? undefined)) ||
+        siteFields.legalPrivacy !== (atual[0]?.privacy ?? null)) ||
       (siteFields.legalTerms !== undefined &&
-        siteFields.legalTerms !== (atual[0]?.terms ?? undefined));
+        siteFields.legalTerms !== (atual[0]?.terms ?? null));
 
     if (mudou) values.legalUpdatedAt = new Date();
   }

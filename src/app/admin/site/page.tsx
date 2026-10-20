@@ -10,7 +10,6 @@ import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { Tabs } from "@/components/ui/tabs";
-import { DEFAULT_THEME } from "@carbud/site-kit/contract";
 import { listDomains } from "@/lib/services/domains";
 import { hostingReady } from "@/lib/integrations/vercel";
 import { isVaultConfigured } from "@/lib/security/vault";
@@ -96,15 +95,7 @@ export default async function SitePage({
             templateId: context.tenant.templateId,
             logoKey: site?.logoKey ?? null,
             faviconKey: site?.faviconKey ?? null,
-            theme: {
-              primary: site?.theme?.primary ?? DEFAULT_THEME.primary,
-              primaryForeground:
-                site?.theme?.primaryForeground ?? DEFAULT_THEME.primaryForeground,
-              accent: site?.theme?.accent ?? DEFAULT_THEME.accent,
-              surface: site?.theme?.surface ?? DEFAULT_THEME.surface,
-              fontHeading: site?.theme?.fontHeading ?? DEFAULT_THEME.fontHeading,
-              fontBody: site?.theme?.fontBody ?? DEFAULT_THEME.fontBody,
-            },
+            theme: site?.theme ?? {},
           }}
         />
       ) : null}

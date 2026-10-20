@@ -26,6 +26,20 @@ const optionalText = (max: number) =>
     .optional()
     .transform((value) => (value ? value : undefined));
 
+/*
+ * No update, campo apagado precisa virar null: `undefined` é "não mexer", e o
+ * GTM, a razão social e o CNPJ apagados voltavam no F5 (e o GTM continuava
+ * injetado no site).
+ */
+const clearableText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .optional()
+    .transform((value) => (value === "" ? null : value));
+
 export const createTenantSchema = z.object({
   name: z.string().trim().min(2, "Informe o nome da revenda").max(120),
   slug: slugSchema,
@@ -54,14 +68,14 @@ export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 export const updateTenantSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   slug: slugSchema.optional(),
-  legalName: optionalText(160),
+  legalName: clearableText(160),
   // a tela mascara o CNPJ; o banco guarda só dígitos, como no cadastro
-  cnpj: optionalText(20).transform((value) => (value ? onlyDigits(value) : value)),
+  cnpj: clearableText(20).transform((value) => (value ? onlyDigits(value) : value)),
   status: z.enum(TENANT_STATUS).exclude(["deleted"]).optional(),
   templateId: z.string().trim().min(1).optional(),
   blockMode: z.enum(BLOCK_MODES).optional(),
-  notes: optionalText(1000),
-  gtmCode: optionalText(30),
+  notes: clearableText(1000),
+  gtmCode: clearableText(30),
 });
 
 export const billingUpdateSchema = z.object({

@@ -49,7 +49,8 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
         {
           brand: input.brand ?? existing.vehicle.brand,
           model: input.model ?? existing.vehicle.model,
-          version: input.version ?? existing.vehicle.version,
+          // null é "apagou a versão", e o `??` trazia a antiga de volta para o slug
+          version: input.version !== undefined ? input.version : existing.vehicle.version,
           yearModel: input.yearModel ?? existing.vehicle.yearModel,
         },
         id,

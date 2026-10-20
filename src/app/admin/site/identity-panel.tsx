@@ -12,21 +12,19 @@ import { apiDelete, apiPatch, apiUpload } from "@/lib/client/api";
 import { ACCEPTED_INPUT, blobFileName, resizeSingle } from "@/lib/client/images";
 import { mediaUrl } from "@/lib/paths";
 import { openSitePreview } from "@/lib/client/site-preview";
+import { composeTheme } from "@carbud/site-kit/contract";
+import { findTemplateManifest } from "@carbud/site-kit/manifests";
 import { usePublishConfirm } from "./use-publish-confirm";
 
 export type IdentityValues = {
   templateId: string;
   logoKey: string | null;
   faviconKey: string | null;
-  theme: {
-    primary: string;
-    primaryForeground: string;
-    accent: string;
-    surface: string;
-    fontHeading: string;
-    fontBody: string;
-  };
+  /** Só o que a revenda escolheu; o resto vem do template. */
+  theme: Partial<Record<ThemeKey, string>>;
 };
+
+type ThemeKey = "primary" | "primaryForeground" | "accent" | "surface" | "fontHeading" | "fontBody";
 
 const FONT_OPTIONS = [
   { value: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif", label: "Padrão do sistema" },
@@ -52,13 +50,29 @@ export function IdentityPanel({
   const faviconRef = useRef<HTMLInputElement>(null);
 
   const [templateId, setTemplateId] = useState(initial.templateId);
-  const [theme, setTheme] = useState(initial.theme);
+  /*
+   * Guarda só as escolhas da revenda, e a tela mostra o tema composto.
+   *
+   * Antes a tela partia do padrão genérico da plataforma (azul, fonte do
+   * sistema) e salvava o tema inteiro: o primeiro "Salvar" trocava as cores e
+   * a fonte do desenho do template por esse padrão, para sempre. Trocar de
+   * template também arrastava as cores do anterior.
+   */
+  const [overrides, setOverrides] = useState(initial.theme);
+  const theme = composeTheme(findTemplateManifest(templateId)?.defaultTheme, overrides);
   const [logoKey, setLogoKey] = useState(initial.logoKey);
   const [faviconKey, setFaviconKey] = useState(initial.faviconKey);
   const [busy, setBusy] = useState(false);
 
-  function updateTheme(key: keyof IdentityValues["theme"], value: string) {
-    setTheme((current) => ({ ...current, [key]: value }));
+  function updateTheme(key: ThemeKey, value: string) {
+    setOverrides((current) => ({ ...current, [key]: value }));
+  }
+
+  // a fonte do template não está na lista; sem a opção, o select mentiria
+  function fontOptions(current: string) {
+    return FONT_OPTIONS.some((font) => font.value === current)
+      ? FONT_OPTIONS
+      : [{ value: current, label: "Fonte do template" }, ...FONT_OPTIONS];
   }
 
   async function handleLogo(file: File | undefined) {
@@ -140,7 +154,7 @@ export function IdentityPanel({
 
     setBusy(true);
 
-    const result = await apiPatch("/api/admin/site", { templateId, theme });
+    const result = await apiPatch("/api/admin/site", { templateId, theme: overrides });
     setBusy(false);
     if (!result.ok) {
       toast.error(result.error);
@@ -307,7 +321,7 @@ export function IdentityPanel({
                 disabled={readOnly}
                 onChange={(event) => updateTheme("fontHeading", event.target.value)}
               >
-                {FONT_OPTIONS.map((font) => (
+                {fontOptions(theme.fontHeading).map((font) => (
                   <option key={font.value} value={font.value}>
                     {font.label}
                   </option>
@@ -321,7 +335,7 @@ export function IdentityPanel({
                 disabled={readOnly}
                 onChange={(event) => updateTheme("fontBody", event.target.value)}
               >
-                {FONT_OPTIONS.map((font) => (
+                {fontOptions(theme.fontBody).map((font) => (
                   <option key={font.value} value={font.value}>
                     {font.label}
                   </option>
@@ -369,7 +383,7 @@ export function IdentityPanel({
             onChange={(value) => {
               setTemplateId(value);
             }}
-            onPreview={(value) => openSitePreview(slug, { templateId: value, theme })}
+            onPreview={(value) => openSitePreview(slug, { templateId: value, theme: overrides })}
           />
         </CardContent>
       </Card>
@@ -379,7 +393,7 @@ export function IdentityPanel({
         <Button
           type="button"
           variant="secondary"
-          onClick={() => openSitePreview(slug, { templateId, theme })}
+          onClick={() => openSitePreview(slug, { templateId, theme: overrides })}
         >
           <Eye className="h-3.5 w-3.5" />
           Ver prévia
