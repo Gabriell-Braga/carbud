@@ -564,12 +564,12 @@ function StockFeedCard({
 
   // montado no cliente porque depende do endereço em que a pessoa está
   useEffect(() => {
-    setOrigin(window.location.origin + withBasePath(""));
+    setOrigin(window.location.origin);
   }, []);
 
-  const xml = `${origin}/r/${tenantSlug}/estoque.xml`;
-  const json = `${origin}/r/${tenantSlug}/estoque.json`;
-  const meta = `${origin}/r/${tenantSlug}/catalogo-meta.xml`;
+  const xml = `${origin}${withBasePath(`/r/${tenantSlug}/estoque.xml`)}`;
+  const json = `${origin}${withBasePath(`/r/${tenantSlug}/estoque.json`)}`;
+  const meta = `${origin}${withBasePath(`/r/${tenantSlug}/catalogo-meta.xml`)}`;
 
   return (
     <Card className="mb-4">
