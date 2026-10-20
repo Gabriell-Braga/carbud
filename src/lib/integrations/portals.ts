@@ -73,7 +73,7 @@ export type PortalDefinition = {
   importsFeed?: boolean;
   /**
    * O portal avisa os leads de TODAS as lojas numa URL só, cadastrada no app
-   * do integrador (Webmotors). A loja não cadastra endereço nenhum, e o card
+   * do integrador (Webmotors; Mercado Livre, pelas notificações de perguntas). A loja não cadastra endereço nenhum, e o card
    * não mostra a URL de leads com token.
    */
   appLeadWebhook?: boolean;
@@ -171,10 +171,11 @@ export const PORTALS: PortalDefinition[] = [
       // sem isso a troca volta "code_verifier is a required param"
       pkce: true,
     },
+    appLeadWebhook: true,
     adTypes: "plan",
     fields: [],
     howToConnect:
-      "Clique em conectar e autorize com a conta da loja no Mercado Livre. A autorização é única e pode ser revogada por aqui.",
+      "Clique em conectar e autorize com a conta da loja no Mercado Livre. A autorização é única e pode ser revogada por aqui. As perguntas feitas nos anúncios entram no CRM como leads sozinhas.",
   },
   {
     key: "chavesnamao",
@@ -230,7 +231,7 @@ export const PUBLICATION_LABELS: Record<PublicationStatus, string> = {
   publicado: "Publicado",
   removendo: "Removendo",
   removido: "Removido",
-  erro: "Erro",
+  erro: "Precisa de ajuste",
 };
 
 /**

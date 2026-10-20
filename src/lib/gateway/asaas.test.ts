@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toAsaasDate, toCents, toReais } from "./asaas";
+import { toAsaasDate, toAsaasPhone, toCents, toReais } from "./asaas";
 
 describe("conversão de valores", () => {
   it("converte centavos para reais decimais, que é o que o Asaas espera", () => {
@@ -31,5 +31,19 @@ describe("conversão de valores", () => {
 describe("formato de data", () => {
   it("usa AAAA-MM-DD", () => {
     expect(toAsaasDate(new Date(Date.UTC(2026, 8, 10, 15, 30)))).toBe("2026-09-10");
+  });
+});
+
+describe("telefone", () => {
+  it("tira o 55 do país, que faz o Asaas recusar o cliente", () => {
+    expect(toAsaasPhone("5527996361212")).toBe("27996361212");
+    expect(toAsaasPhone("+55 (27) 3322-1100")).toBe("2733221100");
+    expect(toAsaasPhone("27996361212")).toBe("27996361212");
+  });
+
+  it("número incompleto não vai", () => {
+    expect(toAsaasPhone("996361212")).toBeUndefined();
+    expect(toAsaasPhone("")).toBeUndefined();
+    expect(toAsaasPhone(null)).toBeUndefined();
   });
 });

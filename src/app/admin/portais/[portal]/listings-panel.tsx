@@ -45,7 +45,8 @@ const TONE: Record<PublicationStatus, BadgeTone> = {
   pendente: "info",
   removendo: "warning",
   removido: "neutral",
-  erro: "danger",
+  // amarelo: quase sempre é ficha a completar, não pane; vermelho em lista longa assusta à toa
+  erro: "warning",
 };
 
 /** Ordem de leitura: o que precisa de ação primeiro, o que já passou por último. */
@@ -98,6 +99,22 @@ export function ListingsPanel({
       );
   }, [listings, query, status]);
 
+  /*
+   * O mesmo motivo costuma valer para vários carros (conta sem cota, cadastro
+   * pendente no portal). Repetido linha a linha vira um paredão de erro; dito
+   * uma vez no topo, vira uma tarefa.
+   */
+  const sharedError = useMemo(() => {
+    const tally = new Map<string, number>();
+    for (const listing of listings) {
+      if (listing.status === "erro" && listing.detail) {
+        tally.set(listing.detail, (tally.get(listing.detail) ?? 0) + 1);
+      }
+    }
+    const [detail, total] = [...tally].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+    return total >= 2 ? { detail, total } : null;
+  }, [listings]);
+
   const typeNames = new Map(
     adTypes?.mode === "plan" ? adTypes.options.map((option) => [option.id, option.name]) : [],
   );
@@ -105,6 +122,15 @@ export function ListingsPanel({
   return (
     <div className="space-y-4">
       {connectionError ? <Alert tone="danger">{connectionError}</Alert> : null}
+
+      {sharedError ? (
+        <Alert tone="warning">
+          <p className="font-medium">
+            {sharedError.total} carros não subiram para o {portalName} pelo mesmo motivo
+          </p>
+          <p className="mt-1 text-[13px] text-muted">{sharedError.detail}</p>
+        </Alert>
+      ) : null}
 
       {adTypes ? (
         <AdTypesCard
@@ -222,14 +248,10 @@ export function ListingsPanel({
                       </Td>
                     ) : null}
                     <Td className="max-w-md">
-                      {listing.detail ? (
-                        <p
-                          className={
-                            listing.status === "erro"
-                              ? "text-[13px] text-danger"
-                              : "text-[13px] text-muted"
-                          }
-                        >
+                      {listing.detail && listing.detail === sharedError?.detail ? (
+                        <span className="text-[13px] text-muted">Ver o aviso acima</span>
+                      ) : listing.detail ? (
+                        <p className="line-clamp-2 text-[13px] text-muted" title={listing.detail}>
                           {listing.detail}
                         </p>
                       ) : (

@@ -331,9 +331,20 @@ function LeadInbox({ url, portalName }: { url?: string; portalName: string }) {
         Receber leads deste portal
       </summary>
       <p className="mt-2 text-xs text-muted">
-        Cadastre este endereço no {portalName} como URL de leads. Quem chamar por ele entra no CRM
-        como lead, com o carro do anúncio quando o código vier junto.
+        Assim quem chama a loja no {portalName} entra direto no CRM, já com o carro do anúncio, em
+        vez de ficar só no e-mail. É feito uma vez só:
       </p>
+      <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-muted">
+        <li>Copie o endereço abaixo.</li>
+        <li>
+          No painel da loja no {portalName}, procure a área de integrações (costuma se chamar
+          &quot;Integração com CRM&quot;, &quot;URL de leads&quot; ou &quot;Webhook&quot;) e cole.
+        </li>
+        <li>
+          Não achou onde colar? Mande o endereço para o atendimento do {portalName} pedindo para
+          enviar os leads da loja para ele.
+        </li>
+      </ol>
       <div className="mt-2 flex items-center gap-2">
         <code className="min-w-0 flex-1 break-all rounded-sm bg-surface px-2 py-1 text-[11px] text-muted">
           {url}
@@ -402,7 +413,7 @@ function Count({ label, value, alert }: { label: string; value: number; alert?: 
   return (
     <div>
       <p className="label-instrument text-muted">{label}</p>
-      <p className={alert ? "tabular-nums text-danger" : "tabular-nums text-text"}>{value}</p>
+      <p className={alert && value > 0 ? "tabular-nums text-warning" : "tabular-nums text-text"}>{value}</p>
     </div>
   );
 }

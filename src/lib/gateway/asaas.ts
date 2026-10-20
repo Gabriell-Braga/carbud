@@ -148,12 +148,25 @@ export type AsaasCustomerInput = {
 
 export type AsaasCustomer = { id: string; name: string; cpfCnpj: string };
 
+/**
+ * Telefone no formato que o Asaas aceita: DDD + número, só dígitos.
+ *
+ * O WhatsApp da loja vem guardado com o 55 do país, e com ele o Asaas recusa
+ * o cadastro e ainda manda e-mail de "telefone incorreto" para nós. Número que
+ * não fecha com DDD não vai: melhor sem telefone do que barrar a assinatura.
+ */
+export function toAsaasPhone(value: string | null | undefined): string | undefined {
+  let digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length > 11 && digits.startsWith("55")) digits = digits.slice(2);
+  return digits.length === 10 || digits.length === 11 ? digits : undefined;
+}
+
 function customerBody(input: AsaasCustomerInput) {
   return {
     name: input.name,
     cpfCnpj: input.cpfCnpj,
     email: input.email || undefined,
-    mobilePhone: input.mobilePhone || undefined,
+    mobilePhone: toAsaasPhone(input.mobilePhone),
     postalCode: input.postalCode || undefined,
     address: input.address || undefined,
     addressNumber: input.addressNumber || undefined,

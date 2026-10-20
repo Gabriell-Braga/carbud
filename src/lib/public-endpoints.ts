@@ -65,9 +65,8 @@ function portalGroup(portal: PortalDefinition, at: (path: string) => string): Pu
         'App do integrador no Mercado Livre (URL de callback de notificações), com o tópico "questions" marcado',
       url: at("/api/webhooks/mercadolivre"),
     });
-  }
-
-  if (portal.appLeadWebhook) {
+    // as perguntas chegam por essas notificações: não há URL de leads à parte
+  } else if (portal.appLeadWebhook) {
     endpoints.push({
       label: notes.leadsLabel ?? "Avisos de lead",
       where: `App do integrador no ${portal.name}. Um endereço só: o aviso traz o CNPJ, que diz de qual revenda é o lead`,
