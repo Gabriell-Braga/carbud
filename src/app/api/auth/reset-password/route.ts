@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { passwordResets, users } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { strongPasswordSchema } from "@/lib/auth/password-policy";
 import { hashResetToken } from "@/lib/auth/reset";
 import { badRequest, clientIp, jsonOk, tooManyRequests, withApi } from "@/lib/http";
@@ -50,6 +50,14 @@ export const POST = withApi(async (request: Request) => {
   const userRows = await db.select().from(users).where(eq(users.id, reset.userId)).limit(1);
   const user = userRows[0];
   if (!user || user.status !== "active") throw badRequest(INVALID);
+
+  // sem isso quem recebeu senha provisória escapa da troca obrigatória pelo
+  // "esqueci a senha", repetindo a provisória
+  if (await verifyPassword(parsed.data.password, user.passwordHash, user.passwordSalt)) {
+    throw badRequest("Dados inválidos", [
+      { path: ["password"], message: "A nova senha precisa ser diferente da atual" },
+    ]);
+  }
 
   const { hash, salt } = await hashPassword(parsed.data.password);
   const now = new Date();

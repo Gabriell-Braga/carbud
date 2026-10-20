@@ -30,6 +30,9 @@ export function ChangePasswordForm({ redirectTo }: { redirectTo: string }) {
 
     const issue = firstPasswordIssue(newPassword);
     if (issue) found.newPassword = issue;
+    else if (newPassword === currentPassword) {
+      found.newPassword = "A nova senha precisa ser diferente da atual.";
+    }
 
     if (!confirmPassword) found.confirmPassword = "Repita a nova senha.";
     else if (newPassword !== confirmPassword) found.confirmPassword = "As senhas não conferem.";

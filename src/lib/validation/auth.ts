@@ -18,4 +18,10 @@ export const changePasswordSchema = z
   .refine((data) => data.newPassword === data.confirmPassword, {
     path: ["confirmPassword"],
     message: "As senhas não conferem",
+  })
+  // a senha atual já foi conferida contra o hash, então comparar as strings
+  // basta; sem isso a provisória enviada pelo admin vira a senha definitiva
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    path: ["newPassword"],
+    message: "A nova senha precisa ser diferente da atual",
   });
