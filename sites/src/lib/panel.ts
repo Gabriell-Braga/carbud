@@ -87,6 +87,8 @@ export type SitePayload = {
   /** Ids publicos de pixel/medicao; os segredos ficam no painel. */
   tracking: TrackingIds | null;
   available: boolean;
+  /** `https://dominio-oficial`, ou null enquanto nenhum domínio está no ar. */
+  canonicalOrigin: string | null;
 };
 
 export async function fetchSite(slug: string): Promise<SitePayload> {

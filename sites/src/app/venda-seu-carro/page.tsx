@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Venda seu carro",
     description: `Envie os dados do seu veículo e receba uma avaliação da ${site.name}.`,
+    alternates: { canonical: "/venda-seu-carro" },
   };
 }
 

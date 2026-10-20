@@ -1,4 +1,5 @@
 import { jsonOk, notFound, withApi } from "@/lib/http";
+import { publicSiteUrl } from "@/lib/services/domains";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { getSiteData } from "@/lib/services/site";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
@@ -26,6 +27,7 @@ export const GET = withApi(async (request: Request, { params }: Params) => {
   if (!site) throw notFound("Revenda não encontrada");
 
   const { gtmCode, templateId, tracking, ...siteData } = site;
+  const canonicalOrigin = await publicSiteUrl(tenant.id);
 
   return jsonOk(
     {
@@ -42,6 +44,12 @@ export const GET = withApi(async (request: Request, { params }: Params) => {
        * de cobrança.
        */
       available: isPublicSiteAvailable(tenant),
+      /*
+       * O domínio oficial, para o app dos sites mandar o `www` (ou qualquer
+       * outro endereço cadastrado) para ele. Sem eleger um, o Google indexa
+       * o mesmo estoque em dois domínios e trata como conteúdo duplicado.
+       */
+      canonicalOrigin,
     },
     { headers: { "cache-control": "public, max-age=60, s-maxage=60" } },
   );

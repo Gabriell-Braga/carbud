@@ -11,6 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Contato",
     description: `Endereço, telefone e horários de atendimento da ${site.name}.`,
+    alternates: { canonical: "/contato" },
   };
 }
 

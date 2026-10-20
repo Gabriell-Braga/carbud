@@ -20,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Financiamento",
     description: `Simule o financiamento do seu próximo carro na ${site.name}.`,
+    alternates: { canonical: "/financiamento" },
   };
 }
 

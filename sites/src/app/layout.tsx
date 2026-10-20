@@ -6,6 +6,7 @@ import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
 import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
 import { fetchSite } from "~/lib/panel";
 import { currentSlug } from "~/lib/site";
+import { absoluteUrl } from "~/lib/urls";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,8 @@ export async function generateMetadata(): Promise<Metadata> {
     `Confira o estoque de seminovos da ${site.name}: fotos, ficha técnica e contato direto.`;
 
   return {
+    // canonical e og:image relativos resolvem contra o domínio da revenda
+    metadataBase: new URL(await absoluteUrl()),
     title: { default: site.name, template: `%s · ${site.name}` },
     /*
      * O icone da aba e o da REVENDA.

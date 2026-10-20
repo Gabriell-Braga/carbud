@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { buildSiteLinks } from "@carbud/site-kit/links";
 import { getTemplate } from "@carbud/site-kit/registry";
 import type { SiteData, SiteLinks, TemplateModule } from "@carbud/site-kit/contract";
@@ -22,9 +22,21 @@ export type SiteContext = {
  * um endereco apontado para ca por engano merece.
  */
 export async function currentSlug(): Promise<string> {
-  const host = (await headers()).get("host") ?? "";
+  const head = await headers();
+  const host = (head.get("host") ?? "").toLowerCase();
   const slug = await slugForHost(host);
-  if (slug) return slug;
+  if (slug) {
+    /*
+     * Domínio cadastrado que não é o oficial (o `www`, um domínio antigo)
+     * redireciona com 308. Só canonical não basta: robots e sitemap também
+     * respondem por host, e cada endereço anunciaria o próprio estoque.
+     */
+    const { canonicalOrigin } = await fetchSite(slug);
+    if (canonicalOrigin && new URL(canonicalOrigin).host !== host) {
+      permanentRedirect(`${canonicalOrigin}${head.get("x-pathname") ?? "/"}`);
+    }
+    return slug;
+  }
 
   /*
    * Escape para desenvolvimento e para a primeira publicacao.

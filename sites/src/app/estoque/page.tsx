@@ -13,6 +13,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Estoque",
     description: `Veículos seminovos disponíveis na ${site.name}.`,
+    // filtro e paginação na query viram a mesma página para o buscador
+    alternates: { canonical: "/estoque" },
   };
 }
 

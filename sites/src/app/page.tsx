@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { FinancingEstimator } from "@carbud/site-kit/shared/financing-form";
 import { JsonLd, autoDealerJsonLd } from "@carbud/site-kit/jsonld";
 import { fetchFinancingOptions, fetchHome } from "~/lib/panel";
@@ -5,6 +6,9 @@ import { loadSite } from "~/lib/site";
 import { absoluteUrl } from "~/lib/urls";
 
 export const dynamic = "force-dynamic";
+
+// sem isto, `/?utm_source=...` vira outra página para o buscador
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default async function HomePage() {
   const { slug, site, links, template } = await loadSite();

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Archivo, Barlow_Condensed, DM_Sans, Manrope } from "next/font/google";
 import type { Metadata } from "next";
+import { publicSiteUrl } from "@/lib/services/domains";
 import { getSiteData } from "@/lib/services/site";
 import { applySitePreview, readSitePreview } from "@/lib/services/site-preview";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
@@ -24,7 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const site = await getSiteData(slug);
   if (!site) return { title: "Site indisponível" };
 
-  const [url, origin] = await Promise.all([tenantAbsoluteUrl(slug), getOrigin()]);
+  const tenant = await getTenantCoreBySlug(slug);
+  const [url, origin, ownSite] = await Promise.all([
+    tenantAbsoluteUrl(slug),
+    getOrigin(),
+    tenant ? publicSiteUrl(tenant.id) : null,
+  ]);
   const description =
     site.aboutText?.slice(0, 160) ??
     `Confira o estoque de seminovos da ${site.name}: fotos, ficha técnica e contato direto.`;
@@ -37,6 +43,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     icons: site.faviconUrl ? { icon: site.faviconUrl } : undefined,
     description,
     alternates: { canonical: url },
+    /*
+     * Com domínio próprio no ar, este caminho vira só a prévia do painel. Se
+     * continuasse indexável, o mesmo estoque disputaria a busca com o site da
+     * revenda, no domínio do painel.
+     */
+    robots: ownSite ? { index: false, follow: false } : undefined,
     openGraph: {
       siteName: site.name,
       title: site.name,

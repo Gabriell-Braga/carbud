@@ -14,6 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description:
       site.aboutText?.slice(0, 160) ??
       `Conheça a ${site.name}: estoque, atendimento e estrutura.`,
+    alternates: { canonical: "/sobre" },
   };
 }
 
