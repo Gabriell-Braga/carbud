@@ -28,7 +28,12 @@ export async function loadFeedData(
   tenantName: string,
   slug: string,
   origin: string,
-): Promise<{ store: FeedStore; vehicles: FeedVehicle[] }> {
+): Promise<{
+  store: FeedStore;
+  vehicles: FeedVehicle[];
+  /** Só o catálogo da Meta usa: página do Facebook e se há política de privacidade. */
+  meta: { pageId: string | null; hasPrivacy: boolean };
+}> {
   const db = await getDb();
 
   const siteRows = await db
@@ -82,7 +87,14 @@ export async function loadFeedData(
     }
   }
 
+  const street = unit?.addressStreet ?? site?.addressStreet ?? null;
+  const number = unit?.addressNumber ?? site?.addressNumber ?? null;
+
   return {
+    meta: {
+      pageId: site?.tracking?.metaPageId ?? null,
+      hasPrivacy: Boolean(site?.legalPrivacy),
+    },
     store: {
       name: tenantName,
       slug,
@@ -91,6 +103,8 @@ export async function loadFeedData(
       email: unit?.email ?? site?.email ?? null,
       city: unit?.addressCity ?? site?.addressCity ?? null,
       state: unit?.addressState ?? site?.addressState ?? null,
+      street: street ? [street, number].filter(Boolean).join(", ") : null,
+      zip: unit?.addressZip ?? site?.addressZip ?? null,
     },
     vehicles: rows.map((row) => ({
       id: row.id,

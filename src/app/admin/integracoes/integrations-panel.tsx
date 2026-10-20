@@ -568,6 +568,7 @@ function StockFeedCard({
 
   const xml = `${origin}/r/${tenantSlug}/estoque.xml`;
   const json = `${origin}/r/${tenantSlug}/estoque.json`;
+  const meta = `${origin}/r/${tenantSlug}/catalogo-meta.xml`;
 
   return (
     <Card className="mb-4">
@@ -582,6 +583,12 @@ function StockFeedCard({
       <CardContent className="space-y-3">
         <FeedLine label="XML" url={xml} onCopy={onCopy} />
         <FeedLine label="JSON" url={json} onCopy={onCopy} />
+        <FeedLine label="Meta" url={meta} onCopy={onCopy} />
+        <p className="text-xs text-faint">
+          O da Meta vai no Gerenciador de Comércio → Catálogo de veículos → Fontes de dados →
+          Feed agendado. Preencha o id da página do Facebook em Site → Rastreamento; carro sem
+          foto ou com preço sob consulta fica de fora.
+        </p>
         <p className="text-xs text-faint">
           O feed é público, como o site. Se a revenda for suspensa, ele sai do ar junto.
         </p>

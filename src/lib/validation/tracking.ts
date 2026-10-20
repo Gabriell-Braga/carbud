@@ -24,6 +24,12 @@ export const trackingSchema = z.object({
       .trim()
       .regex(/^\d{6,20}$/, "O id do pixel da Meta é só números (15 a 16 dígitos)."),
   ),
+  metaPageId: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d{6,20}$/, "O id da página do Facebook é só números."),
+  ),
   /** Token da API de Conversões. Vai para o cofre e não volta para a tela. */
   metaAccessToken: optional(z.string().trim().min(20).max(500)),
   ga4MeasurementId: optional(

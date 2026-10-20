@@ -175,6 +175,7 @@ export default async function SitePage({
           vaultReady={isVaultConfigured()}
           initial={{
             metaPixelId: site?.tracking?.metaPixelId ?? "",
+            metaPageId: site?.tracking?.metaPageId ?? "",
             ga4MeasurementId: site?.tracking?.ga4MeasurementId ?? "",
             googleAdsId: site?.tracking?.googleAdsId ?? "",
             googleAdsLeadLabel: site?.tracking?.googleAdsLeadLabel ?? "",

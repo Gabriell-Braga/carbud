@@ -31,6 +31,7 @@ export const PATCH = withApi(async (request: Request) => {
   const settings: TrackingSettings = {
     ...current.settings,
     metaPixelId: input.metaPixelId,
+    metaPageId: input.metaPageId,
     ga4MeasurementId: input.ga4MeasurementId,
     googleAdsId: input.googleAdsId,
     googleAdsLeadLabel: input.googleAdsLeadLabel,

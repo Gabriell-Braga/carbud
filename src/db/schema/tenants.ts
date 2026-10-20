@@ -74,6 +74,8 @@ export type SocialLinks = {
 export type TrackingSettings = {
   /** Meta (Facebook/Instagram): id do pixel. */
   metaPixelId?: string;
+  /** Meta: id da página do Facebook, exigido pelo catálogo de veículos. */
+  metaPageId?: string;
   /** Google Analytics 4: "G-XXXXXXX". */
   ga4MeasurementId?: string;
   /** Google Ads: "AW-123456789". */

@@ -43,6 +43,9 @@ export type FeedStore = {
   email: string | null;
   city: string | null;
   state: string | null;
+  /** Rua e número, numa linha só. */
+  street?: string | null;
+  zip?: string | null;
 };
 
 /** Controles inválidos em XML 1.0, exceto tab, LF e CR. */

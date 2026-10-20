@@ -14,6 +14,7 @@ import { apiPatch, apiPost, errorMessageFrom, fieldErrorsFrom } from "@/lib/clie
 
 export type TrackingValues = {
   metaPixelId: string;
+  metaPageId: string;
   ga4MeasurementId: string;
   googleAdsId: string;
   googleAdsLeadLabel: string;
@@ -152,6 +153,21 @@ export function TrackingPanel({
                 disabled={disabled}
                 placeholder="1234567890123456"
                 onChange={(event) => update("metaPixelId", event.target.value.trim())}
+              />
+            </FormField>
+
+            <FormField
+              label="Id da página do Facebook"
+              htmlFor="metaPageId"
+              hint="Usado pelo catálogo de veículos (Integrações → Feed de estoque)"
+              error={errors.metaPageId}
+            >
+              <Input
+                id="metaPageId"
+                value={values.metaPageId}
+                disabled={disabled}
+                placeholder="130076683675838"
+                onChange={(event) => update("metaPageId", event.target.value.trim())}
               />
             </FormField>
 
