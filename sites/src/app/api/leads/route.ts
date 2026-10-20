@@ -15,6 +15,8 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   const sitesKey = process.env.SITES_API_KEY ?? "";
+  const visitorIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const userAgent = request.headers.get("user-agent");
 
   const response = await fetch(`${panelUrl()}/api/leads`, {
     method: "POST",
@@ -22,15 +24,17 @@ export async function POST(request: Request) {
       "content-type": "application/json",
       ...(sitesKey ? { "x-sites-key": sitesKey } : {}),
       /*
-       * O IP de quem enviou.
+       * O IP e o navegador de quem enviou.
        *
-       * Sem ele o painel veria todos os leads chegando dos endereços da
-       * Vercel, e qualquer limite por origem cairia sobre o tráfego legítimo
-       * de todas as revendas de uma vez.
+       * Sem eles o painel veria todos os leads chegando dos endereços da
+       * Vercel: o limite por IP cairia sobre todas as revendas de uma vez, e a
+       * API de Conversões da Meta receberia o IP e o user-agent do servidor.
+       * Não vai em `x-forwarded-for` porque na Cloudflare o painel lê
+       * `cf-connecting-ip`, que é o da Vercel; `x-visitor-ip` só vale com a
+       * chave (ver `clientIp`).
        */
-      ...(request.headers.get("x-forwarded-for")
-        ? { "x-forwarded-for": request.headers.get("x-forwarded-for")! }
-        : {}),
+      ...(visitorIp ? { "x-visitor-ip": visitorIp } : {}),
+      ...(userAgent ? { "user-agent": userAgent } : {}),
     },
     body: await request.text(),
   });

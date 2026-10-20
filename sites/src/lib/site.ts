@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { buildSiteLinks } from "@carbud/site-kit/links";
 import { getTemplate } from "@carbud/site-kit/registry";
 import type { SiteData, SiteLinks, TemplateModule } from "@carbud/site-kit/contract";
@@ -28,12 +28,16 @@ export async function currentSlug(): Promise<string> {
   if (slug) {
     /*
      * Domínio cadastrado que não é o oficial (o `www`, um domínio antigo)
-     * redireciona com 308. Só canonical não basta: robots e sitemap também
-     * respondem por host, e cada endereço anunciaria o próprio estoque.
+     * redireciona. Só canonical não basta: robots e sitemap também respondem
+     * por host, e cada endereço anunciaria o próprio estoque.
+     *
+     * 307, não 308: o oficial pode trocar (a revenda elege outro, ou ele cai
+     * e o próximo ativo assume), e o navegador guarda o 308 para sempre. Com
+     * A→B em cache e o servidor mandando B→A, quem já visitou entra em loop.
      */
     const { canonicalOrigin } = await fetchSite(slug);
     if (canonicalOrigin && new URL(canonicalOrigin).host !== host) {
-      permanentRedirect(`${canonicalOrigin}${head.get("x-pathname") ?? "/"}`);
+      redirect(`${canonicalOrigin}${head.get("x-pathname") ?? "/"}`);
     }
     return slug;
   }

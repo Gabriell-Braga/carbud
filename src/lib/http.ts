@@ -63,6 +63,19 @@ export function withApi<Args extends unknown[]>(
 }
 
 export function clientIp(request: Request): string | null {
+  /*
+   * Lead que vem do app dos sites chega pelo servidor da Vercel, e o
+   * `cf-connecting-ip` é o IP dela: o limite por IP caía sobre todas as
+   * revendas juntas. O repasse manda o IP do visitante em `x-visitor-ip`, que
+   * só vale com a chave dos sites (sem ela, qualquer um forjaria o cabeçalho
+   * para fugir do limite).
+   */
+  const sitesKey = process.env.SITES_API_KEY;
+  const visitorIp = request.headers.get("x-visitor-ip");
+  if (sitesKey && visitorIp && request.headers.get("x-sites-key") === sitesKey) {
+    return visitorIp;
+  }
+
   return (
     request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||

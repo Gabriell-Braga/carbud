@@ -148,7 +148,8 @@ export async function fetchVehicle(
   vehicleSlug: string,
 ): Promise<VehiclePayload> {
   const data = await get<VehiclePayload>(
-    `/api/public/site/${slug}/vehicles/${vehicleSlug}`,
+    // codificado: `/veiculo/a%2Fb` chegaria decodificado e cairia em outra rota
+    `/api/public/site/${slug}/vehicles/${encodeURIComponent(vehicleSlug)}`,
     60,
   );
   if (!data) notFound();
