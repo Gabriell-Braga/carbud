@@ -98,35 +98,54 @@ export type MlLocation = {
   key: string;
 };
 
-export type MlAttribute = { id: string; value_name: string };
+export type MlAttribute = { id: string; value_name: string; value_id?: string };
 
-const FUEL: Record<string, string> = {
-  flex: "Gasolina e álcool",
-  gasolina: "Gasolina",
-  etanol: "Álcool",
-  diesel: "Diesel",
-  gnv: "Gasolina e gás natural",
-  hibrido: "Híbrido",
-  eletrico: "Elétrico",
+/*
+ * Atributos de lista vão com o id do valor, tirado de
+ * GET /categories/MLB1744/attributes (conferido em 20/10/2026).
+ *
+ * Mandando só o nome, o ML recusa o anúncio inteiro quando o texto não bate
+ * letra por letra: "Sedán" (o nome em espanhol) e "Hatchback" derrubaram os
+ * anúncios da PHV com "VEHICLE_BODY_TYPE is not valid". O nome segue junto
+ * só para leitura de quem depura.
+ */
+type MlValue = [id: string, name: string];
+
+const FUEL: Record<string, MlValue> = {
+  flex: ["372591", "Gasolina e álcool"],
+  gasolina: ["64364", "Gasolina"],
+  etanol: ["13247065", "Etanol"],
+  diesel: ["60406", "Diesel"],
+  gnv: ["372593", "Gasolina e gás natural"],
+  hibrido: ["61257", "Híbrido"],
+  eletrico: ["403613", "Elétrico"],
 };
 
-const TRANSMISSION: Record<string, string> = {
-  manual: "Manual",
-  automatico: "Automática",
-  automatizado: "Automática sequencial",
-  cvt: "CVT",
+const TRANSMISSION: Record<string, MlValue> = {
+  manual: ["370877", "Manual"],
+  automatico: ["370876", "Automática"],
+  automatizado: ["378323", "Semiautomática"],
+  cvt: ["77915073", "Automática CVT"],
 };
 
-const BODY: Record<string, string> = {
-  hatch: "Hatchback",
-  sedan: "Sedán",
-  suv: "SUV",
-  picape: "Pick-Up",
-  minivan: "Minivan",
-  cupe: "Coupé",
-  conversivel: "Conversível",
-  utilitario: "Furgão",
+const BODY: Record<string, MlValue> = {
+  hatch: ["479344", "Hatch"],
+  sedan: ["452758", "Sedã"],
+  suv: ["452759", "SUV"],
+  picape: ["452756", "Pick-Up"],
+  minivan: ["452753", "Minivan"],
+  cupe: ["452749", "Coupé"],
+  conversivel: ["452748", "Conversível"],
+  utilitario: ["452750", "Furgão"],
 };
+
+const STEERING_ELECTRIC: MlValue = ["405719", "Elétrica"];
+const STEERING_HYDRAULIC: MlValue = ["370874", "Hidráulica"];
+const USED: MlValue = ["2230581", "Usado"];
+
+function listValue(id: string, [valueId, name]: MlValue): MlAttribute {
+  return { id, value_id: valueId, value_name: name };
+}
 
 /** Opcionais nossos → atributos "Sim" do ML. Só os que o ML documenta. */
 const OPTION_FLAGS: Record<string, string> = {
@@ -161,25 +180,23 @@ export function itemAttributes(vehicle: Vehicle): MlAttribute[] {
     { id: "MODEL", value_name: vehicle.model },
     { id: "VEHICLE_YEAR", value_name: String(vehicle.yearModel) },
     { id: "KILOMETERS", value_name: `${vehicle.mileageKm} km` },
-    { id: "ITEM_CONDITION", value_name: "Usado" },
+    listValue("ITEM_CONDITION", USED),
   ];
   if (vehicle.version) attributes.push({ id: "TRIM", value_name: vehicle.version });
   if (vehicle.doors) attributes.push({ id: "DOORS", value_name: String(vehicle.doors) });
   if (vehicle.color) attributes.push({ id: "COLOR", value_name: vehicle.color });
-  if (vehicle.fuel && FUEL[vehicle.fuel]) {
-    attributes.push({ id: "FUEL_TYPE", value_name: FUEL[vehicle.fuel] });
-  }
+  if (vehicle.fuel && FUEL[vehicle.fuel]) attributes.push(listValue("FUEL_TYPE", FUEL[vehicle.fuel]));
   if (vehicle.transmission && TRANSMISSION[vehicle.transmission]) {
-    attributes.push({ id: "TRANSMISSION", value_name: TRANSMISSION[vehicle.transmission] });
+    attributes.push(listValue("TRANSMISSION", TRANSMISSION[vehicle.transmission]));
   }
   if (vehicle.bodyType && BODY[vehicle.bodyType]) {
-    attributes.push({ id: "VEHICLE_BODY_TYPE", value_name: BODY[vehicle.bodyType] });
+    attributes.push(listValue("VEHICLE_BODY_TYPE", BODY[vehicle.bodyType]));
   }
 
   const options = new Set(vehicle.options ?? []);
-  if (options.has("direcao-eletrica")) attributes.push({ id: "STEERING", value_name: "Elétrica" });
+  if (options.has("direcao-eletrica")) attributes.push(listValue("STEERING", STEERING_ELECTRIC));
   else if (options.has("direcao-hidraulica")) {
-    attributes.push({ id: "STEERING", value_name: "Hidráulica" });
+    attributes.push(listValue("STEERING", STEERING_HYDRAULIC));
   }
   if (options.has("4x4")) attributes.push({ id: "TRACTION_CONTROL", value_name: "4x4" });
 

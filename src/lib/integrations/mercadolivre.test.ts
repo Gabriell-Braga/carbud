@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Vehicle } from "@/db/schema";
+import { BODY_TYPES, FUELS, TRANSMISSIONS, type Vehicle } from "@/db/schema";
 import {
   MercadoLivreClient,
   buyerName,
@@ -118,12 +118,42 @@ describe("itemAttributes", () => {
       COLOR: "Branco",
       FUEL_TYPE: "Gasolina e álcool",
       TRANSMISSION: "Automática",
-      VEHICLE_BODY_TYPE: "Hatchback",
+      VEHICLE_BODY_TYPE: "Hatch",
       STEERING: "Elétrica",
       TRACTION_CONTROL: "4x4",
       HAS_ABS_BRAKES: "Sim",
       ITEM_CONDITION: "Usado",
     });
+  });
+
+  /*
+   * O ML recusa o anúncio inteiro por um valor de lista fora do catálogo
+   * dele ("Sedán" derrubou os anúncios da PHV). Todo valor nosso precisa ir
+   * com o id do ML, para toda carroceria, câmbio e combustível.
+   */
+  it("atributo de lista vai com o id do ML para todo valor nosso", () => {
+    const listIds = ["VEHICLE_BODY_TYPE", "TRANSMISSION", "FUEL_TYPE", "ITEM_CONDITION"];
+    const combos = [
+      ...BODY_TYPES.map((bodyType) => ({ ...vehicle, bodyType })),
+      ...TRANSMISSIONS.map((transmission) => ({ ...vehicle, transmission })),
+      ...FUELS.map((fuel) => ({ ...vehicle, fuel })),
+    ];
+    for (const combo of combos) {
+      for (const attribute of itemAttributes(combo)) {
+        if (listIds.includes(attribute.id)) expect(attribute.value_id, attribute.id).toMatch(/^\d+$/);
+      }
+      const ids = itemAttributes(combo).map((attribute) => attribute.id);
+      expect(ids).toContain("VEHICLE_BODY_TYPE");
+      expect(ids).toContain("TRANSMISSION");
+      expect(ids).toContain("FUEL_TYPE");
+    }
+  });
+
+  it("sedã vai como o ML escreve, não em espanhol", () => {
+    const sedan = itemAttributes({ ...vehicle, bodyType: "sedan" }).find(
+      (attribute) => attribute.id === "VEHICLE_BODY_TYPE",
+    );
+    expect(sedan).toEqual({ id: "VEHICLE_BODY_TYPE", value_id: "452758", value_name: "Sedã" });
   });
 
   it("dois opcionais que viram o mesmo atributo não o repetem", () => {

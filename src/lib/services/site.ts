@@ -21,7 +21,7 @@ import { DEFAULT_WHATSAPP_FORM_FIELDS } from "@carbud/site-kit/catalog";
 import { plateEnd } from "@/lib/format/plate";
 import { mediaUrl } from "@/lib/paths";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
-import { buildSiteLinks as kitBuildSiteLinks } from "@carbud/site-kit/links";
+import { buildSiteLinks as kitBuildSiteLinks, safeHref } from "@carbud/site-kit/links";
 import { findTemplateManifest } from "@carbud/site-kit/manifests";
 import { formatCurrency, formatNumber, onlyDigits } from "@/lib/utils";
 import {
@@ -153,9 +153,12 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
         zip: site?.addressZip ?? null,
         full: addressParts.length > 0 ? addressParts.join(" · ") : null,
       },
-      mapsUrl: site?.mapsUrl ?? null,
+      // o filtro vale também para o que já estava salvo antes da validação
+      mapsUrl: safeHref(site?.mapsUrl),
       businessHours: site?.businessHours ?? [],
-      social: site?.social ?? {},
+      social: Object.fromEntries(
+        Object.entries(site?.social ?? {}).map(([network, url]) => [network, safeHref(url) ?? undefined]),
+      ),
     },
     // até três; a faixa some inteira quando não há nenhum, em vez de
     // mostrar zeros que envergonham a loja
@@ -189,7 +192,7 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
       title: banner.title,
       subtitle: banner.subtitle,
       ctaLabel: banner.ctaLabel,
-      ctaHref: banner.ctaHref,
+      ctaHref: safeHref(banner.ctaHref),
     })),
   };
 }

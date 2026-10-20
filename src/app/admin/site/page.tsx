@@ -21,6 +21,7 @@ import { IdentityPanel } from "./identity-panel";
 import { DomainsPanel } from "./domains-panel";
 import { PagesPanel } from "./pages-panel";
 import { TrackingPanel } from "./tracking-panel";
+import { GtmCard } from "./gtm-card";
 
 export const metadata: Metadata = { title: "Site" };
 export const dynamic = "force-dynamic";
@@ -166,6 +167,8 @@ export default async function SitePage({
         />
       ) : null}
 
+      {tab === "rastreamento" ? <GtmCard readOnly={readOnly} initial={site?.gtmCode ?? ""} /> : null}
+
       {tab === "rastreamento" ? (
         <TrackingPanel
           readOnly={readOnly}
@@ -197,8 +200,6 @@ export default async function SitePage({
           initial={{
             aboutTitle: site?.aboutTitle ?? "",
             aboutText: site?.aboutText ?? "",
-            gtmCode: site?.gtmCode ?? "",
-            gtmInherited: !site?.gtmCode,
           }}
           banners={banners.map((banner) => ({
             id: banner.id,

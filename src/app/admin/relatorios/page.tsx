@@ -59,17 +59,34 @@ export default async function ReportsPage({ searchParams }: Props) {
       />
 
       <StatGrid className="xl:grid-cols-5">
-        <StatCard label="Leads no período" value={formatNumber(report.leads.total)} />
-        <StatCard label="Em aberto" value={formatNumber(report.leads.emAberto)} />
-        <StatCard label="Ganhos" value={formatNumber(report.leads.ganhos)} />
         <StatCard
-          label="Conversão"
-          value={report.conversao === null ? "—" : `${report.conversao}%`}
-          hint={report.conversao === null ? "nada decidido ainda" : "sobre o que foi decidido"}
+          label="Leads recebidos"
+          value={formatNumber(report.leads.total)}
+          hint="contatos que chegaram no período"
         />
         <StatCard
-          label="Estoque ativo"
+          label="Em atendimento"
+          value={formatNumber(report.leads.emAberto)}
+          hint="ainda sem venda nem perda"
+        />
+        <StatCard
+          label="Vendas"
+          value={formatNumber(report.leads.ganhos)}
+          hint="leads que viraram venda"
+        />
+        <StatCard
+          label="Taxa de venda"
+          value={report.conversao === null ? "—" : `${report.conversao}%`}
+          hint={
+            report.conversao === null
+              ? "nenhum lead fechado ainda"
+              : "das negociações encerradas, quantas viraram venda"
+          }
+        />
+        <StatCard
+          label="Carros à venda"
           value={formatNumber(report.estoque.disponiveis + report.estoque.reservados)}
+          hint="disponíveis e reservados"
         />
       </StatGrid>
 
@@ -77,7 +94,7 @@ export default async function ReportsPage({ searchParams }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>De onde vêm os leads</CardTitle>
-            <CardDescription>Origem registrada na entrada.</CardDescription>
+            <CardDescription>Por onde cada contato chegou: site, WhatsApp, portais, telefone.</CardDescription>
           </CardHeader>
           <CardContent>
             {report.porOrigem.length === 0 ? (
@@ -96,7 +113,7 @@ export default async function ReportsPage({ searchParams }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Onde os leads estão</CardTitle>
-            <CardDescription>Distribuição pelas etapas do funil.</CardDescription>
+            <CardDescription>Em que etapa do funil estão os leads do período.</CardDescription>
           </CardHeader>
           <CardContent>
             {report.porEtapa.length === 0 ? (
@@ -114,7 +131,7 @@ export default async function ReportsPage({ searchParams }: Props) {
           <Card>
             <CardHeader>
               <CardTitle>Por vendedor</CardTitle>
-              <CardDescription>Leads recebidos e fechados no período.</CardDescription>
+              <CardDescription>Leads recebidos e vendas fechadas por cada um no período.</CardDescription>
             </CardHeader>
             <CardContent>
               {report.porVendedor.length === 0 ? (
@@ -124,7 +141,7 @@ export default async function ReportsPage({ searchParams }: Props) {
                   items={report.porVendedor.map((row) => ({
                     label: row.nome,
                     value: row.total,
-                    detail: `${row.ganhos} ganho(s)`,
+                    detail: row.ganhos === 1 ? "1 venda" : `${row.ganhos} vendas`,
                   }))}
                 />
               )}
@@ -135,12 +152,12 @@ export default async function ReportsPage({ searchParams }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Estoque</CardTitle>
-            <CardDescription>Situação e capital parado.</CardDescription>
+            <CardDescription>Quantos carros, quanto dinheiro está no pátio e o que não sai.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-[13px]">
             <Line label="Disponíveis" value={formatNumber(report.estoque.disponiveis)} />
             <Line label="Reservados" value={formatNumber(report.estoque.reservados)} />
-            <Line label="Vendidos (histórico)" value={formatNumber(report.estoque.vendidos)} />
+            <Line label="Vendidos (desde o início)" value={formatNumber(report.estoque.vendidos)} />
             <Line label="Valor em estoque" value={formatCurrency(report.estoque.valorTotalCents)} />
             <Line label="Preço médio" value={formatCurrency(report.estoque.precoMedioCents)} />
             <Line

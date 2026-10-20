@@ -1,4 +1,5 @@
 import { logAuditFor } from "@/lib/audit";
+import { parsePatch } from "@/lib/validation/patch";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { requireFeature } from "@/lib/api/feature-guard";
 import { badRequest, jsonOk, notFound, withApi } from "@/lib/http";
@@ -14,7 +15,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   await requireFeature(context.tenant.id, "gestao_financiamentos");
   const { id } = await params;
 
-  const parsed = financingSchema.partial().safeParse(await request.json().catch(() => null));
+  const parsed = parsePatch(financingSchema, await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
 
   const ok = await updateFinancing(context.tenant.id, id, parsed.data);

@@ -26,8 +26,6 @@ export type BannerItem = {
 export type ContentValues = {
   aboutTitle: string;
   aboutText: string;
-  gtmCode: string;
-  gtmInherited: boolean;
 };
 
 export function ContentPanel({
@@ -60,7 +58,6 @@ export function ContentPanel({
     const result = await apiPatch("/api/admin/site", {
       aboutTitle: values.aboutTitle,
       aboutText: values.aboutText,
-      ...(values.gtmCode ? { gtmCode: values.gtmCode } : { clearGtm: true }),
     });
 
     setBusy(false);
@@ -155,34 +152,6 @@ export function ContentPanel({
           </FormField>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Google Tag Manager</CardTitle>
-          <CardDescription>
-            {values.gtmInherited
-              ? "Sem código próprio, o site usa o GTM configurado pela plataforma."
-              : "Este código é injetado no <head> de todas as páginas do seu site."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FormField
-            label="Código do contêiner"
-            htmlFor="gtmCode"
-            hint="Formato GTM-XXXXXXX. Deixe vazio para usar o código da plataforma."
-            className="mb-0"
-          >
-            <Input
-              id="gtmCode"
-              value={values.gtmCode}
-              disabled={readOnly}
-              onChange={(event) => update("gtmCode", event.target.value.toUpperCase())}
-              placeholder="GTM-ABC1234"
-            />
-          </FormField>
-        </CardContent>
-      </Card>
-
 
       {!readOnly ? (
         <Button type="button" loading={busy} onClick={handleSave}>

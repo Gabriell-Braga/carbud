@@ -18,6 +18,8 @@ import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { VEHICLE_STATUS_LABELS } from "@/lib/catalog/labels";
 import { getVehicleStats, listVehicles } from "@/lib/services/vehicles";
+import { stockPortalStatus } from "@/lib/services/portals";
+import { PortalCells } from "@/components/admin/portal-cells";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Estoque" };
@@ -47,6 +49,11 @@ export default async function StockPage({
   ]);
 
   const canWrite = can(context.role, "vehicles:write") && context.access === "full";
+  const portalStatus = await stockPortalStatus(
+    context.tenant.id,
+    result.items.map((vehicle) => vehicle.id),
+  );
+  const showPortals = portalStatus.portals.length > 0;
 
   return (
     <>
@@ -159,6 +166,7 @@ export default async function StockPage({
                 <Th numeric className="hidden md:table-cell">
                   Fotos
                 </Th>
+                {showPortals ? <Th className="hidden lg:table-cell">Portais</Th> : null}
                 <Th />
               </Tr>
             </Thead>
@@ -239,6 +247,11 @@ export default async function StockPage({
                     >
                       {vehicle.photosCount}
                     </Td>
+                    {showPortals ? (
+                      <Td className="hidden lg:table-cell">
+                        <PortalCells cells={portalStatus.byVehicle.get(vehicle.id) ?? []} />
+                      </Td>
+                    ) : null}
                     <Td className="pl-0 text-right md:pl-4">
                       {/* no celular a ação vira só a seta: o botão com texto
                           roubava a largura que o resumo precisa */}

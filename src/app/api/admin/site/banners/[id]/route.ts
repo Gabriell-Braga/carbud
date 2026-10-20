@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { parsePatch } from "@/lib/validation/patch";
 import { getDb } from "@/db";
 import { tenantBanners } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
@@ -16,7 +17,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   const context = await requireApiTenant("site:write");
   const { id } = await params;
 
-  const parsed = bannerSchema.partial().safeParse(await request.json().catch(() => null));
+  const parsed = parsePatch(bannerSchema, await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
 
   const db = await getDb();

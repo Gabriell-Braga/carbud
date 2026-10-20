@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { WHATSAPP_FORM_FIELDS } from "@carbud/site-kit/catalog";
+import { safeHref } from "@carbud/site-kit/links";
+
+/** Link que vira href no site público: só http(s), caminho interno, âncora, mailto e tel. */
+const href = (max: number) =>
+  z.preprocess(
+    // grava já normalizado ("instagram.com/x" vira "https://instagram.com/x")
+    (value) => (typeof value === "string" ? (safeHref(value) ?? value) : value),
+    z
+      .string()
+      .trim()
+      .max(max)
+      .refine((value) => safeHref(value) !== null, "Use um link, como https://instagram.com/sualoja"),
+  );
 
 const hexColor = z
   .string()
@@ -11,6 +24,14 @@ const optional = <T extends z.ZodTypeAny>(schema: T) =>
     (value) => (value === "" || value === null ? undefined : value),
     schema.optional(),
   );
+
+/*
+ * Coluna de texto que a loja pode APAGAR. Vazio vira null, que limpa; com o
+ * `optional` acima, vazio virava undefined ("não mexer") e o telefone, o
+ * e-mail ou o título apagado voltava no F5. Ausente continua não mexendo.
+ */
+const clearable = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (value === "" ? null : value), schema.nullable().optional());
 
 export const businessHoursSchema = z.array(
   z.object({
@@ -40,30 +61,30 @@ export const siteSettingsSchema = z.object({
       radius: optional(z.string().trim().regex(/^\d{1,2}px$/, "Use algo como 12px")),
     }),
   ),
-  phone: optional(z.string().trim().max(20)),
-  whatsapp: optional(z.string().trim().max(20)),
+  phone: clearable(z.string().trim().max(20)),
+  whatsapp: clearable(z.string().trim().max(20)),
   whatsappForm: z.boolean().optional(),
   whatsappFormFields: z.array(z.enum(WHATSAPP_FORM_FIELDS)).max(WHATSAPP_FORM_FIELDS.length).optional(),
-  email: optional(z.string().trim().toLowerCase().email("E-mail inválido")),
-  addressStreet: optional(z.string().trim().max(160)),
-  addressNumber: optional(z.string().trim().max(20)),
-  addressComplement: optional(z.string().trim().max(80)),
-  addressDistrict: optional(z.string().trim().max(80)),
-  addressCity: optional(z.string().trim().max(80)),
-  addressState: optional(z.string().trim().max(2)),
-  addressZip: optional(z.string().trim().max(12)),
-  mapsUrl: optional(z.string().trim().url("Informe uma URL válida").max(500)),
+  email: clearable(z.string().trim().toLowerCase().email("E-mail inválido")),
+  addressStreet: clearable(z.string().trim().max(160)),
+  addressNumber: clearable(z.string().trim().max(20)),
+  addressComplement: clearable(z.string().trim().max(80)),
+  addressDistrict: clearable(z.string().trim().max(80)),
+  addressCity: clearable(z.string().trim().max(80)),
+  addressState: clearable(z.string().trim().max(2)),
+  addressZip: clearable(z.string().trim().max(12)),
+  mapsUrl: clearable(href(500)),
   businessHours: optional(businessHoursSchema),
   social: optional(
     z.object({
-      instagram: optional(z.string().trim().max(200)),
-      facebook: optional(z.string().trim().max(200)),
-      youtube: optional(z.string().trim().max(200)),
-      tiktok: optional(z.string().trim().max(200)),
+      instagram: optional(href(200)),
+      facebook: optional(href(200)),
+      youtube: optional(href(200)),
+      tiktok: optional(href(200)),
     }),
   ),
-  aboutTitle: optional(z.string().trim().max(120)),
-  aboutText: optional(z.string().trim().max(5000)),
+  aboutTitle: clearable(z.string().trim().max(120)),
+  aboutText: clearable(z.string().trim().max(5000)),
   gtmCode: z.preprocess(
     (value) => (value === "" || value === null ? undefined : value),
     z
@@ -113,17 +134,17 @@ export const siteSettingsSchema = z.object({
       .max(6),
   ),
 
-  legalPrivacy: optional(z.string().trim().max(50_000)),
-  legalTerms: optional(z.string().trim().max(50_000)),
+  legalPrivacy: clearable(z.string().trim().max(50_000)),
+  legalTerms: clearable(z.string().trim().max(50_000)),
 });
 
 export type SiteSettingsInput = z.infer<typeof siteSettingsSchema>;
 
 export const bannerSchema = z.object({
-  title: optional(z.string().trim().max(120)),
-  subtitle: optional(z.string().trim().max(240)),
-  ctaLabel: optional(z.string().trim().max(40)),
-  ctaHref: optional(z.string().trim().max(300)),
+  title: clearable(z.string().trim().max(120)),
+  subtitle: clearable(z.string().trim().max(240)),
+  ctaLabel: clearable(z.string().trim().max(40)),
+  ctaHref: clearable(href(300)),
   active: z.boolean().default(true),
   position: z.coerce.number().int().min(0).max(50).default(0),
 });

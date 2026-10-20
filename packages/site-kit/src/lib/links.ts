@@ -37,3 +37,25 @@ export function buildSiteLinks(prefix: string, whatsappDigits: string | null): S
         : null,
   };
 }
+
+/**
+ * Link cadastrado pela loja, só se for seguro virar `href` no site público.
+ *
+ * Mapa, botão do banner e redes sociais são digitados no painel e renderizados
+ * para todo visitante: um `javascript:` ali executaria no navegador de quem
+ * visita. Passa http(s), caminho interno ("/estoque", não "//outro-site"),
+ * âncora, mailto e tel; o resto vira null e o link some.
+ *
+ * Domínio sem protocolo ("instagram.com/loja", que é como quase todo mundo
+ * digita) ganha o https:// — sem ele o navegador trataria como caminho do
+ * próprio site e o link quebraria.
+ */
+export function safeHref(value: string | null | undefined): string | null {
+  const href = value?.trim();
+  if (!href) return null;
+  if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+([/?#]\S*)?$/i.test(href)) return `https://${href}`;
+  if (/^https?:\/\//i.test(href)) return href;
+  if (/^\/(?!\/)/.test(href) || href.startsWith("#")) return href;
+  if (/^(mailto|tel):/i.test(href)) return href;
+  return null;
+}

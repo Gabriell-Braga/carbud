@@ -1,4 +1,5 @@
 import { logAuditFor } from "@/lib/audit";
+import { parsePatch } from "@/lib/validation/patch";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { requireFeature } from "@/lib/api/feature-guard";
 import { badRequest, jsonOk, withApi } from "@/lib/http";
@@ -14,10 +15,14 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   await requireFeature(context.tenant.id, "gestao_multiunidade");
   const { id } = await params;
 
-  const parsed = storeSchema.partial().safeParse(await request.json().catch(() => null));
+  const parsed = parsePatch(storeSchema, await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
 
-  await updateStore(context.tenant.id, id, { ...parsed.data, email: parsed.data.email || null });
+  await updateStore(context.tenant.id, id, {
+    ...parsed.data,
+    // só mexe no e-mail se ele veio; antes, qualquer PATCH sem e-mail o apagava
+    ...("email" in parsed.data ? { email: parsed.data.email || null } : {}),
+  });
   await logAuditFor(context, { action: "store.update", entity: "store", entityId: id }, request);
   return jsonOk({ id });
 });

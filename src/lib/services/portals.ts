@@ -389,3 +389,64 @@ export async function publicationSummary(tenantId: string) {
 
   return [...byPortal.entries()].map(([portal, counts]) => ({ portal, ...counts }));
 }
+
+export type StockPortalCell = {
+  portal: string;
+  status: PublicationStatus | "nao_enviado";
+  url: string | null;
+  detail: string | null;
+  listingType: string | null;
+};
+
+/**
+ * Onde cada carro da página do estoque está anunciado.
+ *
+ * Responde "em qual portal esse carro está, e com qual pacote" sem a loja
+ * abrir portal por portal. Só entram os portais conectados que publicam
+ * estoque; carro que devia estar lá e não tem registro aparece como "não
+ * enviado", que é justamente o que a loja precisa enxergar.
+ */
+export async function stockPortalStatus(tenantId: string, vehicleIds: string[]) {
+  const connections = (await listConnections(tenantId)).filter(
+    (connection) => connection.status === "conectado" && connectionPublishes(connection),
+  );
+  const portals = connections.map((connection) => connection.portal);
+  if (portals.length === 0 || vehicleIds.length === 0) return { portals, byVehicle: new Map() };
+
+  const db = await getDb();
+  const rows = await db
+    .select({
+      vehicleId: vehiclePublications.vehicleId,
+      portal: vehiclePublications.portal,
+      status: vehiclePublications.status,
+      url: vehiclePublications.externalUrl,
+      detail: vehiclePublications.lastError,
+      meta: vehiclePublications.meta,
+    })
+    .from(vehiclePublications)
+    .where(
+      and(
+        eq(vehiclePublications.tenantId, tenantId),
+        inArray(vehiclePublications.vehicleId, vehicleIds),
+        inArray(vehiclePublications.portal, portals),
+      ),
+    );
+
+  const byVehicle = new Map<string, StockPortalCell[]>();
+  for (const vehicleId of vehicleIds) {
+    byVehicle.set(
+      vehicleId,
+      portals.map((portal) => {
+        const row = rows.find((item) => item.vehicleId === vehicleId && item.portal === portal);
+        return {
+          portal,
+          status: row?.status ?? "nao_enviado",
+          url: row?.url ?? null,
+          detail: row?.detail ?? null,
+          listingType: row?.meta?.appliedListingType ?? row?.meta?.listingType ?? null,
+        };
+      }),
+    );
+  }
+  return { portals, byVehicle };
+}

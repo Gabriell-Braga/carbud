@@ -35,7 +35,7 @@ export type AdTypesInfo =
     };
 
 /** Nomes dos tipos do ML, para quando ele não devolve o rótulo. */
-const ML_NAMES: Record<string, string> = {
+export const ML_NAMES: Record<string, string> = {
   free: "Gratuito",
   bronze: "Bronze",
   silver: "Prata",

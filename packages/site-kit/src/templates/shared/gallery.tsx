@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { VehiclePhotoView } from "../contract";
 import { cn } from "../../lib/format";
@@ -19,6 +19,40 @@ export function PhotoGallery({
   tone?: "light" | "dark";
 }) {
   const [index, setIndex] = useState(0);
+  const strip = useRef<HTMLDivElement>(null);
+
+  /*
+   * A fileira de miniaturas só rola na horizontal, coisa que mouse comum não
+   * faz: com muitas fotos, as do fim ficavam inalcançáveis ("travadas"). A
+   * miniatura ativa é trazida para o meio a cada troca, e a roda do mouse
+   * passa a rolar a fileira.
+   */
+  useEffect(() => {
+    const container = strip.current;
+    const thumb = container?.children[index] as HTMLElement | undefined;
+    if (!container || !thumb) return;
+    container.scrollTo({
+      left: thumb.offsetLeft - container.clientWidth / 2 + thumb.clientWidth / 2,
+      behavior: "smooth",
+    });
+  }, [index]);
+
+  useEffect(() => {
+    const container = strip.current;
+    if (!container) return;
+    function onWheel(event: WheelEvent) {
+      if (!container || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const max = container.scrollWidth - container.clientWidth;
+      // no fim da fileira a roda volta a rolar a página
+      if ((event.deltaY < 0 && container.scrollLeft <= 0) || (event.deltaY > 0 && container.scrollLeft >= max)) {
+        return;
+      }
+      event.preventDefault();
+      container.scrollLeft += event.deltaY;
+    }
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [photos.length]);
 
   if (photos.length === 0) {
     return (
@@ -94,7 +128,7 @@ export function PhotoGallery({
       </div>
 
       {photos.length > 1 ? (
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+        <div ref={strip} className="relative mt-3 flex gap-2 overflow-x-auto scroll-smooth pb-1">
           {photos.map((photo, photoIndex) => (
             <button
               key={photo.id}

@@ -1,4 +1,5 @@
 import { logAuditFor } from "@/lib/audit";
+import { parsePatch } from "@/lib/validation/patch";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { requireFeature } from "@/lib/api/feature-guard";
 import { badRequest, jsonOk, notFound, withApi } from "@/lib/http";
@@ -14,7 +15,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   await requireFeature(context.tenant.id, "avaliacao_veiculos");
   const { id } = await params;
 
-  const parsed = appraisalSchema.partial().safeParse(await request.json().catch(() => null));
+  const parsed = parsePatch(appraisalSchema, await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
 
   const ok = await updateAppraisal(context.tenant.id, id, parsed.data);
