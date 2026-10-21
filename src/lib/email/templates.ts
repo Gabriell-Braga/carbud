@@ -1,4 +1,5 @@
 import { APP_NAME } from "@/lib/brand";
+import { withBasePath } from "@/lib/paths";
 
 /**
  * Os textos e o desenho do que sai por e-mail.
@@ -65,6 +66,16 @@ function faixa(): string {
 }
 
 /**
+ * Endereço do logo, na mesma origem do link do e-mail. PNG porque Gmail e
+ * Outlook não mostram SVG. Link relativo (prévia do editor, no navegador)
+ * gera caminho relativo, que lá funciona.
+ */
+function logoSrc(pageUrl: string): string {
+  const origin = /^https?:\/\//.test(pageUrl) ? new URL(pageUrl).origin : "";
+  return `${origin}${withBasePath("/brand/carbud-crm-logo.png")}`;
+}
+
+/**
  * Moldura de todos os e-mails: cartão centrado, faixa em cima e embaixo.
  *
  * `preheader` é o trecho que o Gmail mostra ao lado do assunto, na lista. Sem
@@ -73,7 +84,9 @@ function faixa(): string {
  */
 function layout(input: {
   preheader: string;
-  eyebrow: string;
+  /** Link principal do e-mail; dele sai a origem do logo. */
+  url: string;
+  eyebrow?: string;
   title: string;
   body: string;
   footer?: string;
@@ -96,7 +109,8 @@ function layout(input: {
           <tr><td>${faixa()}</td></tr>
           <tr>
             <td align="center" style="padding:30px 34px 34px 34px">
-              <p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${CINZA}">${escapeHtml(input.eyebrow)}</p>
+              <img src="${escapeHtml(logoSrc(input.url))}" width="140" height="41" alt="${escapeHtml(APP_NAME)}" style="display:block;margin:0 auto 22px auto;width:140px;height:41px;border:0">
+              ${input.eyebrow ? `<p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${CINZA}">${escapeHtml(input.eyebrow)}</p>` : ""}
               <h1 style="margin:0 0 18px 0;font-size:22px;line-height:1.3;color:${TINTA};font-weight:700">${escapeHtml(input.title)}</h1>
               ${input.body}
             </td>
@@ -429,7 +443,7 @@ export function passwordResetEmail(
     text: plainText(line(copy.title, vars), paragraphs, line(copy.button, vars), input.url, footer),
     html: layout({
       preheader,
-      eyebrow: APP_NAME,
+      url: input.url,
       title: line(copy.title, vars),
       body: `${bodyHtml(paragraphs)}
               ${botao(input.url, line(copy.button, vars))}`,
@@ -475,7 +489,8 @@ export function welcomeEmail(
     text: plainText(line(copy.title, vars), paragraphs, line(copy.button, vars), input.url, footer),
     html: layout({
       preheader,
-      eyebrow: input.tenantName ?? APP_NAME,
+      url: input.url,
+      eyebrow: input.tenantName ?? undefined,
       title: line(copy.title, vars),
       body: `${bodyHtml(paragraphs)}
               ${botao(input.url, line(copy.button, vars))}`,
@@ -591,6 +606,7 @@ function leadEmail(
     text,
     html: layout({
       preheader,
+      url: input.url,
       eyebrow: input.tenantName,
       title: line(copy.title, vars),
       body: `${bodyHtml(paragraphs)}

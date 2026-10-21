@@ -164,7 +164,7 @@ describe("textos", () => {
       url: "https://exemplo.test",
       tenantName: "Auto Teste",
     });
-    expect(email.html).not.toContain("<img");
+    expect(email.html).not.toContain("<img src=x");
     expect(email.html).toContain("&lt;img");
   });
 
@@ -178,6 +178,17 @@ describe("textos", () => {
     });
     expect(email.html).toContain("redefinir-senha?token=abc");
     expect(email.text).not.toMatch(/senha provis/i);
+  });
+
+  it("logo em PNG com endereço absoluto: e-mail não resolve caminho relativo", () => {
+    const email = welcomeEmail({
+      name: "Ana",
+      tenantName: null,
+      url: "https://crm.carbud.com.br/app/redefinir-senha?token=abc",
+      minutes: 60,
+      invitedBy: null,
+    });
+    expect(email.html).toMatch(/src="https:\/\/crm\.carbud\.com\.br[^"]*\/brand\/carbud-crm-logo\.png"/);
   });
 });
 
