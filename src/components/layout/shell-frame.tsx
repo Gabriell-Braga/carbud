@@ -70,9 +70,9 @@ export function ShellFrame({
     <Link
       href={homeHref}
       onClick={() => setDrawerOpen(false)}
-      className="flex h-[var(--topbar-h)] shrink-0 items-center border-b border-border px-4"
+      className="flex h-[var(--topbar-h)] shrink-0 items-center border-b border-border px-5.5"
     >
-      <Logo className="h-6" />
+      <Logo className="h-8" />
     </Link>
   );
 
