@@ -5,14 +5,10 @@ import {
   isThemePreference,
   type ThemePreference,
 } from "@/lib/theme";
-import { APP_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { ShellFrame, type NavItem, type NavSection, type ShellUser } from "./shell-frame";
 
 export type { NavItem, NavSection, ShellUser };
-
-/** Marca dos painéis — o nome vem de um lugar só (ver lib/brand.ts). */
-export const WORDMARK = APP_NAME;
 
 export async function readThemePreference(): Promise<ThemePreference> {
   const value = (await cookies()).get(THEME_COOKIE)?.value;
@@ -40,7 +36,6 @@ export async function AppShell({
 
   return (
     <ShellFrame
-      wordmark={WORDMARK}
       contextLabel={contextLabel}
       homeHref={homeHref}
       sections={sections}

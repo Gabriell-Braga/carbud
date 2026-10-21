@@ -8,6 +8,7 @@ import { NavLink } from "./nav-link";
 import { RouteProgress } from "./route-progress";
 import { ShellSearch } from "./shell-search";
 import { UserMenu } from "./user-menu";
+import { Logo } from "./logo";
 import type { ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,6 @@ export type ShellUser = {
 };
 
 export function ShellFrame({
-  wordmark,
   contextLabel,
   homeHref,
   sections,
@@ -40,7 +40,6 @@ export function ShellFrame({
   banner,
   children,
 }: {
-  wordmark: string;
   contextLabel: string;
   homeHref: string;
   sections: NavSection[];
@@ -73,9 +72,7 @@ export function ShellFrame({
       onClick={() => setDrawerOpen(false)}
       className="flex h-[var(--topbar-h)] shrink-0 items-center border-b border-border px-4"
     >
-      <span className="font-display text-sm font-bold leading-none tracking-tight text-text">
-        {wordmark}
-      </span>
+      <Logo className="h-6" />
     </Link>
   );
 

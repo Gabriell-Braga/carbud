@@ -9,7 +9,7 @@ import {
   isThemePreference,
   type ThemePreference,
 } from "@/lib/theme";
-import { APP_NAME } from "@/lib/brand";
+import { Logo } from "@/components/layout/logo";
 import { InstrumentPanel } from "./instrument-panel";
 import { LoginForm } from "./login-form";
 
@@ -20,16 +20,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   tenant: "Não foi possível carregar sua revenda. Fale com o suporte.",
   sessao: "Sua sessão expirou. Entre novamente.",
 };
-
-function Wordmark({ className }: { className?: string }) {
-  return (
-    <span
-      className={`font-display font-bold uppercase leading-none tracking-[0.18em] text-text ${className ?? ""}`}
-    >
-      {APP_NAME}
-    </span>
-  );
-}
 
 export default async function LoginPage({
   searchParams,
@@ -49,7 +39,7 @@ export default async function LoginPage({
       {/* ------------------------------------------------ formulário */}
       <div className="flex flex-col px-6 py-8 sm:px-10">
         <header className="flex items-center justify-between">
-          <Wordmark className="text-[13px] lg:invisible" />
+          <Logo className="h-6 lg:invisible" />
           <ThemeToggle current={preference} />
         </header>
 
@@ -110,7 +100,7 @@ export default async function LoginPage({
         />
 
         <div className="relative flex h-full flex-col justify-between p-10">
-          <Wordmark className="text-lg" />
+          <Logo className="h-8" />
 
           <div className="max-w-md">
             <p className="label-instrument text-accent-text">Cockpit</p>

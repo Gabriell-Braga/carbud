@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WORDMARK } from "./shell";
+import { Logo } from "./logo";
 
 /** Moldura das telas fora do painel: login, recuperação e redefinição. */
 export function AuthScreen({
@@ -22,11 +22,8 @@ export function AuthScreen({
       className="flex min-h-screen flex-col bg-bg px-6 py-8 sm:px-10"
     >
       <header>
-        <Link
-          href="/login"
-          className="font-display text-lg font-bold leading-none tracking-tight text-text"
-        >
-          {WORDMARK}
+        <Link href="/login" className="inline-flex">
+          <Logo className="h-7" />
         </Link>
       </header>
 

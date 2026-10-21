@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { APP_NAME } from "@/lib/brand";
+import { Logo } from "@/components/layout/logo";
 
 export const metadata: Metadata = { title: "Página não encontrada" };
 
@@ -9,7 +9,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-12">
       <div className="w-full max-w-md text-center">
-        <p className="text-[13px] font-semibold tracking-wide text-text">{APP_NAME}</p>
+        <Logo className="mx-auto h-7" />
         <p className="mt-8 text-[72px] font-semibold leading-none tracking-tight text-accent-text tabular-nums">
           404
         </p>
