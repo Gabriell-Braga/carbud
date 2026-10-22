@@ -1,67 +1,23 @@
-# Plano: Vistoriado e Visão 360° (painel + Portal Carbud)
+# Vistoriado e Visão 360° (painel + Portal Carbud)
 
-Os dois filtros do Figma do portal ("Vistoriado" e "Visão 360°") ficaram de fora porque o painel não tem o dado. Este plano diz o que falta em cada repositório para eles entrarem sem inventar informação. "Abaixo da FIPE" já está no ar: compara o preço com a FIPE salva no cadastro.
+Feito em outubro de 2026. Este arquivo registra as regras e o que ficou para depois.
 
-## 1. Vistoriado
+## Vistoriado
 
-**Regra de produto:** só ganha selo quem tem laudo anexado. Marcar "vistoriado" numa caixinha, sem documento, é o tipo de dado que a revenda marca em tudo e o comprador para de confiar.
+- **Regra (`isInspected`, `src/lib/services/vehicles.ts`):** laudo em PDF anexado, resultado aprovado (com ou sem ressalvas) e data com menos de um ano. Selo sem documento não existe; laudo reprovado fica guardado para a loja, sem selo.
+- **Dados:** colunas `inspection_*` em `vehicles` (migration 0026). Ficaram no próprio veículo, e não numa tabela, porque é sempre um laudo por carro.
+- **Painel:** card "Vistoria" na ficha do veículo (`admin/estoque/[id]/inspection-360.tsx`), rota `POST/DELETE /api/admin/vehicles/[id]/inspection`. O PDF é servido por `/api/media` sem a CSP `sandbox`, porque o leitor de PDF do Chrome não abre com ela.
+- **API pública:** `portal/vehicles` aceita `vistoriado=1` e devolve `inspected`; a ficha (`/api/public/site/[slug]/vehicles/[slug]`) devolve `inspection` com o link do laudo.
 
-### Painel (`carbud`)
+## Visão 360°
 
-1. **Migration** `vehicle_inspections` (1:1 com `vehicles`, `tenant_id` obrigatório):
-   - `vehicle_id`, `tenant_id`
-   - `provider`: texto livre (por exemplo "Dekra", "Supervisão", "Vistoria própria")
-   - `inspected_at`: data do laudo
-   - `result`: `approved | approved_with_notes | rejected`
-   - `report_key`: PDF no R2 (`tenantAssetKey(..., "inspection", uuid, "pdf")`)
-   - `notes`: observações curtas, opcional
-2. **Upload:** `POST/DELETE /api/admin/vehicles/[id]/inspection` com `requireApiTenant("vehicles:write")`, PDF de até 10 MB. Servido por `/api/media`, que já manda CSP com `sandbox`.
-3. **Tela:** bloco "Vistoria" na ficha do veículo (`vehicle-form.tsx`): anexar laudo, empresa, data e resultado. Laudo `rejected` fica guardado para a loja, mas não vira selo.
-4. **Regra única:** `isInspected(v) = inspection && result !== "rejected" && inspected_at >= hoje - 12 meses`. Laudo velho não vale para um carro que rodou mais um ano. A regra fica em `src/lib/services/vehicles.ts`, ao lado de `isBelowFipe`, com teste.
-5. **API pública:**
-   - `portal/vehicles` aceita `vistoriado=1` (subquery `exists` em `vehicle_inspections` com a mesma regra) e devolve `inspected: boolean`.
-   - A ficha `/api/public/site/[slug]/vehicles/[slug]` ganha `inspection: { provider, inspectedAt, result, reportUrl } | null`. Isso muda o `VehicleView` do `@carbud/site-kit`, então os templates também podem mostrar o selo.
-6. **Integrações:** conferir se OLX/Webmotors têm campo de laudo; se tiverem, mandar junto no `portal-sync`.
+- **Dados:** tabela `vehicle_media_360`, uma linha por tipo: `spin` (giro externo, 24 a 72 quadros em ordem) ou `pano` (panorâmica 2:1 do interior). Fica fora de `vehicle_photos` para capa, contagem, card e feed dos portais não precisarem aprender a ignorar quadro de giro.
+- **Painel:** card "Visão 360°" com prévia do giro por slider. A ordem dos quadros é a do nome do arquivo. O navegador reduz antes do envio (quadro 1280 px, panorâmica 4096 px) e não conta no limite de fotos do plano.
+- **API pública:** `portal/vehicles` aceita `visao360=1` e devolve `has360`; a ficha devolve `spin` e `pano`.
+- **Portal:** `components/viewer-360.tsx`. O giro troca o quadro conforme arrasta e só baixa os quadros quando a pessoa abre. A panorâmica é rolagem de fundo em cilindro, sem WebGL nem dependência.
 
-### Portal (`portal-carbud`)
+## Para depois
 
-1. `types.ts`: `inspected?: boolean` em `PortalVehicle`, `inspection` em `VehicleDetail`.
-2. `catalog.ts`: `vistoriado` em `FILTER_KEYS` e no `filterLabel`.
-3. `filters-form.tsx`: chave "Vistoriado — Laudo e dados de vistoria disponíveis", igual à de FIPE.
-4. Card: selo "Vistoriado". Ficha: bloco com empresa, data, resultado e link "Ver laudo (PDF)".
-
-## 2. Visão 360°
-
-**Regra de produto:** 360° de verdade é uma sequência de fotos girando em volta do carro (spin externo) ou uma panorâmica equirretangular do interior. Foto comum marcada como "360" não conta.
-
-### Painel (`carbud`)
-
-1. **Migration** em `vehicle_photos`: coluna `kind` (`photo | spin | pano`, padrão `photo`) e `spin_order` (inteiro, nulo). Fotos atuais continuam `photo`, sem backfill.
-2. **Upload:**
-   - **Spin:** 24 a 72 quadros tirados em volta do carro. Sobem pelo mesmo `resizeSingle` no navegador, só na variante `card` (sem `full`, para não multiplicar o R2 por 72).
-   - **Panorâmica:** uma imagem equirretangular 2:1, até 8192 px de largura; o navegador reduz para 4096.
-   - Contar no limite de fotos do plano (`src/lib/plans/catalog.ts`). Spin vale como 1, para não punir quem usa.
-3. **Tela:** aba "360°" na galeria do veículo: arrastar a pasta de quadros (ordem pelo nome do arquivo) ou a panorâmica, com prévia do giro antes de salvar.
-4. **Regra única:** `has360(v) = existe spin com >= 24 quadros ou existe pano`.
-5. **API pública:**
-   - `portal/vehicles` aceita `visao360=1` e devolve `has360: boolean`. A query fica barata com um contador desnormalizado `vehicles.spin_frames`, atualizado no upload, igual a `photosCount`.
-   - A ficha devolve `spin: string[]` (URLs na ordem) e `pano: string | null`.
-6. **Templates de site (`site-kit`):** visualizador opcional na galeria. Fica para depois do portal.
-
-### Portal (`portal-carbud`)
-
-1. Filtro "Visão 360° — Fotos imersivas quando disponíveis" e selo "360°" no card.
-2. **Visualizador:**
-   - **Spin:** componente client que troca o `src` conforme arrasta (pointer events) e pré-carrega os quadros só quando a pessoa abre o modo 360. A ficha não pode pagar 72 imagens no carregamento.
-   - **Panorâmica:** `@photo-sphere-viewer/core` carregado sob demanda (`next/dynamic`). É a única dependência nova que vale a pena; escrever WebGL à mão não compensa.
-3. Na galeria da ficha, o 360° entra como primeiro slide com um botão "Ver em 360°". Sem dado, nada aparece.
-
-## Ordem sugerida
-
-1. Vistoria no painel (migration, upload, tela, regra com teste).
-2. Vistoria na API pública + portal (filtro, selo, ficha).
-3. 360° no painel (migration, upload de spin e pano, contador).
-4. 360° na API pública + portal (filtro, selo, visualizador).
-5. Selos e visualizador nos templates de site.
-
-Cada etapa sobe sozinha. Mudar o contrato de `portal/*` exige mudar os dois repositórios no mesmo dia (ver `CLAUDE.md` dos dois). Depois de cada migration, rodar `/api/ops/migrate` em produção.
+- **Templates dos sites das revendas:** selos e visualizador. O `VehicleView` do site-kit já traz `inspection`, `spin` e `pano`; `sites/src/lib/media.ts` precisa reescrever essas URLs quando os templates passarem a usar.
+- **Portais (OLX, Webmotors):** mandar o laudo junto se a API deles tiver campo para isso.
+- **Panorâmica esférica de verdade** (teto e chão sem distorção): só se a cilíndrica incomodar. Nesse caso, carregar `@photo-sphere-viewer/core` sob demanda.

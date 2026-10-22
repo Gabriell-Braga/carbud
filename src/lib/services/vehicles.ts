@@ -1,9 +1,11 @@
 import { and, asc, count, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  vehicleMedia360,
   vehiclePhotos,
   vehicles,
   type Fuel,
+  type InspectionResult,
   type PhotoVariants,
   type Transmission,
   type Vehicle,
@@ -47,6 +49,9 @@ export type VehicleListItem = {
    */
   licensePlate: string | null;
   fipePriceCents: number | null;
+  inspectionDate: string | null;
+  inspectionResult: InspectionResult | null;
+  inspectionReportKey: string | null;
   coverPhotoKey: string | null;
   photosCount: number;
   createdAt: Date;
@@ -71,6 +76,9 @@ const LIST_COLUMNS = {
   // a lista mostra a placa: e como a loja distingue dois carros iguais
   licensePlate: vehicles.licensePlate,
   fipePriceCents: vehicles.fipePriceCents,
+  inspectionDate: vehicles.inspectionDate,
+  inspectionResult: vehicles.inspectionResult,
+  inspectionReportKey: vehicles.inspectionReportKey,
   coverPhotoKey: vehicles.coverPhotoKey,
   photosCount: vehicles.photosCount,
   createdAt: vehicles.createdAt,
@@ -80,7 +88,12 @@ const LIST_COLUMNS = {
  * TODA consulta de veículo passa por aqui com tenantId obrigatório —
  * é o que garante o isolamento entre revendas.
  */
-export type VehicleQuery = Partial<VehicleFilters> & { statuses?: VehicleStatus[]; belowFipe?: boolean };
+export type VehicleQuery = Partial<VehicleFilters> & {
+  statuses?: VehicleStatus[];
+  belowFipe?: boolean;
+  inspected?: boolean;
+  has360?: boolean;
+};
 
 /**
  * Uma revenda (painel, site) ou uma lista delas (portal, que junta o estoque
@@ -114,6 +127,17 @@ function buildConditions(scope: TenantScope, filters: VehicleQuery) {
   if (filters.belowFipe) {
     conditions.push(
       sql`${vehicles.priceOnRequest} = 0 and ${vehicles.priceCents} > 0 and ${vehicles.fipePriceCents} > 0 and ${vehicles.priceCents} < ${vehicles.fipePriceCents}`,
+    );
+  }
+  // mesma regra de isInspected
+  if (filters.inspected) {
+    conditions.push(
+      sql`${vehicles.inspectionReportKey} is not null and ${vehicles.inspectionResult} in ('approved', 'approved_with_notes') and ${vehicles.inspectionDate} >= ${inspectionCutoff()}`,
+    );
+  }
+  if (filters.has360) {
+    conditions.push(
+      sql`exists (select 1 from ${vehicleMedia360} where ${vehicleMedia360.vehicleId} = ${vehicles.id})`,
     );
   }
 
@@ -164,6 +188,53 @@ export function isBelowFipe(vehicle: {
     !!vehicle.fipePriceCents &&
     vehicle.priceCents < vehicle.fipePriceCents
   );
+}
+
+/** Laudo mais velho que isto não vale: o carro rodou mais um ano desde a vistoria. */
+const INSPECTION_VALID_DAYS = 365;
+
+export function inspectionCutoff(now = new Date()): string {
+  return new Date(now.getTime() - INSPECTION_VALID_DAYS * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Selo "Vistoriado": laudo anexado, aprovado (com ou sem ressalvas) e com
+ * menos de um ano. Laudo reprovado fica guardado para a loja, sem selo.
+ */
+export function isInspected(
+  vehicle: {
+    inspectionReportKey: string | null;
+    inspectionResult: InspectionResult | null;
+    inspectionDate: string | null;
+  },
+  now = new Date(),
+): boolean {
+  return (
+    !!vehicle.inspectionReportKey &&
+    (vehicle.inspectionResult === "approved" || vehicle.inspectionResult === "approved_with_notes") &&
+    !!vehicle.inspectionDate &&
+    vehicle.inspectionDate >= inspectionCutoff(now)
+  );
+}
+
+export type Media360 = { spin: string[]; pano: string | null };
+
+/** Giro e panorâmica de cada veículo pedido, em chaves do R2. */
+export async function listMedia360(vehicleIds: string[]): Promise<Map<string, Media360>> {
+  const result = new Map<string, Media360>();
+  if (vehicleIds.length === 0) return result;
+  const db = await getDb();
+  const rows = await db
+    .select({ vehicleId: vehicleMedia360.vehicleId, kind: vehicleMedia360.kind, keys: vehicleMedia360.keys })
+    .from(vehicleMedia360)
+    .where(inArray(vehicleMedia360.vehicleId, vehicleIds));
+  for (const row of rows) {
+    const entry = result.get(row.vehicleId) ?? { spin: [], pano: null };
+    if (row.kind === "spin") entry.spin = row.keys;
+    else entry.pano = row.keys[0] ?? null;
+    result.set(row.vehicleId, entry);
+  }
+  return result;
 }
 
 export async function listVehicles(scope: TenantScope, filters: VehicleQuery = {}) {
@@ -272,10 +343,19 @@ export async function deleteVehicle(tenantId: string, id: string): Promise<Vehic
     .from(vehiclePhotos)
     .where(eq(vehiclePhotos.vehicleId, id));
 
+  const media360 = await db
+    .select({ keys: vehicleMedia360.keys })
+    .from(vehicleMedia360)
+    .where(eq(vehicleMedia360.vehicleId, id));
+
   await db.delete(vehiclePhotos).where(eq(vehiclePhotos.vehicleId, id));
   await db.delete(vehicles).where(and(eq(vehicles.tenantId, tenantId), eq(vehicles.id, id)));
 
-  const keys = photos.flatMap((photo) => photoKeys(photo.variants as PhotoVariants));
+  const keys = [
+    ...photos.flatMap((photo) => photoKeys(photo.variants as PhotoVariants)),
+    ...media360.flatMap((row) => row.keys),
+    ...(vehicle.inspectionReportKey ? [vehicle.inspectionReportKey] : []),
+  ];
   await deleteObjects(keys);
 
   return vehicle;

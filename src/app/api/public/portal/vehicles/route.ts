@@ -7,7 +7,13 @@ import { assertSitesKey } from "@/lib/services/public-api";
 import { parsePublicFilters, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
 import { listPortalDealers, sameText } from "@/lib/services/portal";
 import { toVehicleCard } from "@/lib/services/site";
-import { isBelowFipe, listStockFacets, listVehicles } from "@/lib/services/vehicles";
+import {
+  isBelowFipe,
+  isInspected,
+  listMedia360,
+  listStockFacets,
+  listVehicles,
+} from "@/lib/services/vehicles";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +23,8 @@ const CARD_PHOTOS = 6;
  * Busca do Portal Carbud: estoque publicado de todas as revendas no ar.
  *
  * Os filtros de veículo são os mesmos do site da revenda (`parsePublicFilters`).
- * `abaixoFipe=1` só existe aqui: compara o preço com a FIPE salva no cadastro.
+ * `abaixoFipe=1`, `vistoriado=1` e `visao360=1` só existem aqui: FIPE salva no
+ * cadastro, laudo válido (`isInspected`) e giro ou panorâmica anexados.
  * Os do portal — `loja`, `cidade`, `uf` — recortam a lista de REVENDAS antes da
  * consulta, então a busca continua sendo uma consulta só ao D1.
  *
@@ -30,6 +37,8 @@ export const GET = withApi(async (request: Request) => {
   const query = Object.fromEntries(new URL(request.url).searchParams.entries());
   const { filters, applied } = parsePublicFilters(query);
   const belowFipe = query.abaixoFipe === "1";
+  const inspected = query.vistoriado === "1";
+  const has360 = query.visao360 === "1";
 
   const all = await listPortalDealers();
   const dealers = all.filter(
@@ -42,7 +51,7 @@ export const GET = withApi(async (request: Request) => {
   const byId = new Map(dealers.map((dealer) => [dealer.id, dealer]));
 
   const [result, facets] = await Promise.all([
-    listVehicles(ids, { ...filters, belowFipe, statuses: [...PUBLIC_VEHICLE_STATUSES] }),
+    listVehicles(ids, { ...filters, belowFipe, inspected, has360, statuses: [...PUBLIC_VEHICLE_STATUSES] }),
     listStockFacets(ids),
   ]);
 
@@ -70,6 +79,8 @@ export const GET = withApi(async (request: Request) => {
     }
   }
 
+  const media360 = await listMedia360(result.items.map((item) => item.id));
+
   // cidades de todas as revendas no ar, para o filtro de localização
   const cities = Array.from(
     new Set(all.filter((d) => d.city).map((d) => `${d.city}${d.state ? ` - ${d.state}` : ""}`)),
@@ -83,11 +94,13 @@ export const GET = withApi(async (request: Request) => {
           ...toVehicleCard(item),
           photos: photosByVehicle.get(item.id) ?? [],
           belowFipe: isBelowFipe(item),
+          inspected: isInspected(item),
+          has360: media360.has(item.id),
           dealer: { slug: dealer.slug, name: dealer.name, city: dealer.city, state: dealer.state },
         };
       }),
       facets: { ...facets, cities },
-      filters: { ...applied, loja: query.loja, cidade: query.cidade, uf: query.uf, abaixoFipe: belowFipe || undefined },
+      filters: { ...applied, loja: query.loja, cidade: query.cidade, uf: query.uf, abaixoFipe: belowFipe || undefined, vistoriado: inspected || undefined, visao360: has360 || undefined },
       total: result.total,
       page: result.page,
       pageSize: result.pageSize,

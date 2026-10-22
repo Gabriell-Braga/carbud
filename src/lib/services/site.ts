@@ -31,7 +31,7 @@ import {
   type ThemeTokens,
   type VehicleView,
 } from "@carbud/site-kit/contract";
-import type { VehicleListItem } from "./vehicles";
+import { isInspected, type Media360, type VehicleListItem } from "./vehicles";
 
 /** Só os ids públicos de rastreamento — o que já vai para o HTML do site. */
 export type PublicTrackingIds = {
@@ -274,7 +274,17 @@ function humanizeOption(key: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-export function toVehicleDetail(vehicle: Vehicle, photos: VehiclePhoto[]): VehicleView {
+export const INSPECTION_RESULT_LABELS = {
+  approved: "Aprovado",
+  approved_with_notes: "Aprovado com ressalvas",
+  rejected: "Reprovado",
+} as const;
+
+export function toVehicleDetail(
+  vehicle: Vehicle,
+  photos: VehiclePhoto[],
+  media360: Media360 = { spin: [], pano: null },
+): VehicleView {
   const optionKeys = vehicle.options ?? [];
 
   return {
@@ -332,5 +342,17 @@ export function toVehicleDetail(vehicle: Vehicle, photos: VehiclePhoto[]): Vehic
         full: mediaUrl(variants.full) ?? "",
       };
     }),
+    inspection:
+      isInspected(vehicle) && vehicle.inspectionResult !== "rejected"
+        ? {
+            provider: vehicle.inspectionProvider ?? "",
+            date: vehicle.inspectionDate!,
+            result: vehicle.inspectionResult!,
+            resultLabel: INSPECTION_RESULT_LABELS[vehicle.inspectionResult!],
+            reportUrl: mediaUrl(vehicle.inspectionReportKey) ?? "",
+          }
+        : null,
+    spin: media360.spin.map((key) => mediaUrl(key) ?? ""),
+    pano: mediaUrl(media360.pano),
   };
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isValidPlate, normalizePlate } from "@/lib/format/plate";
-import { BODY_TYPES, FUELS, TRANSMISSIONS, VEHICLE_STATUS } from "@/db/schema";
+import { BODY_TYPES, FUELS, INSPECTION_RESULTS, TRANSMISSIONS, VEHICLE_STATUS } from "@/db/schema";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1950;
@@ -109,4 +109,14 @@ export const photoOrderSchema = z.object({
 
 export const photoCoverSchema = z.object({
   photoId: z.string().uuid(),
+});
+
+/** Dados do laudo de vistoria; o PDF vem junto, no mesmo envio. */
+export const inspectionSchema = z.object({
+  provider: z.string().trim().min(2, "Informe quem fez a vistoria").max(80),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+    .refine((value) => value <= new Date().toISOString().slice(0, 10), "A data do laudo não pode ser futura"),
+  result: z.enum(INSPECTION_RESULTS),
 });

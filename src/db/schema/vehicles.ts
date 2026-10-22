@@ -77,6 +77,16 @@ export const vehicles = sqliteTable(
     fipeCode: text("fipe_code"),
     fipePriceCents: integer("fipe_price_cents"),
     fipeReference: text("fipe_reference"),
+    /**
+     * Vistoria: só vale com o laudo em PDF anexado (`inspectionReportKey`).
+     * Selo sem documento é o que a loja marca em tudo e o comprador deixa de
+     * acreditar. A regra de quem ganha o selo mora em `isInspected`.
+     */
+    inspectionProvider: text("inspection_provider"),
+    /** Data do laudo, `AAAA-MM-DD`. */
+    inspectionDate: text("inspection_date"),
+    inspectionResult: text("inspection_result").$type<InspectionResult>(),
+    inspectionReportKey: text("inspection_report_key"),
     status: text("status").$type<VehicleStatus>().notNull().default("draft"),
     /**
      * Rascunho provisório: existe só para as fotos terem onde morar enquanto a
@@ -102,6 +112,9 @@ export const vehicles = sqliteTable(
     index("vehicles_tenant_created_idx").on(table.tenantId, table.createdAt),
   ],
 );
+
+export const INSPECTION_RESULTS = ["approved", "approved_with_notes", "rejected"] as const;
+export type InspectionResult = (typeof INSPECTION_RESULTS)[number];
 
 export type Vehicle = typeof vehicles.$inferSelect;
 export type NewVehicle = typeof vehicles.$inferInsert;
@@ -164,3 +177,32 @@ export const vehicleModels = sqliteTable(
   },
   (table) => [uniqueIndex("vehicle_models_brand_slug_unique").on(table.brandId, table.slug)],
 );
+
+export type Media360Kind = "spin" | "pano";
+
+/**
+ * Visão 360° de um veículo, à parte de `vehicle_photos`.
+ *
+ * Um giro tem dezenas de quadros que não são fotos da galeria: misturados lá,
+ * toda consulta de foto (capa, contagem, card, feed dos portais) teria que
+ * aprender a ignorá-los. Aqui cada linha é um giro externo (`spin`, quadros na
+ * ordem em volta do carro) ou uma panorâmica do interior (`pano`, uma chave só).
+ */
+export const vehicleMedia360 = sqliteTable(
+  "vehicle_media_360",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    vehicleId: text("vehicle_id")
+      .notNull()
+      .references(() => vehicles.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<Media360Kind>().notNull(),
+    keys: text("keys", { mode: "json" }).$type<string[]>().notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [uniqueIndex("vehicle_media_360_vehicle_kind_unique").on(table.vehicleId, table.kind)],
+);
+
+export type VehicleMedia360 = typeof vehicleMedia360.$inferSelect;

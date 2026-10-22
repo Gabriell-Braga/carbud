@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { VehicleForm } from "@/components/admin/vehicle-form";
 import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
-import { getVehicle } from "@/lib/services/vehicles";
+import { getVehicle, isInspected, listMedia360 } from "@/lib/services/vehicles";
+import { mediaUrl } from "@/lib/paths";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { DeleteVehicleButton } from "./delete-button";
+import { InspectionCard, Media360Card } from "./inspection-360";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,7 @@ export default async function EditVehiclePage({ params }: Props) {
 
   const { vehicle, photos } = found;
   const canWrite = can(context.role, "vehicles:write") && context.access === "full";
+  const media360 = (await listMedia360([vehicle.id])).get(vehicle.id) ?? { spin: [], pano: null };
 
   return (
     <>
@@ -101,6 +104,31 @@ export default async function EditVehiclePage({ params }: Props) {
             fipeCode: vehicle.fipeCode,
             fipePriceCents: vehicle.fipePriceCents,
             fipeReference: vehicle.fipeReference,
+          }}
+        />
+
+        <InspectionCard
+          vehicleId={vehicle.id}
+          readOnly={!canWrite}
+          initial={
+            vehicle.inspectionReportKey && vehicle.inspectionResult && vehicle.inspectionDate
+              ? {
+                  provider: vehicle.inspectionProvider ?? "",
+                  date: vehicle.inspectionDate,
+                  result: vehicle.inspectionResult,
+                  reportUrl: mediaUrl(vehicle.inspectionReportKey) ?? "",
+                  valid: isInspected(vehicle),
+                }
+              : null
+          }
+        />
+
+        <Media360Card
+          vehicleId={vehicle.id}
+          readOnly={!canWrite}
+          initial={{
+            spin: media360.spin.map((key) => mediaUrl(key) ?? ""),
+            pano: mediaUrl(media360.pano),
           }}
         />
 

@@ -183,6 +183,21 @@ export type VehicleView = {
   description: string | null;
   coverUrl: string | null;
   photos: VehiclePhotoView[];
+  /** Só na ficha: laudo que vale selo (aprovado e com menos de um ano). */
+  inspection?: VehicleInspectionView | null;
+  /** Só na ficha: quadros do giro externo, na ordem; vazio sem giro. */
+  spin?: string[];
+  /** Só na ficha: panorâmica equirretangular do interior. */
+  pano?: string | null;
+};
+
+export type VehicleInspectionView = {
+  provider: string;
+  /** `AAAA-MM-DD` */
+  date: string;
+  result: "approved" | "approved_with_notes";
+  resultLabel: string;
+  reportUrl: string;
 };
 
 /** Links já prontos, respeitando o mount path e o slug do tenant. */

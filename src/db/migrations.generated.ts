@@ -271,5 +271,16 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `tenant_sites` ADD `favicon_dark_key` text;"
     ]
+  },
+  {
+    "tag": "0026_inspection_360",
+    "statements": [
+      "ALTER TABLE `vehicles` ADD `inspection_provider` text;",
+      "ALTER TABLE `vehicles` ADD `inspection_date` text;",
+      "ALTER TABLE `vehicles` ADD `inspection_result` text;",
+      "ALTER TABLE `vehicles` ADD `inspection_report_key` text;",
+      "CREATE TABLE `vehicle_media_360` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`vehicle_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`keys` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`vehicle_id`) REFERENCES `vehicles`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `vehicle_media_360_vehicle_kind_unique` ON `vehicle_media_360` (`vehicle_id`,`kind`);"
+    ]
   }
 ];

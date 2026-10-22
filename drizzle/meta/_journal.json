@@ -183,6 +183,13 @@
       "when": 1792459208538,
       "tag": "0025_favicon_dark",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1792459209538,
+      "tag": "0026_inspection_360",
+      "breakpoints": true
     }
   ]
 }

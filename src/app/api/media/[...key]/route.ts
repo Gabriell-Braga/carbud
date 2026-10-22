@@ -100,7 +100,10 @@ async function serve(
    * rodaria script na origem do painel, junto do cookie de sessão. `sandbox`
    * isola o documento; dentro de <img> nada disso pesa, a imagem segue igual.
    */
-  headers.set("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+  // o PDF do laudo fica de fora: o leitor de PDF do Chrome não abre em documento com sandbox
+  if (object.httpMetadata?.contentType !== "application/pdf") {
+    headers.set("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+  }
   headers.set("x-content-type-options", "nosniff");
   if (object.httpEtag) headers.set("etag", object.httpEtag);
 
