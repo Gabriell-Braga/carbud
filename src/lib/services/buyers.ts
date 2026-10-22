@@ -1,0 +1,204 @@
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { getDb } from "@/db";
+import {
+  buyerCodes,
+  buyerFavorites,
+  buyers,
+  buyerSessions,
+  type Buyer,
+  type FavoriteSnapshot,
+} from "@/db/schema";
+import { generateResetToken, hashResetToken } from "@/lib/auth/reset";
+import { escapeHtml, sendEmail } from "@/lib/email";
+import { ApiError, badRequest, tooManyRequests, unauthorized } from "@/lib/http";
+import { rateLimit } from "@/lib/ratelimit";
+
+/**
+ * Conta de comprador do Portal Carbud: código por e-mail, sem senha.
+ *
+ * O portal não tem banco; chama estas funções pelas rotas
+ * `/api/public/portal/auth/*` e `/me/*` com a chave dos sites e repassa o
+ * token da sessão que guarda em cookie httpOnly no domínio dele.
+ */
+
+export const CODE_TTL_MINUTES = 10;
+export const MAX_CODE_ATTEMPTS = 5;
+const SESSION_DAYS = 30;
+
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** Seis dígitos sem viés de módulo: descarta o pedaço do intervalo que não divide por 10⁶. */
+export function generateCode(): string {
+  const limit = Math.floor(0x1_0000_0000 / 1_000_000) * 1_000_000;
+  const buffer = new Uint32Array(1);
+  do crypto.getRandomValues(buffer);
+  while (buffer[0] >= limit);
+  return String(buffer[0] % 1_000_000).padStart(6, "0");
+}
+
+/*
+ * O e-mail entra no hash para o mesmo código de pessoas diferentes não dar o
+ * mesmo hash. Seis dígitos continuam quebráveis com o banco em mãos, mas o
+ * código vale 10 minutos e morre no primeiro uso.
+ */
+function hashCode(email: string, code: string): Promise<string> {
+  return hashResetToken(`${email}:${code}`);
+}
+
+function codeEmail(code: string) {
+  const digits = escapeHtml(code);
+  return {
+    subject: `${code} é seu código de acesso ao Carbud`,
+    text: `Seu código de acesso ao Portal Carbud: ${code}\n\nEle vale ${CODE_TTL_MINUTES} minutos e só pode ser usado uma vez. Se não foi você, ignore este e-mail.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#131820">
+  <p style="font-size:20px;font-weight:bold;margin:0 0 16px">Confira seu e-mail</p>
+  <p style="margin:0 0 16px;color:#657181">Use o código abaixo para entrar no Portal Carbud.</p>
+  <p style="font-size:32px;letter-spacing:8px;font-weight:bold;margin:0 0 16px;color:#c6000f">${digits}</p>
+  <p style="margin:0;color:#657181;font-size:13px">Ele vale ${CODE_TTL_MINUTES} minutos e só pode ser usado uma vez. Se não foi você, ignore este e-mail.</p>
+</div>`,
+  };
+}
+
+/**
+ * Manda um código novo. Responde igual para e-mail com ou sem conta: a tela
+ * não pode servir para descobrir quem é cliente.
+ *
+ * `devCode` só sai fora de produção e sem provedor de e-mail, para dar para
+ * testar o fluxo local sem Resend.
+ */
+export async function startChallenge(rawEmail: string, ip: string | null) {
+  const email = normalizeEmail(rawEmail);
+  const byEmail = await rateLimit(`buyer-code:email:${email}`, 5, 15 * 60);
+  const byIp = await rateLimit(`buyer-code:ip:${ip ?? "desconhecido"}`, 20, 3600);
+  if (!byEmail.allowed || !byIp.allowed) throw tooManyRequests("Muitos códigos pedidos. Aguarde alguns minutos.");
+
+  const code = generateCode();
+  const db = await getDb();
+  await db.insert(buyerCodes).values({
+    email,
+    codeHash: await hashCode(email, code),
+    expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000),
+  });
+
+  const result = await sendEmail({ to: email, ...codeEmail(code) });
+  const devCode = !result.delivered && process.env.NODE_ENV !== "production" ? code : undefined;
+  if (!result.delivered && !devCode) throw new ApiError(503, "Não foi possível enviar o e-mail agora. Tente novamente.");
+  return { sent: true, devCode };
+}
+
+export type BuyerView = {
+  id: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  marketingOptIn: boolean;
+};
+
+export function buyerView(buyer: Buyer): BuyerView {
+  return { id: buyer.id, email: buyer.email, name: buyer.name, phone: buyer.phone, marketingOptIn: buyer.marketingOptIn };
+}
+
+/** Confere o código, cria a conta se for o primeiro acesso e abre a sessão. */
+export async function verifyChallenge(rawEmail: string, code: string) {
+  const email = normalizeEmail(rawEmail);
+  const db = await getDb();
+  const [pending] = await db
+    .select()
+    .from(buyerCodes)
+    .where(and(eq(buyerCodes.email, email), isNull(buyerCodes.usedAt)))
+    .orderBy(desc(buyerCodes.createdAt))
+    .limit(1);
+
+  // a tela diferencia "expirou" de "errou": um pede código novo, o outro deixa tentar de novo
+  if (!pending || pending.expiresAt.getTime() < Date.now() || pending.attempts >= MAX_CODE_ATTEMPTS) {
+    throw badRequest("Este código expirou. Peça um novo.", { reason: "expired" });
+  }
+  if (pending.codeHash !== (await hashCode(email, code))) {
+    await db.update(buyerCodes).set({ attempts: pending.attempts + 1 }).where(eq(buyerCodes.id, pending.id));
+    throw badRequest("Código inválido. Tente novamente.", { reason: "invalid" });
+  }
+  await db.update(buyerCodes).set({ usedAt: new Date() }).where(eq(buyerCodes.id, pending.id));
+
+  const [buyer] = await db
+    .insert(buyers)
+    .values({ email })
+    .onConflictDoUpdate({ target: buyers.email, set: { updatedAt: new Date() } })
+    .returning();
+
+  const token = generateResetToken();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+  await db.insert(buyerSessions).values({ buyerId: buyer.id, tokenHash: await hashResetToken(token), expiresAt });
+
+  return { token, expiresAt: expiresAt.toISOString(), isNew: !buyer.name, buyer: buyerView(buyer) };
+}
+
+function bearer(request: Request): string | null {
+  const header = request.headers.get("authorization") ?? "";
+  return header.startsWith("Bearer ") ? header.slice(7).trim() || null : null;
+}
+
+/** Comprador da sessão do cabeçalho `Authorization`, ou 401. */
+export async function requireBuyer(request: Request): Promise<Buyer> {
+  const token = bearer(request);
+  if (!token) throw unauthorized();
+  const db = await getDb();
+  const [row] = await db
+    .select({ buyer: buyers })
+    .from(buyerSessions)
+    .innerJoin(buyers, eq(buyers.id, buyerSessions.buyerId))
+    .where(and(eq(buyerSessions.tokenHash, await hashResetToken(token)), gt(buyerSessions.expiresAt, new Date())))
+    .limit(1);
+  if (!row) throw unauthorized("Sessão expirada. Entre de novo.");
+  return row.buyer;
+}
+
+export async function endSession(request: Request): Promise<void> {
+  const token = bearer(request);
+  if (!token) return;
+  const db = await getDb();
+  await db.delete(buyerSessions).where(eq(buyerSessions.tokenHash, await hashResetToken(token)));
+}
+
+export async function updateBuyer(
+  buyer: Buyer,
+  input: { name?: string; phone?: string | null; marketingOptIn?: boolean },
+): Promise<BuyerView> {
+  const db = await getDb();
+  const optInChanged = input.marketingOptIn !== undefined && input.marketingOptIn !== buyer.marketingOptIn;
+  const [updated] = await db
+    .update(buyers)
+    .set({
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.phone !== undefined && { phone: input.phone || null }),
+      ...(optInChanged && { marketingOptIn: input.marketingOptIn, marketingOptInAt: input.marketingOptIn ? new Date() : null }),
+    })
+    .where(eq(buyers.id, buyer.id))
+    .returning();
+  return buyerView(updated);
+}
+
+
+export async function listFavorites(buyerId: string): Promise<FavoriteSnapshot[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ snapshot: buyerFavorites.snapshot })
+    .from(buyerFavorites)
+    .where(eq(buyerFavorites.buyerId, buyerId))
+    .orderBy(desc(buyerFavorites.createdAt));
+  return rows.map((row) => row.snapshot);
+}
+
+export async function saveFavorite(buyerId: string, snapshot: FavoriteSnapshot): Promise<void> {
+  const db = await getDb();
+  await db
+    .insert(buyerFavorites)
+    .values({ buyerId, vehicleId: snapshot.id, snapshot })
+    .onConflictDoUpdate({ target: [buyerFavorites.buyerId, buyerFavorites.vehicleId], set: { snapshot } });
+}
+
+export async function removeFavorite(buyerId: string, vehicleId: string): Promise<void> {
+  const db = await getDb();
+  await db.delete(buyerFavorites).where(and(eq(buyerFavorites.buyerId, buyerId), eq(buyerFavorites.vehicleId, vehicleId)));
+}

@@ -252,5 +252,18 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `tenant_sites` ADD `whatsapp_form_fields` text;"
     ]
+  },
+  {
+    "tag": "0024_portal_buyers",
+    "statements": [
+      "CREATE TABLE `buyers` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text,\n\t`phone` text,\n\t`marketing_opt_in` integer DEFAULT false NOT NULL,\n\t`marketing_opt_in_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `buyers_email_unique` ON `buyers` (`email`);",
+      "CREATE TABLE `buyer_codes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`email` text NOT NULL,\n\t`code_hash` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`used_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `buyer_codes_email_idx` ON `buyer_codes` (`email`,`created_at`);",
+      "CREATE TABLE `buyer_sessions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`buyer_id` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`buyer_id`) REFERENCES `buyers`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `buyer_sessions_token_unique` ON `buyer_sessions` (`token_hash`);",
+      "CREATE INDEX `buyer_sessions_buyer_idx` ON `buyer_sessions` (`buyer_id`);",
+      "CREATE TABLE `buyer_favorites` (\n\t`buyer_id` text NOT NULL,\n\t`vehicle_id` text NOT NULL,\n\t`snapshot` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`buyer_id`, `vehicle_id`),\n\tFOREIGN KEY (`buyer_id`) REFERENCES `buyers`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
   }
 ];
