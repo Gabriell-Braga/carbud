@@ -15,6 +15,7 @@ import type { VehicleFilters } from "@/lib/validation/vehicles";
 
 export type VehicleListItem = {
   id: string;
+  tenantId: string;
   slug: string;
   brand: string;
   model: string;
@@ -52,6 +53,7 @@ export type VehicleListItem = {
 
 const LIST_COLUMNS = {
   id: vehicles.id,
+  tenantId: vehicles.tenantId,
   slug: vehicles.slug,
   brand: vehicles.brand,
   model: vehicles.model,
@@ -78,8 +80,20 @@ const LIST_COLUMNS = {
  */
 export type VehicleQuery = Partial<VehicleFilters> & { statuses?: VehicleStatus[] };
 
-function buildConditions(tenantId: string, filters: VehicleQuery) {
-  const conditions = [eq(vehicles.tenantId, tenantId)];
+/**
+ * Uma revenda (painel, site) ou uma lista delas (portal, que junta o estoque
+ * de todas as revendas no ar). Lista vazia não traz nada — nunca "todas".
+ */
+type TenantScope = string | string[];
+
+function tenantCondition(scope: TenantScope) {
+  return typeof scope === "string"
+    ? eq(vehicles.tenantId, scope)
+    : inArray(vehicles.tenantId, scope.length ? scope : [""]);
+}
+
+function buildConditions(scope: TenantScope, filters: VehicleQuery) {
+  const conditions = [tenantCondition(scope)];
 
   if (filters.status) conditions.push(eq(vehicles.status, filters.status));
   if (filters.statuses?.length) conditions.push(inArray(vehicles.status, filters.statuses));
@@ -124,11 +138,11 @@ function buildOrder(sort: VehicleFilters["sort"]) {
   }
 }
 
-export async function listVehicles(tenantId: string, filters: VehicleQuery = {}) {
+export async function listVehicles(scope: TenantScope, filters: VehicleQuery = {}) {
   const db = await getDb();
   const pageSize = filters.pageSize ?? 12;
   const page = filters.page ?? 1;
-  const where = buildConditions(tenantId, filters);
+  const where = buildConditions(scope, filters);
 
   const [items, totalRows] = await Promise.all([
     db
@@ -406,9 +420,9 @@ export async function getVehicleStats(tenantId: string): Promise<TenantVehicleSt
 }
 
 /** Marcas/modelos realmente presentes no estoque — alimenta os filtros do site. */
-export async function listStockFacets(tenantId: string, onlyPublished = true) {
+export async function listStockFacets(scope: TenantScope, onlyPublished = true) {
   const db = await getDb();
-  const conditions = [eq(vehicles.tenantId, tenantId)];
+  const conditions = [tenantCondition(scope)];
   if (onlyPublished) {
     conditions.push(inArray(vehicles.status, ["available", "reserved"] as VehicleStatus[]));
   }
