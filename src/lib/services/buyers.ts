@@ -9,7 +9,9 @@ import {
   type FavoriteSnapshot,
 } from "@/db/schema";
 import { generateResetToken, hashResetToken } from "@/lib/auth/reset";
-import { escapeHtml, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
+import { buyerCodeEmail } from "@/lib/email/templates";
+import { getOrigin } from "@/lib/seo/urls";
 import { ApiError, badRequest, tooManyRequests, unauthorized } from "@/lib/http";
 import { rateLimit } from "@/lib/ratelimit";
 
@@ -47,20 +49,6 @@ function hashCode(email: string, code: string): Promise<string> {
   return hashResetToken(`${email}:${code}`);
 }
 
-function codeEmail(code: string) {
-  const digits = escapeHtml(code);
-  return {
-    subject: `${code} é seu código de acesso ao Carbud`,
-    text: `Seu código de acesso ao Portal Carbud: ${code}\n\nEle vale ${CODE_TTL_MINUTES} minutos e só pode ser usado uma vez. Se não foi você, ignore este e-mail.`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#131820">
-  <p style="font-size:20px;font-weight:bold;margin:0 0 16px">Confira seu e-mail</p>
-  <p style="margin:0 0 16px;color:#657181">Use o código abaixo para entrar no Portal Carbud.</p>
-  <p style="font-size:32px;letter-spacing:8px;font-weight:bold;margin:0 0 16px;color:#c6000f">${digits}</p>
-  <p style="margin:0;color:#657181;font-size:13px">Ele vale ${CODE_TTL_MINUTES} minutos e só pode ser usado uma vez. Se não foi você, ignore este e-mail.</p>
-</div>`,
-  };
-}
-
 /**
  * Manda um código novo. Responde igual para e-mail com ou sem conta: a tela
  * não pode servir para descobrir quem é cliente.
@@ -82,7 +70,7 @@ export async function startChallenge(rawEmail: string, ip: string | null) {
     expiresAt: new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000),
   });
 
-  const result = await sendEmail({ to: email, ...codeEmail(code) });
+  const result = await sendEmail({ to: email, ...buyerCodeEmail({ code, minutes: CODE_TTL_MINUTES, origin: await getOrigin() }) });
   const devCode = !result.delivered && process.env.NODE_ENV !== "production" ? code : undefined;
   if (!result.delivered && !devCode) throw new ApiError(503, "Não foi possível enviar o e-mail agora. Tente novamente.");
   return { sent: true, devCode };

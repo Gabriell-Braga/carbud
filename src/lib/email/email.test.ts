@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { amzDates, sha256Hex, signedHeaders } from "./sigv4";
 import { explain, sendViaSes, sesPayload, type SesConfig } from "./ses";
 import {
+  buyerCodeEmail,
   EMAIL_COPY_FIELDS,
   EMAIL_TEMPLATE_KEYS,
   EMAIL_TEMPLATES,
@@ -245,5 +246,16 @@ describe("textos editáveis", () => {
       const email = sampleEmail(key, { panelUrl: (path) => path, userName: "Ana" });
       expect(`${email.subject}${email.html}${email.text}`).not.toContain("{{");
     }
+  });
+});
+
+describe("código do Portal Carbud", () => {
+  it("leva o código no assunto, no texto e um dígito por célula, com o logo do portal", () => {
+    const email = buyerCodeEmail({ code: "811683", minutes: 10, origin: "https://crm.carbud.com.br" });
+    expect(email.subject).toBe("811683 é seu código de acesso ao Carbud");
+    expect(email.text).toContain("811683");
+    expect(email.html.match(/>\d<\/td>/g)).toHaveLength(6);
+    expect(email.html).toContain("https://crm.carbud.com.br");
+    expect(email.html).toContain("carbud-portal-logo.png");
   });
 });

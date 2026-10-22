@@ -55,12 +55,12 @@ export function escapeHtml(value: string): string {
  * renderiza no Outlook, e a faixa — que é a assinatura visual da mensagem —
  * sumiria justamente onde mais gente lê e-mail de trabalho.
  */
-function faixa(): string {
+function faixa([a, b, c]: readonly [string, string, string]): string {
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
         <tr>
-          <td width="34%" bgcolor="${ROXO}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
-          <td width="33%" bgcolor="${ROXO_MEIO}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
-          <td width="33%" bgcolor="${LAVANDA}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
+          <td width="34%" bgcolor="${a}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
+          <td width="33%" bgcolor="${b}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
+          <td width="33%" bgcolor="${c}" style="height:6px;line-height:6px;font-size:0">&nbsp;</td>
         </tr>
       </table>`;
 }
@@ -70,10 +70,19 @@ function faixa(): string {
  * Outlook não mostram SVG. Link relativo (prévia do editor, no navegador)
  * gera caminho relativo, que lá funciona.
  */
-function logoSrc(pageUrl: string): string {
+function logoSrc(pageUrl: string, file: string): string {
   const origin = /^https?:\/\//.test(pageUrl) ? new URL(pageUrl).origin : "";
-  return `${origin}${withBasePath("/brand/carbud-crm-logo.png")}`;
+  return `${origin}${withBasePath(`/brand/${file}`)}`;
 }
+
+/**
+ * Painel (roxo, logo do CRM) ou Portal Carbud (vermelho, logo do portal).
+ * Quem compra carro nunca viu o painel; o e-mail dele tem a cara do portal.
+ */
+const THEMES = {
+  panel: { stripe: [ROXO, ROXO_MEIO, LAVANDA], logo: "carbud-crm-logo.png", width: 140, height: 41 },
+  portal: { stripe: ["#a5000d", "#c6000f", "#e5484d"], logo: "carbud-portal-logo.png", width: 140, height: 40 },
+} as const;
 
 /**
  * Moldura de todos os e-mails: cartão centrado, faixa em cima e embaixo.
@@ -90,7 +99,9 @@ function layout(input: {
   title: string;
   body: string;
   footer?: string;
+  theme?: keyof typeof THEMES;
 }): string {
+  const theme = THEMES[input.theme ?? "panel"];
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -106,10 +117,10 @@ function layout(input: {
     <tr>
       <td align="center" style="padding:28px 12px">
         <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:100%;max-width:600px;background:#ffffff;border:1px solid ${BORDA};border-radius:14px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif">
-          <tr><td>${faixa()}</td></tr>
+          <tr><td>${faixa(theme.stripe)}</td></tr>
           <tr>
             <td align="center" style="padding:30px 34px 34px 34px">
-              <img src="${escapeHtml(logoSrc(input.url))}" width="140" height="41" alt="${escapeHtml(APP_NAME)}" style="display:block;margin:0 auto 22px auto;width:140px;height:41px;border:0">
+              <img src="${escapeHtml(logoSrc(input.url, theme.logo))}" width="${theme.width}" height="${theme.height}" alt="${escapeHtml(APP_NAME)}" style="display:block;margin:0 auto 22px auto;width:${theme.width}px;height:${theme.height}px;border:0">
               ${input.eyebrow ? `<p style="margin:0 0 6px 0;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${CINZA}">${escapeHtml(input.eyebrow)}</p>` : ""}
               <h1 style="margin:0 0 18px 0;font-size:22px;line-height:1.3;color:${TINTA};font-weight:700">${escapeHtml(input.title)}</h1>
               ${input.body}
@@ -127,7 +138,7 @@ function layout(input: {
           </tr>`
               : ""
           }
-          <tr><td>${faixa()}</td></tr>
+          <tr><td>${faixa(theme.stripe)}</td></tr>
         </table>
         <p style="margin:14px 0 0 0;font-size:11px;color:${CINZA};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif">${escapeHtml(APP_NAME)} · mensagem automática</p>
       </td>
@@ -495,6 +506,54 @@ export function welcomeEmail(
       body: `${bodyHtml(paragraphs)}
               ${botao(input.url, line(copy.button, vars))}`,
       footer: escapeHtml(footer),
+    }),
+  };
+}
+
+/**
+ * Código de acesso do Portal Carbud (comprador). Não é editável no Painel
+ * Geral: é só o código e o aviso de segurança, e a tela do portal repete o
+ * mesmo texto.
+ *
+ * Um dígito por célula: o código fica legível de longe, não quebra linha no
+ * celular e o toque longo em cima seleciona os seis de uma vez no Gmail.
+ */
+export function buyerCodeEmail(input: { code: string; minutes: number; origin: string }): EmailContent {
+  const preheader = `Seu código é ${input.code}. Ele vale ${input.minutes} minutos.`;
+  const vermelho = "#c6000f";
+  const celulas = input.code
+    .split("")
+    .map(
+      (digito) =>
+        `<td align="center" width="46" style="width:46px;height:56px;border:1px solid ${BORDA};border-radius:10px;background:#fff1f2;font-size:28px;font-weight:700;color:${vermelho};font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace">${escapeHtml(digito)}</td>`,
+    )
+    .join(`<td width="8" style="width:8px;font-size:0">&nbsp;</td>`);
+
+  return {
+    subject: `${input.code} é seu código de acesso ao Carbud`,
+    preheader,
+    text: [
+      "Seu código de acesso",
+      "",
+      "Use o código abaixo para entrar no Portal Carbud:",
+      "",
+      input.code,
+      "",
+      `Ele vale ${input.minutes} minutos e só pode ser usado uma vez.`,
+      "Não compartilhe este código. Se não foi você que pediu, ignore este e-mail: sua conta continua protegida.",
+    ].join("\n"),
+    html: layout({
+      preheader,
+      url: input.origin,
+      theme: "portal",
+      eyebrow: "Portal Carbud",
+      title: "Seu código de acesso",
+      body: `${paragrafo("Use o código abaixo para entrar ou criar sua conta. É só digitar na tela em que você estava.", CINZA)}
+              <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:22px auto 22px auto">
+                <tr>${celulas}</tr>
+              </table>
+              ${paragrafo(`Ele vale <strong style="color:${TINTA}">${input.minutes} minutos</strong> e só pode ser usado uma vez.`, CINZA)}`,
+      footer: "Não compartilhe este código: ninguém do Carbud vai pedi-lo. Se não foi você que pediu, ignore este e-mail — sua conta continua protegida.",
     }),
   };
 }
