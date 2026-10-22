@@ -265,5 +265,11 @@ export const MIGRATIONS: BundledMigration[] = [
       "CREATE INDEX `buyer_sessions_buyer_idx` ON `buyer_sessions` (`buyer_id`);",
       "CREATE TABLE `buyer_favorites` (\n\t`buyer_id` text NOT NULL,\n\t`vehicle_id` text NOT NULL,\n\t`snapshot` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`buyer_id`, `vehicle_id`),\n\tFOREIGN KEY (`buyer_id`) REFERENCES `buyers`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "tag": "0025_favicon_dark",
+    "statements": [
+      "ALTER TABLE `tenant_sites` ADD `favicon_dark_key` text;"
+    ]
   }
 ];

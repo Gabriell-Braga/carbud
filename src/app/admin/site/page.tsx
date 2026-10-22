@@ -95,6 +95,7 @@ export default async function SitePage({
             templateId: context.tenant.templateId,
             logoKey: site?.logoKey ?? null,
             faviconKey: site?.faviconKey ?? null,
+            faviconDarkKey: site?.faviconDarkKey ?? null,
             theme: site?.theme ?? {},
           }}
         />
@@ -196,12 +197,9 @@ export default async function SitePage({
           banners={banners.map((banner) => ({
             id: banner.id,
             imageKey: banner.imageKey,
-            title: banner.title,
-            subtitle: banner.subtitle,
-            ctaLabel: banner.ctaLabel,
-            ctaHref: banner.ctaHref,
             active: banner.active,
           }))}
+          templateId={context.tenant.templateId}
         />
       ) : null}
     </>

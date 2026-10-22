@@ -130,6 +130,8 @@ export type SiteData = {
   logoUrl: string | null;
   /** Ícone da aba do navegador; o site cai no padrão quando é nulo. */
   faviconUrl: string | null;
+  /** Ícone para aba em tema escuro; nulo usa `faviconUrl` nos dois temas. */
+  faviconDarkUrl: string | null;
   theme: ThemeTokens;
   contact: SiteContact;
   aboutTitle: string | null;
@@ -432,5 +434,23 @@ export function themeToCssVariables(theme: ThemeTokens): Record<string, string> 
     "--site-font-body": theme.fontBody,
     "--site-radius": theme.radius,
     "--site-whatsapp": WHATSAPP_GREEN,
+  };
+}
+
+/**
+ * Ícones da aba para o `metadata.icons` do Next.
+ *
+ * Com a variante escura, cada uma vai com `media` de prefers-color-scheme:
+ * Chrome, Edge e Firefox trocam sozinhos; navegador que ignora `media` fica
+ * com o primeiro, o claro.
+ */
+export function siteIcons(site: Pick<SiteData, "faviconUrl" | "faviconDarkUrl">) {
+  if (!site.faviconUrl) return undefined;
+  if (!site.faviconDarkUrl) return { icon: site.faviconUrl };
+  return {
+    icon: [
+      { url: site.faviconUrl, media: "(prefers-color-scheme: light)" },
+      { url: site.faviconDarkUrl, media: "(prefers-color-scheme: dark)" },
+    ],
   };
 }

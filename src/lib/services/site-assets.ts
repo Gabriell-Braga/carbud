@@ -22,26 +22,31 @@ import { invalidateTenantCache } from "@/lib/tenant/service";
  * sem tag no site. Copiar a rota inteira faria duas versões que iam divergir
  * na primeira mudança de validação.
  */
-export type SiteAssetKind = "logo" | "favicon";
+export type SiteAssetKind = "logo" | "favicon" | "faviconDark";
 
 const CAMPOS = {
   logo: tenantSites.logoKey,
   favicon: tenantSites.faviconKey,
+  faviconDark: tenantSites.faviconDarkKey,
 } as const;
 
+const FIELDS = { logo: "logoKey", favicon: "faviconKey", faviconDark: "faviconDarkKey" } as const;
+
+function assetValue(kind: SiteAssetKind, key: string | null) {
+  return { [FIELDS[kind]]: key } as Partial<typeof tenantSites.$inferInsert>;
+}
+
 /**
- * SVG entra no favicon, e só nele.
+ * SVG entra na logo e no favicon.
  *
- * É o formato que resolve o ícone em qualquer tamanho sem serrilhar, e o
- * runtime de Workers não tem como redimensionar um PNG. Fora do favicon ele
- * não entra: SVG é código, e um arquivo desses servido como logo num site de
- * terceiro é superfície de ataque sem contrapartida.
+ * É o formato que resolve em qualquer tamanho sem serrilhar, e logo de loja
+ * costuma existir só em vetor. SVG é código: o risco é alguém abrir o arquivo
+ * direto no navegador e o script rodar na origem do painel. Quem segura isso é
+ * a CSP com `sandbox` que `/api/media` manda em toda resposta; dentro de <img>
+ * o navegador já não executa script.
  */
 const SVG = "image/svg+xml";
-
-function tiposAceitos(kind: SiteAssetKind): string[] {
-  return kind === "favicon" ? [...ALLOWED_IMAGE_TYPES, SVG] : [...ALLOWED_IMAGE_TYPES];
-}
+const ACCEPTED_TYPES = [...ALLOWED_IMAGE_TYPES, SVG];
 
 function extensionFor(type: string): string {
   if (type === SVG) return "svg";
@@ -72,7 +77,7 @@ export async function saveSiteAsset(
   const file = formData?.get("file");
 
   if (!(file instanceof File)) throw badRequest("Arquivo ausente");
-  if (!tiposAceitos(kind).includes(file.type)) throw badRequest("Formato não suportado");
+  if (!ACCEPTED_TYPES.includes(file.type)) throw badRequest("Formato não suportado");
   if (file.size > MAX_UPLOAD_BYTES) throw badRequest("Arquivo muito grande");
 
   const key = tenantAssetKey(context.tenant.id, kind, crypto.randomUUID(), extensionFor(file.type));
@@ -91,14 +96,10 @@ export async function saveSiteAsset(
   if (existing[0]) {
     await db
       .update(tenantSites)
-      .set(kind === "logo" ? { logoKey: key } : { faviconKey: key })
+      .set(assetValue(kind, key))
       .where(eq(tenantSites.tenantId, context.tenant.id));
   } else {
-    await db.insert(tenantSites).values(
-      kind === "logo"
-        ? { tenantId: context.tenant.id, logoKey: key }
-        : { tenantId: context.tenant.id, faviconKey: key },
-    );
+    await db.insert(tenantSites).values({ tenantId: context.tenant.id, ...assetValue(kind, key) });
   }
 
   if (previous) await deleteObjects([previous]);
@@ -118,7 +119,7 @@ export async function removeSiteAsset(
 
   await db
     .update(tenantSites)
-    .set(kind === "logo" ? { logoKey: null } : { faviconKey: null })
+    .set(assetValue(kind, null))
     .where(eq(tenantSites.tenantId, context.tenant.id));
 
   if (previous) await deleteObjects([previous]);

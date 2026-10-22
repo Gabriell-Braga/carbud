@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, FormField, Input, Textarea } from "@/components/ui/field";
@@ -16,12 +16,21 @@ import { usePublishConfirm } from "./use-publish-confirm";
 export type BannerItem = {
   id: string;
   imageKey: string;
-  title: string | null;
-  subtitle: string | null;
-  ctaLabel: string | null;
-  ctaHref: string | null;
   active: boolean;
 };
+
+/*
+ * Onde cada imagem ativa aparece, pela ordem.
+ *
+ * Os templates não têm "banner" com texto e botão: usam as imagens ativas por
+ * posição — a 1ª no destaque da home e no Sobre nós, a 2ª mais abaixo. A tela
+ * antes pedia título, subtítulo e botão que nenhum template mostrava, e a
+ * revenda descobria a foto do Sobre nós só abrindo o site.
+ */
+const SLOT_USES: Record<string, string[]> = {
+  showroom: ["Topo da home, do estoque e do Sobre nós", "Meio da home e segunda foto do Sobre nós"],
+};
+const DEFAULT_SLOT_USES = ["Destaque da home e foto do Sobre nós", "Segunda foto do Sobre nós"];
 
 export type ContentValues = {
   aboutTitle: string;
@@ -31,10 +40,12 @@ export type ContentValues = {
 export function ContentPanel({
   initial,
   banners,
+  templateId,
   readOnly,
 }: {
   initial: ContentValues;
   banners: BannerItem[];
+  templateId: string;
   readOnly?: boolean;
 }) {
   const router = useRouter();
@@ -81,7 +92,7 @@ export function ContentPanel({
       if (!result.ok) {
         toast.error(result.error);
       } else {
-        toast.success("Banner adicionado.");
+        toast.success("Imagem adicionada.");
         router.refresh();
       }
     } catch (uploadError) {
@@ -103,11 +114,33 @@ export function ContentPanel({
     router.refresh();
   }
 
+  async function moveBanner(index: number, offset: -1 | 1) {
+    const order = banners.map((banner) => banner.id);
+    [order[index], order[index + offset]] = [order[index + offset], order[index]];
+    setBusy(true);
+    // reescreve todas as posições: as antigas podem estar repetidas
+    for (const [position, id] of order.entries()) {
+      const result = await apiPatch(`/api/admin/site/banners/${id}`, { position });
+      if (!result.ok) {
+        toast.error(result.error);
+        break;
+      }
+    }
+    setBusy(false);
+    router.refresh();
+  }
+
+  function slotUse(id: string): string {
+    const slot = banners.filter((banner) => banner.active).findIndex((banner) => banner.id === id);
+    if (slot < 0) return "Inativa: não aparece no site";
+    return (SLOT_USES[templateId] ?? DEFAULT_SLOT_USES)[slot] ?? "Não aparece no template atual";
+  }
+
   async function deleteBanner(id: string) {
     const confirmed = await confirm({
-      title: "Remover banner",
+      title: "Remover imagem",
       description: "Ele sai do site na hora e a imagem é apagada.",
-      confirmLabel: "Remover banner",
+      confirmLabel: "Remover imagem",
       tone: "danger",
     });
     if (!confirmed) return;
@@ -161,9 +194,10 @@ export function ContentPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Banners da home</CardTitle>
+          <CardTitle>Imagens do site</CardTitle>
           <CardDescription>
-            O primeiro banner ativo vira o destaque principal da home.
+            O template usa as imagens ativas na ordem abaixo. Cada uma diz onde aparece; use as
+            setas para trocar a ordem.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -185,20 +219,23 @@ export function ContentPanel({
               onClick={() => inputRef.current?.click()}
             >
               <Upload className="h-3.5 w-3.5" />
-              Adicionar banner
+              Adicionar imagem
             </Button>
           ) : null}
 
           {banners.length === 0 ? (
             <p className="rounded border border-dashed border-border px-4 py-8 text-center text-[13px] text-muted">
-              Nenhum banner cadastrado. Sem banner, a home usa um destaque padrão com o nome da
-              revenda.
+              Nenhuma imagem cadastrada. Sem ela, a home usa um destaque padrão com o nome da
+              revenda e o Sobre nós fica sem foto.
             </p>
           ) : (
-            <div className="space-y-4">
-              {banners.map((banner) => (
-                <div key={banner.id} className="rounded border border-border p-4">
-                  <div className="mb-3 h-28 w-full overflow-hidden rounded bg-surface-2">
+            <div className="space-y-3">
+              {banners.map((banner, index) => (
+                <div
+                  key={banner.id}
+                  className="flex flex-col gap-3 rounded border border-border p-3 sm:flex-row sm:items-center"
+                >
+                  <div className="aspect-video w-full shrink-0 overflow-hidden rounded bg-surface-2 sm:w-48">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={mediaUrl(banner.imageKey) ?? ""}
@@ -207,43 +244,10 @@ export function ContentPanel({
                     />
                   </div>
 
-                  <div className="grid gap-x-4 sm:grid-cols-2">
-                    <FormField label="Título" htmlFor={`banner-title-${banner.id}`}>
-                      <Input
-                        id={`banner-title-${banner.id}`}
-                        defaultValue={banner.title ?? ""}
-                        disabled={readOnly}
-                        onBlur={(event) => patchBanner(banner.id, { title: event.target.value })}
-                      />
-                    </FormField>
-                    <FormField label="Subtítulo" htmlFor={`banner-subtitle-${banner.id}`}>
-                      <Input
-                        id={`banner-subtitle-${banner.id}`}
-                        defaultValue={banner.subtitle ?? ""}
-                        disabled={readOnly}
-                        onBlur={(event) => patchBanner(banner.id, { subtitle: event.target.value })}
-                      />
-                    </FormField>
-                    <FormField label="Texto do botão" htmlFor={`banner-cta-${banner.id}`}>
-                      <Input
-                        id={`banner-cta-${banner.id}`}
-                        defaultValue={banner.ctaLabel ?? ""}
-                        disabled={readOnly}
-                        onBlur={(event) => patchBanner(banner.id, { ctaLabel: event.target.value })}
-                      />
-                    </FormField>
-                    <FormField label="Link do botão" htmlFor={`banner-href-${banner.id}`}>
-                      <Input
-                        id={`banner-href-${banner.id}`}
-                        defaultValue={banner.ctaHref ?? ""}
-                        disabled={readOnly}
-                        onBlur={(event) => patchBanner(banner.id, { ctaHref: event.target.value })}
-                      />
-                    </FormField>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-[13px] text-muted">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium">{index + 1}ª imagem</p>
+                    <p className="text-xs text-muted">{slotUse(banner.id)}</p>
+                    <label className="mt-2 flex items-center gap-2 text-[13px] text-muted">
                       <Checkbox
                         checked={banner.active}
                         disabled={readOnly || busy}
@@ -251,9 +255,32 @@ export function ContentPanel({
                           patchBanner(banner.id, { active: event.target.checked })
                         }
                       />
-                      Ativo
+                      Ativa
                     </label>
-                    {!readOnly ? (
+                  </div>
+
+                  {!readOnly ? (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Subir"
+                        disabled={busy || index === 0}
+                        onClick={() => moveBanner(index, -1)}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        aria-label="Descer"
+                        disabled={busy || index === banners.length - 1}
+                        onClick={() => moveBanner(index, 1)}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         type="button"
                         size="sm"
@@ -264,8 +291,8 @@ export function ContentPanel({
                         <Trash2 className="h-3.5 w-3.5" />
                         Remover
                       </Button>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

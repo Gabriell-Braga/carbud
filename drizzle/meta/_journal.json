@@ -176,6 +176,13 @@
       "when": 1792459207538,
       "tag": "0024_portal_buyers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792459208538,
+      "tag": "0025_favicon_dark",
+      "breakpoints": true
     }
   ]
 }

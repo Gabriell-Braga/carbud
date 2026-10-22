@@ -46,6 +46,7 @@ export type VehicleListItem = {
    * final.
    */
   licensePlate: string | null;
+  fipePriceCents: number | null;
   coverPhotoKey: string | null;
   photosCount: number;
   createdAt: Date;
@@ -69,6 +70,7 @@ const LIST_COLUMNS = {
   fuel: vehicles.fuel,
   // a lista mostra a placa: e como a loja distingue dois carros iguais
   licensePlate: vehicles.licensePlate,
+  fipePriceCents: vehicles.fipePriceCents,
   coverPhotoKey: vehicles.coverPhotoKey,
   photosCount: vehicles.photosCount,
   createdAt: vehicles.createdAt,
@@ -78,7 +80,7 @@ const LIST_COLUMNS = {
  * TODA consulta de veículo passa por aqui com tenantId obrigatório —
  * é o que garante o isolamento entre revendas.
  */
-export type VehicleQuery = Partial<VehicleFilters> & { statuses?: VehicleStatus[] };
+export type VehicleQuery = Partial<VehicleFilters> & { statuses?: VehicleStatus[]; belowFipe?: boolean };
 
 /**
  * Uma revenda (painel, site) ou uma lista delas (portal, que junta o estoque
@@ -108,6 +110,12 @@ function buildConditions(scope: TenantScope, filters: VehicleQuery) {
   if (filters.yearMin !== undefined) conditions.push(gte(vehicles.yearModel, filters.yearMin));
   if (filters.yearMax !== undefined) conditions.push(lte(vehicles.yearModel, filters.yearMax));
   if (filters.kmMax !== undefined) conditions.push(lte(vehicles.mileageKm, filters.kmMax));
+  // mesma regra de isBelowFipe, em SQL; carro sem FIPE consultada fica de fora
+  if (filters.belowFipe) {
+    conditions.push(
+      sql`${vehicles.priceOnRequest} = 0 and ${vehicles.priceCents} > 0 and ${vehicles.fipePriceCents} > 0 and ${vehicles.priceCents} < ${vehicles.fipePriceCents}`,
+    );
+  }
 
   if (filters.search) {
     const term = `%${filters.search.toLowerCase()}%`;
@@ -136,6 +144,26 @@ function buildOrder(sort: VehicleFilters["sort"]) {
     default:
       return [desc(vehicles.featured), desc(vehicles.createdAt)];
   }
+}
+
+/**
+ * Preço anunciado abaixo da FIPE guardada no cadastro.
+ *
+ * Calculado na leitura, e não gravado como coluna: preço e FIPE já ficam
+ * salvos no veículo, e um booleano à parte desatualizaria na primeira
+ * mudança de preço feita por outro caminho (importação, API, edição rápida).
+ */
+export function isBelowFipe(vehicle: {
+  priceCents: number;
+  priceOnRequest: boolean;
+  fipePriceCents: number | null;
+}): boolean {
+  return (
+    !vehicle.priceOnRequest &&
+    vehicle.priceCents > 0 &&
+    !!vehicle.fipePriceCents &&
+    vehicle.priceCents < vehicle.fipePriceCents
+  );
 }
 
 export async function listVehicles(scope: TenantScope, filters: VehicleQuery = {}) {

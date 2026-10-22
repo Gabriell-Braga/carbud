@@ -145,6 +145,8 @@ export const tenantSites = sqliteTable("tenant_sites", {
     .references(() => tenants.id, { onDelete: "cascade" }),
   logoKey: text("logo_key"),
   faviconKey: text("favicon_key"),
+  /** Variante para aba em tema escuro; sem ela vale `faviconKey` nos dois. */
+  faviconDarkKey: text("favicon_dark_key"),
   theme: text("theme", { mode: "json" }).$type<TenantTheme>(),
   gtmCode: text("gtm_code"),
   phone: text("phone"),

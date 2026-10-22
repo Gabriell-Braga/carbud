@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo, Barlow_Condensed, DM_Sans, Manrope } from "next/font/google";
-import { themeToCssVariables } from "@carbud/site-kit/contract";
+import { siteIcons, themeToCssVariables } from "@carbud/site-kit/contract";
 import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
 import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
@@ -37,7 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
      * a aba fica com o icone generico de pagina, que num site de loja passa a
      * impressao de coisa improvisada.
      */
-    icons: site.faviconUrl ? { icon: site.faviconUrl } : undefined,
+    icons: siteIcons(site),
     description,
     openGraph: {
       siteName: site.name,

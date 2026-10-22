@@ -20,6 +20,7 @@ export type IdentityValues = {
   templateId: string;
   logoKey: string | null;
   faviconKey: string | null;
+  faviconDarkKey: string | null;
   /** Só o que a revenda escolheu; o resto vem do template. */
   theme: Partial<Record<ThemeKey, string>>;
 };
@@ -48,6 +49,7 @@ export function IdentityPanel({
   const confirmPublish = usePublishConfirm();
   const inputRef = useRef<HTMLInputElement>(null);
   const faviconRef = useRef<HTMLInputElement>(null);
+  const faviconDarkRef = useRef<HTMLInputElement>(null);
 
   const [templateId, setTemplateId] = useState(initial.templateId);
   /*
@@ -62,6 +64,7 @@ export function IdentityPanel({
   const theme = composeTheme(findTemplateManifest(templateId)?.defaultTheme, overrides);
   const [logoKey, setLogoKey] = useState(initial.logoKey);
   const [faviconKey, setFaviconKey] = useState(initial.faviconKey);
+  const [faviconDarkKey, setFaviconDarkKey] = useState(initial.faviconDarkKey);
   const [busy, setBusy] = useState(false);
 
   function updateTheme(key: ThemeKey, value: string) {
@@ -80,9 +83,14 @@ export function IdentityPanel({
     setBusy(true);
 
     try {
-      const blob = await resizeSingle(file, 480);
       const formData = new FormData();
-      formData.append("file", blob, blobFileName(blob, "logo"));
+      // SVG sobe como veio: o canvas o transformaria em raster de tamanho fixo
+      if (file.type === "image/svg+xml") {
+        formData.append("file", file, file.name);
+      } else {
+        const blob = await resizeSingle(file, 480);
+        formData.append("file", blob, blobFileName(blob, "logo"));
+      }
       const result = await apiUpload<{ key: string }>("/api/admin/site/logo", formData);
       if (!result.ok) {
         toast.error(result.error);
@@ -106,34 +114,35 @@ export function IdentityPanel({
    * resolver em qualquer tamanho. Como o arquivo e pequeno por natureza, ele
    * sobe como veio.
    */
-  async function handleFavicon(file: File | undefined) {
+  async function handleFavicon(file: File | undefined, dark = false) {
     if (!file) return;
     setBusy(true);
 
     const formData = new FormData();
     formData.append("file", file, file.name);
-    const result = await apiUpload<{ key: string }>("/api/admin/site/favicon", formData);
+    const result = await apiUpload<{ key: string }>(faviconEndpoint(dark), formData);
 
     if (!result.ok) {
       toast.error(result.error);
     } else {
-      setFaviconKey(result.data.key);
+      (dark ? setFaviconDarkKey : setFaviconKey)(result.data.key);
       router.refresh();
     }
 
     setBusy(false);
-    if (faviconRef.current) faviconRef.current.value = "";
+    const input = (dark ? faviconDarkRef : faviconRef).current;
+    if (input) input.value = "";
   }
 
-  async function handleRemoveFavicon() {
+  async function handleRemoveFavicon(dark = false) {
     setBusy(true);
-    const result = await apiDelete("/api/admin/site/favicon");
+    const result = await apiDelete(faviconEndpoint(dark));
     setBusy(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    setFaviconKey(null);
+    (dark ? setFaviconDarkKey : setFaviconKey)(null);
     router.refresh();
   }
 
@@ -166,6 +175,7 @@ export function IdentityPanel({
 
   const logoUrl = mediaUrl(logoKey);
   const faviconUrl = mediaUrl(faviconKey);
+  const faviconDarkUrl = mediaUrl(faviconDarkKey);
 
   return (
     <div className="flex flex-col gap-4">
@@ -173,7 +183,8 @@ export function IdentityPanel({
         <CardHeader>
           <CardTitle>Logo</CardTitle>
           <CardDescription>
-            Use PNG com fundo transparente. A imagem é reduzida no seu navegador antes do envio.
+            Use SVG ou PNG com fundo transparente. PNG é reduzido no seu navegador antes do
+            envio; SVG sobe como está.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,7 +201,7 @@ export function IdentityPanel({
             <input
               ref={inputRef}
               type="file"
-              accept={ACCEPTED_INPUT}
+              accept={`${ACCEPTED_INPUT},image/svg+xml`}
               className="hidden"
               disabled={readOnly || busy}
               onChange={(event) => handleLogo(event.target.files?.[0])}
@@ -230,47 +241,26 @@ export function IdentityPanel({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-center gap-5">
-            {/* fundo xadrez claro: favicon costuma ter fundo transparente */}
-            <div className="flex h-20 w-20 items-center justify-center rounded border border-border bg-surface-2">
-              {faviconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={faviconUrl} alt="Favicon" className="h-10 w-10 object-contain" />
-              ) : (
-                <span className="text-center text-xs text-faint">Sem ícone</span>
-              )}
-            </div>
-
-            <input
-              ref={faviconRef}
-              type="file"
-              accept="image/png,image/webp,image/svg+xml,image/x-icon"
-              className="hidden"
+          <div className="flex flex-col gap-5">
+            <FaviconSlot
+              label="Tema claro"
+              hint="Usado sempre que não houver a versão escura."
+              url={faviconUrl}
+              inputRef={faviconRef}
               disabled={readOnly || busy}
-              onChange={(event) => handleFavicon(event.target.files?.[0])}
+              onPick={(file) => handleFavicon(file)}
+              onRemove={faviconKey ? () => handleRemoveFavicon() : undefined}
             />
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={readOnly || busy}
-                onClick={() => faviconRef.current?.click()}
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Enviar ícone
-              </Button>
-              {faviconKey ? (
-                <Button
-                  type="button"
-                  variant="outlineDanger"
-                  disabled={readOnly || busy}
-                  onClick={handleRemoveFavicon}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Remover
-                </Button>
-              ) : null}
-            </div>
+            <FaviconSlot
+              dark
+              label="Tema escuro (opcional)"
+              hint="Para quem usa o navegador no modo escuro. Funciona no Chrome, Edge e Firefox."
+              url={faviconDarkUrl}
+              inputRef={faviconDarkRef}
+              disabled={readOnly || busy || !faviconKey}
+              onPick={(file) => handleFavicon(file, true)}
+              onRemove={faviconDarkKey ? () => handleRemoveFavicon(true) : undefined}
+            />
           </div>
         </CardContent>
       </Card>
@@ -403,6 +393,82 @@ export function IdentityPanel({
             Salvar identidade
           </Button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function faviconEndpoint(dark: boolean) {
+  return dark ? "/api/admin/site/favicon-dark" : "/api/admin/site/favicon";
+}
+
+function FaviconSlot({
+  label,
+  hint,
+  url,
+  dark,
+  inputRef,
+  disabled,
+  onPick,
+  onRemove,
+}: {
+  label: string;
+  hint: string;
+  url: string | null;
+  dark?: boolean;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  disabled: boolean;
+  onPick: (file: File | undefined) => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-5">
+      {/* a prévia usa o fundo da aba naquele tema, para dar para julgar o contraste */}
+      <div
+        className={`flex h-20 w-20 items-center justify-center rounded border border-border ${
+          dark ? "bg-[#202124]" : "bg-surface-2"
+        }`}
+      >
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={`Favicon ${label}`} className="h-10 w-10 object-contain" />
+        ) : (
+          <span className={`text-center text-xs ${dark ? "text-white/60" : "text-faint"}`}>
+            Sem ícone
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div>
+          <p className="text-[13px] font-medium">{label}</p>
+          <p className="text-xs text-muted">{hint}</p>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/webp,image/svg+xml,image/x-icon"
+          className="hidden"
+          disabled={disabled}
+          onChange={(event) => onPick(event.target.files?.[0])}
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Enviar ícone
+          </Button>
+          {onRemove ? (
+            <Button type="button" variant="outlineDanger" disabled={disabled} onClick={onRemove}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Remover
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ export function siteWithLocalMedia(site: SiteData): SiteData {
      * A aba ficava sem icone e nada no build reclamava.
      */
     faviconUrl: localMedia(site.faviconUrl),
+    faviconDarkUrl: localMedia(site.faviconDarkUrl),
     banners: site.banners.map((banner) => ({
       ...banner,
       imageUrl: localMedia(banner.imageUrl),

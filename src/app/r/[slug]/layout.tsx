@@ -6,7 +6,7 @@ import { getSiteData } from "@/lib/services/site";
 import { applySitePreview, readSitePreview } from "@/lib/services/site-preview";
 import { getTenantCoreBySlug, isPublicSiteAvailable } from "@/lib/tenant/service";
 import { getOrigin, tenantAbsoluteUrl } from "@/lib/seo/urls";
-import { themeToCssVariables } from "@carbud/site-kit/contract";
+import { siteIcons, themeToCssVariables } from "@carbud/site-kit/contract";
 import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { TrackingScripts } from "@carbud/site-kit/shared/tracking";
 import { WhatsappGate } from "@carbud/site-kit/shared/whatsapp-gate";
@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     metadataBase: new URL(origin),
     title: { default: site.name, template: `%s · ${site.name}` },
     // o icone da aba e o da revenda, nao o do painel
-    icons: site.faviconUrl ? { icon: site.faviconUrl } : undefined,
+    icons: siteIcons(site),
     description,
     alternates: { canonical: url },
     /*

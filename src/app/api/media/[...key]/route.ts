@@ -95,6 +95,13 @@ async function serve(
   const headers = new Headers();
   headers.set("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
   headers.set("cache-control", `public, max-age=${MAX_AGE}, immutable`);
+  /*
+   * Logo e favicon aceitam SVG, que é código. Aberto direto no navegador, ele
+   * rodaria script na origem do painel, junto do cookie de sessão. `sandbox`
+   * isola o documento; dentro de <img> nada disso pesa, a imagem segue igual.
+   */
+  headers.set("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+  headers.set("x-content-type-options", "nosniff");
   if (object.httpEtag) headers.set("etag", object.httpEtag);
 
   const hasBody = "body" in object && object.body;
@@ -116,7 +123,7 @@ async function serve(
 /** 304 carrega validação e cache, nunca corpo nem content-length. */
 function notModified(source: Headers): Response {
   const headers = new Headers();
-  for (const name of ["etag", "cache-control", "content-type"]) {
+  for (const name of ["etag", "cache-control", "content-type", "content-security-policy"]) {
     const value = source.get(name);
     if (value) headers.set(name, value);
   }
