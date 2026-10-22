@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 225.4 225.4" role="img" aria-label="Carbud">
   <!-- Símbolo do logo do Carbud CRM (public/brand/carbud-crm-logo.svg), sem o texto. -->
-  <!-- o roxo da marca some na aba escura do navegador; lá vai um tom claro dele -->
-  <style>g { fill: #5c40f1 } @media (prefers-color-scheme: dark) { g { fill: #a99bff } }</style>
+  <!-- na aba escura o roxo some; lá vale a versão branca do manual (public/brand/carbud-crm-logo-white.svg) -->
+  <style>g { fill: #5c40f1 } @media (prefers-color-scheme: dark) { g { fill: #ffffff } }</style>
   <g>
   <path d="M88.96,124.85h-48.04c4.52,27.03,23.85,49.03,49.38,57.38,5.3,1.73,10.73-2.29,10.73-7.86v-37.51c-5.2-2.6-9.44-6.82-12.07-12.01Z"/>
   <path d="M112.7,99.93c-7.05,0-12.77,5.72-12.77,12.77s5.72,12.77,12.77,12.77,12.77-5.72,12.77-12.77-5.72-12.77-12.77-12.77Z"/>
