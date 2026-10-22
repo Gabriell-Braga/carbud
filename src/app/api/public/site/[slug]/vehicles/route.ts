@@ -1,7 +1,7 @@
 import { jsonOk, notFound, withApi } from "@/lib/http";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { parsePublicFilters, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { toVehicleCard } from "@/lib/services/site";
+import { toVehicleCards } from "@/lib/services/site";
 import { listStockFacets, listVehicles } from "@/lib/services/vehicles";
 import { getTenantCoreBySlug } from "@/lib/tenant/service";
 
@@ -33,7 +33,7 @@ export const GET = withApi(async (request: Request, { params }: Params) => {
 
   return jsonOk(
     {
-      vehicles: result.items.map(toVehicleCard),
+      vehicles: await toVehicleCards(result.items),
       facets,
       filters: applied,
       total: result.total,

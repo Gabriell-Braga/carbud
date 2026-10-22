@@ -1,7 +1,7 @@
 import { jsonOk, notFound, withApi } from "@/lib/http";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { toVehicleCard, toVehicleDetail } from "@/lib/services/site";
+import { toVehicleCards, toVehicleDetail } from "@/lib/services/site";
 import { getVehicleBySlug, listMedia360, listVehicles } from "@/lib/services/vehicles";
 import { getTenantCoreBySlug } from "@/lib/tenant/service";
 import type { VehicleStatus } from "@/db/schema";
@@ -44,10 +44,7 @@ export const GET = withApi(async (request: Request, { params }: Params) => {
   return jsonOk(
     {
       vehicle: toVehicleDetail(found.vehicle, found.photos, media360.get(found.vehicle.id)),
-      related: related.items
-        .filter((item) => item.id !== found.vehicle.id)
-        .slice(0, 4)
-        .map(toVehicleCard),
+      related: await toVehicleCards(related.items.filter((item) => item.id !== found.vehicle.id).slice(0, 4)),
     },
     { headers: { "cache-control": "public, max-age=60, s-maxage=60" } },
   );

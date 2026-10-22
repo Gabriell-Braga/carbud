@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { SiteLinks, VehicleView } from "../contract";
+import { CardPhotos } from "../shared/card-photos";
 import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
@@ -31,24 +32,22 @@ export function VehicleCard({
 
   return (
     <article className="flex flex-col overflow-hidden rounded-[var(--site-radius)] bg-[var(--site-surface)]">
-      <Link href={links.vehicle(vehicle.slug)} className="group relative block">
+      <div className="group relative">
         {/* tom proprio para a area da foto: no fundo da secao, que e a mesma
             cor do fundo do site, o espaco reservado sumia */}
-        <div className="aspect-4/3 overflow-hidden bg-[color-mix(in_srgb,var(--site-primary)_8%,var(--site-background))]">
-          {vehicle.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={vehicle.coverUrl}
-              alt={vehicle.title}
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-            />
-          ) : (
+        <CardPhotos
+          photos={vehicle.photos}
+          cover={vehicle.coverUrl}
+          title={vehicle.title}
+          href={links.vehicle(vehicle.slug)}
+          frameClassName="aspect-4/3 overflow-hidden bg-[color-mix(in_srgb,var(--site-primary)_8%,var(--site-background))]"
+          imageClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          empty={
             <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-wider text-[var(--site-muted)]">
               Foto do veículo
             </div>
-          )}
-        </div>
+          }
+        />
 
         {/*
           O selo é da CURADORIA, não do status: é o que o desenho destaca.
@@ -57,10 +56,10 @@ export function VehicleCard({
           direto sobre a foto do carro, e o contraste vira sorte: numa foto
           clara some, numa escura briga.
         */}
-        <span className="absolute left-3 top-3 rounded-[var(--site-radius)] bg-[var(--site-surface)]/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--site-primary)] backdrop-blur-sm">
+        <span className="pointer-events-none absolute left-3 top-3 rounded-[var(--site-radius)] bg-[var(--site-surface)]/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--site-primary)] backdrop-blur-sm">
           {vehicle.featured ? "Curadoria da loja" : vehicle.statusLabel}
         </span>
-      </Link>
+      </div>
 
       <div className="flex flex-1 flex-col px-4 pb-4 pt-4">
         <Link

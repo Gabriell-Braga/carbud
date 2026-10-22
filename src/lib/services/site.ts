@@ -1,9 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   tenantBanners,
   tenantSites,
   tenants,
+  vehiclePhotos,
   type PhotoVariants,
   type Vehicle,
   type VehiclePhoto,
@@ -259,6 +260,40 @@ export function toVehicleCard(vehicle: VehicleListItem): VehicleView {
     coverUrl: mediaUrl(vehicle.coverPhotoKey),
     photos: [],
   };
+}
+
+/** Quantas fotos o card leva: o carrossel do card não precisa da galeria inteira; a ficha mostra o resto. */
+export const CARD_PHOTOS = 6;
+
+/** Primeiras fotos de cada veículo, numa consulta só (para a página inteira de cards). */
+export async function listCardPhotos(vehicleIds: string[]): Promise<Map<string, VehicleView["photos"]>> {
+  const result = new Map<string, VehicleView["photos"]>();
+  if (vehicleIds.length === 0) return result;
+  const db = await getDb();
+  const rows = await db
+    .select({ id: vehiclePhotos.id, vehicleId: vehiclePhotos.vehicleId, variants: vehiclePhotos.variants })
+    .from(vehiclePhotos)
+    .where(inArray(vehiclePhotos.vehicleId, vehicleIds))
+    .orderBy(asc(vehiclePhotos.position));
+  for (const row of rows) {
+    const list = result.get(row.vehicleId) ?? [];
+    if (list.length >= CARD_PHOTOS) continue;
+    const variants = row.variants as PhotoVariants;
+    list.push({
+      id: row.id,
+      thumb: mediaUrl(variants.thumb) ?? "",
+      card: mediaUrl(variants.card) ?? "",
+      full: mediaUrl(variants.full) ?? "",
+    });
+    result.set(row.vehicleId, list);
+  }
+  return result;
+}
+
+/** `toVehicleCard` com as fotos do carrossel; é o que toda grade de site usa. */
+export async function toVehicleCards(items: VehicleListItem[]): Promise<VehicleView[]> {
+  const photos = await listCardPhotos(items.map((item) => item.id));
+  return items.map((item) => ({ ...toVehicleCard(item), photos: photos.get(item.id) ?? [] }));
 }
 
 /**

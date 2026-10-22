@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { loadPublicSite, parsePublicFilters, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { toVehicleCard } from "@/lib/services/site";
+import { toVehicleCards } from "@/lib/services/site";
 import { listStockFacets, listVehicles } from "@/lib/services/vehicles";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function TenantStockPage({ params, searchParams }: Props) {
     <Listing
       site={context.site}
       links={context.links}
-      vehicles={result.items.map(toVehicleCard)}
+      vehicles={await toVehicleCards(result.items)}
       facets={facets}
       filters={applied}
       total={result.total}

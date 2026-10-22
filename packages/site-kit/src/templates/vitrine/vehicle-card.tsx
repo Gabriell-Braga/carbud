@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { SiteLinks, VehicleView } from "../contract";
+import { CardPhotos } from "../shared/card-photos";
 import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
@@ -25,33 +26,28 @@ export function VehicleCard({
 
   return (
     <article className="flex flex-col overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)]">
-      <Link href={links.vehicle(vehicle.slug)} className="group relative block">
-        <div className="relative aspect-4/3 overflow-hidden bg-[var(--site-background)]">
-          {vehicle.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={vehicle.coverUrl}
-              alt={vehicle.title}
-              loading="lazy"
-              /*
-               * O fundo cobre a falha de carregamento.
-               *
-               * Foto apagada do armazenamento vira o icone de imagem quebrada do
-               * navegador — um retangulo berrante no meio da grade. Com o fundo
-               * da propria area, a falha vira um espaco neutro, do mesmo tom do
-               * "Sem foto" ao lado.
-               */
-              className="h-full w-full bg-[var(--site-background)] object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            />
-          ) : (
+      <div className="group relative">
+        {/*
+          O fundo da imagem cobre a falha de carregamento: foto apagada do
+          armazenamento vira o icone de imagem quebrada do navegador, e com o
+          fundo da propria area ela vira um espaco neutro, do tom do "Sem foto".
+        */}
+        <CardPhotos
+          photos={vehicle.photos}
+          cover={vehicle.coverUrl}
+          title={vehicle.title}
+          href={links.vehicle(vehicle.slug)}
+          frameClassName="relative aspect-4/3 overflow-hidden bg-[var(--site-background)]"
+          imageClassName="h-full w-full bg-[var(--site-background)] object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          empty={
             <div className="flex h-full items-center justify-center text-xs text-[var(--site-muted)]">
               Sem foto
             </div>
-          )}
-        </div>
+          }
+        />
 
         <Badge vehicle={vehicle} />
-      </Link>
+      </div>
 
       <div className="flex flex-1 flex-col p-4">
         {/*
@@ -151,7 +147,7 @@ function Badge({ vehicle }: { vehicle: VehicleView }) {
 
   return (
     <span
-      className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm ${badge.className}`}
+      className={`pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm ${badge.className}`}
     >
       {badge.label}
     </span>

@@ -1,7 +1,7 @@
 import { jsonOk, notFound, withApi } from "@/lib/http";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { toVehicleCard } from "@/lib/services/site";
+import { toVehicleCards } from "@/lib/services/site";
 import { listStockFacets, listVehicles } from "@/lib/services/vehicles";
 import { getTenantCoreBySlug } from "@/lib/tenant/service";
 
@@ -38,10 +38,8 @@ export const GET = withApi(async (request: Request, { params }: Params) => {
 
   return jsonOk(
     {
-      featured: featured.items.map(toVehicleCard),
-      latest: latest.items
-        .filter((vehicle) => !featured.items.some((item) => item.id === vehicle.id))
-        .map(toVehicleCard),
+      featured: await toVehicleCards(featured.items),
+      latest: await toVehicleCards(latest.items.filter((vehicle) => !featured.items.some((item) => item.id === vehicle.id))),
       facets,
       totalVehicles: latest.total,
     },

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand } from "lucide-react";
 import type { VehiclePhotoView } from "../contract";
 import { cn } from "../../lib/format";
+import { Lightbox } from "./lightbox";
 
 /**
  * Galeria compartilhada entre templates.
  * A interação é a mesma; a aparência vem das classes que o template passa.
+ * Clicar na foto abre em tela cheia, com zoom (`Lightbox`).
  */
 export function PhotoGallery({
   photos,
@@ -19,6 +21,7 @@ export function PhotoGallery({
   tone?: "light" | "dark";
 }) {
   const [index, setIndex] = useState(0);
+  const [open, setOpen] = useState<number | null>(null);
   const strip = useRef<HTMLDivElement>(null);
 
   /*
@@ -102,6 +105,17 @@ export function PhotoGallery({
           />
         ))}
 
+        <button
+          type="button"
+          aria-label="Ampliar foto"
+          onClick={() => setOpen(index)}
+          className="absolute inset-0 cursor-zoom-in"
+        >
+          <span className="absolute right-2 top-2 rounded-full bg-black/50 p-2 text-white backdrop-blur">
+            <Expand className="h-4 w-4" />
+          </span>
+        </button>
+
         {photos.length > 1 ? (
           <>
             <button
@@ -149,6 +163,10 @@ export function PhotoGallery({
             </button>
           ))}
         </div>
+      ) : null}
+
+      {open !== null ? (
+        <Lightbox photos={photos.map((photo) => photo.full)} start={open} title={title} onClose={() => setOpen(null)} />
       ) : null}
     </div>
   );

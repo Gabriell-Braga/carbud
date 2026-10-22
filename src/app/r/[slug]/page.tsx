@@ -3,7 +3,7 @@ import { FinancingEstimator } from "@carbud/site-kit/shared/financing-form";
 import { financingOptions } from "@/lib/services/financing-options";
 import { JsonLd, autoDealerJsonLd } from "@/lib/seo/jsonld";
 import { tenantAbsoluteUrl } from "@/lib/seo/urls";
-import { toVehicleCard } from "@/lib/services/site";
+import { toVehicleCards } from "@/lib/services/site";
 import { listStockFacets, listVehicles } from "@/lib/services/vehicles";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +33,8 @@ export default async function TenantHomePage({
       <Home
         site={context.site}
         links={context.links}
-        featured={featured.items.map(toVehicleCard)}
-        latest={latest.items
-          .filter((vehicle) => !featured.items.some((item) => item.id === vehicle.id))
-          .map(toVehicleCard)}
+        featured={await toVehicleCards(featured.items)}
+        latest={await toVehicleCards(latest.items.filter((vehicle) => !featured.items.some((item) => item.id === vehicle.id)))}
         facets={facets}
         totalVehicles={latest.total}
         /*

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadPublicSite, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { toVehicleCard, toVehicleDetail } from "@/lib/services/site";
+import { toVehicleCards, toVehicleDetail } from "@/lib/services/site";
 import { getVehicleBySlug, listVehicles } from "@/lib/services/vehicles";
 import { JsonLd, breadcrumbJsonLd, vehicleJsonLd } from "@/lib/seo/jsonld";
 import { tenantAbsoluteUrl } from "@/lib/seo/urls";
@@ -91,10 +91,7 @@ export default async function VehicleDetailPage({ params }: Props) {
         site={context.site}
         links={context.links}
         vehicle={vehicle}
-        related={related.items
-          .filter((item) => item.id !== found.vehicle.id)
-          .slice(0, 4)
-          .map(toVehicleCard)}
+        related={await toVehicleCards(related.items.filter((item) => item.id !== found.vehicle.id).slice(0, 4))}
         leadForm={
           <LeadForm
             tenantSlug={slug}

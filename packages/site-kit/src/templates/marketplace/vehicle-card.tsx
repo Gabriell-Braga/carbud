@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SiteData, SiteLinks, VehicleView } from "../contract";
 import { ServiceCard } from "./chrome";
+import { CardPhotos } from "../shared/card-photos";
 import { WhatsappIcon } from "../shared/whatsapp-icon";
 
 /**
@@ -33,28 +34,26 @@ export function VehicleCard({
 
   return (
     <article className="flex flex-col overflow-hidden rounded-[var(--site-radius)] border border-[var(--site-border)] bg-[var(--site-surface)] transition-shadow hover:shadow-[0_12px_32px_-20px_rgba(17,24,39,0.4)]">
-      <Link href={links.vehicle(vehicle.slug)} className="group relative block">
-        <div className="aspect-4/3 overflow-hidden bg-[var(--site-background)]">
-          {vehicle.coverUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={vehicle.coverUrl}
-              alt={vehicle.title}
-              loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-            />
-          ) : (
+      <div className="group relative">
+        <CardPhotos
+          photos={vehicle.photos}
+          cover={vehicle.coverUrl}
+          title={vehicle.title}
+          href={links.vehicle(vehicle.slug)}
+          frameClassName="aspect-4/3 overflow-hidden bg-[var(--site-background)]"
+          imageClassName="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          empty={
             <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-wider text-[var(--site-muted)]">
               Foto do veículo
             </div>
-          )}
-        </div>
+          }
+        />
 
         {/* pastilha atras do selo: sobre a foto, texto solto perde contraste */}
-        <span className="absolute left-3 top-3 rounded-[var(--site-radius)] bg-[var(--site-surface)]/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--site-primary)] backdrop-blur-sm">
+        <span className="pointer-events-none absolute left-3 top-3 rounded-[var(--site-radius)] bg-[var(--site-surface)]/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--site-primary)] backdrop-blur-sm">
           {vehicle.featured ? "Mais buscado" : vehicle.statusLabel}
         </span>
-      </Link>
+      </div>
 
       <div className="flex flex-1 flex-col px-4 pb-4 pt-4">
         <Link

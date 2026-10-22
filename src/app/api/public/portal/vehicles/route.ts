@@ -1,12 +1,8 @@
-import { asc, inArray } from "drizzle-orm";
-import { getDb } from "@/db";
-import { vehiclePhotos, type PhotoVariants } from "@/db/schema";
 import { jsonOk, withApi } from "@/lib/http";
-import { mediaUrl } from "@/lib/paths";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { parsePublicFilters, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
 import { listPortalDealers, pickHighlights, sameText } from "@/lib/services/portal";
-import { toVehicleCard } from "@/lib/services/site";
+import { listCardPhotos, toVehicleCard } from "@/lib/services/site";
 import {
   isBelowFipe,
   isInspected,
@@ -16,8 +12,6 @@ import {
 } from "@/lib/services/vehicles";
 
 export const dynamic = "force-dynamic";
-
-const CARD_PHOTOS = 6;
 
 /**
  * Busca do Portal Carbud: estoque publicado de todas as revendas no ar.
@@ -60,29 +54,7 @@ export const GET = withApi(async (request: Request) => {
   const highlights = pickHighlights(featured.items, Math.floor(Date.now() / 60_000));
   const shown = [...result.items, ...highlights];
 
-  // fotos da página numa consulta só: o card do portal desliza entre elas
-  const photosByVehicle = new Map<string, { id: string; thumb: string; card: string; full: string }[]>();
-  if (shown.length > 0) {
-    const db = await getDb();
-    const rows = await db
-      .select({ id: vehiclePhotos.id, vehicleId: vehiclePhotos.vehicleId, variants: vehiclePhotos.variants })
-      .from(vehiclePhotos)
-      .where(inArray(vehiclePhotos.vehicleId, shown.map((item) => item.id)))
-      .orderBy(asc(vehiclePhotos.position));
-    for (const row of rows) {
-      const list = photosByVehicle.get(row.vehicleId) ?? [];
-      // o card não precisa da galeria inteira; a ficha mostra o resto
-      if (list.length >= CARD_PHOTOS) continue;
-      const variants = row.variants as PhotoVariants;
-      list.push({
-        id: row.id,
-        thumb: mediaUrl(variants.thumb) ?? "",
-        card: mediaUrl(variants.card) ?? "",
-        full: mediaUrl(variants.full) ?? "",
-      });
-      photosByVehicle.set(row.vehicleId, list);
-    }
-  }
+  const photosByVehicle = await listCardPhotos(shown.map((item) => item.id));
 
   const media360 = await listMedia360(shown.map((item) => item.id));
   const card = (item: (typeof shown)[number]) => {
