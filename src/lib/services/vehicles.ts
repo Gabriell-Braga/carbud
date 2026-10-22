@@ -93,6 +93,8 @@ export type VehicleQuery = Partial<VehicleFilters> & {
   belowFipe?: boolean;
   inspected?: boolean;
   has360?: boolean;
+  /** Destaque na frente na ordem padrão. O portal desliga: lá destaque é rodízio de 3 (`pickHighlights`). */
+  featuredFirst?: boolean;
 };
 
 /**
@@ -155,7 +157,7 @@ function buildConditions(scope: TenantScope, filters: VehicleQuery) {
   return and(...conditions);
 }
 
-function buildOrder(sort: VehicleFilters["sort"]) {
+function buildOrder(sort: VehicleFilters["sort"], featuredFirst = true) {
   switch (sort) {
     case "preco-asc":
       return [asc(vehicles.priceCents)];
@@ -166,7 +168,7 @@ function buildOrder(sort: VehicleFilters["sort"]) {
     case "ano-desc":
       return [desc(vehicles.yearModel)];
     default:
-      return [desc(vehicles.featured), desc(vehicles.createdAt)];
+      return featuredFirst ? [desc(vehicles.featured), desc(vehicles.createdAt)] : [desc(vehicles.createdAt)];
   }
 }
 
@@ -248,7 +250,7 @@ export async function listVehicles(scope: TenantScope, filters: VehicleQuery = {
       .select(LIST_COLUMNS)
       .from(vehicles)
       .where(where)
-      .orderBy(...buildOrder(filters.sort ?? "recentes"))
+      .orderBy(...buildOrder(filters.sort ?? "recentes", filters.featuredFirst))
       .limit(pageSize)
       .offset((page - 1) * pageSize),
     db.select({ value: count() }).from(vehicles).where(where),

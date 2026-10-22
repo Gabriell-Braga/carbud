@@ -9,6 +9,10 @@ export const buyerVerifySchema = buyerChallengeSchema.extend({
   code: z.string().trim().regex(/^\d{6}$/, "O código tem seis dígitos"),
 });
 
+export const buyerGoogleSchema = z.object({
+  idToken: z.string().min(20).max(4000),
+});
+
 export const buyerProfileSchema = z.object({
   name: z.string().trim().min(2, "Informe seu nome").max(120).optional(),
   phone: z

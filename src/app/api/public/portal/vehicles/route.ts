@@ -5,7 +5,7 @@ import { jsonOk, withApi } from "@/lib/http";
 import { mediaUrl } from "@/lib/paths";
 import { assertSitesKey } from "@/lib/services/public-api";
 import { parsePublicFilters, PUBLIC_VEHICLE_STATUSES } from "@/lib/services/public-site";
-import { listPortalDealers, sameText } from "@/lib/services/portal";
+import { listPortalDealers, pickHighlights, sameText } from "@/lib/services/portal";
 import { toVehicleCard } from "@/lib/services/site";
 import {
   isBelowFipe,
@@ -50,19 +50,24 @@ export const GET = withApi(async (request: Request) => {
   const ids = dealers.map((dealer) => dealer.id);
   const byId = new Map(dealers.map((dealer) => [dealer.id, dealer]));
 
-  const [result, facets] = await Promise.all([
-    listVehicles(ids, { ...filters, belowFipe, inspected, has360, statuses: [...PUBLIC_VEHICLE_STATUSES] }),
+  const scope = { ...filters, belowFipe, inspected, has360, statuses: [...PUBLIC_VEHICLE_STATUSES] };
+  const [result, featured, facets] = await Promise.all([
+    listVehicles(ids, { ...scope, featuredFirst: false }),
+    // ponytail: rodízio entre os 200 destaques mais recentes; passando disso, sortear no SQL
+    listVehicles(ids, { ...scope, featured: true, page: 1, pageSize: 200 }),
     listStockFacets(ids),
   ]);
+  const highlights = pickHighlights(featured.items, Math.floor(Date.now() / 60_000));
+  const shown = [...result.items, ...highlights];
 
   // fotos da página numa consulta só: o card do portal desliza entre elas
   const photosByVehicle = new Map<string, { id: string; thumb: string; card: string; full: string }[]>();
-  if (result.items.length > 0) {
+  if (shown.length > 0) {
     const db = await getDb();
     const rows = await db
       .select({ id: vehiclePhotos.id, vehicleId: vehiclePhotos.vehicleId, variants: vehiclePhotos.variants })
       .from(vehiclePhotos)
-      .where(inArray(vehiclePhotos.vehicleId, result.items.map((item) => item.id)))
+      .where(inArray(vehiclePhotos.vehicleId, shown.map((item) => item.id)))
       .orderBy(asc(vehiclePhotos.position));
     for (const row of rows) {
       const list = photosByVehicle.get(row.vehicleId) ?? [];
@@ -79,7 +84,18 @@ export const GET = withApi(async (request: Request) => {
     }
   }
 
-  const media360 = await listMedia360(result.items.map((item) => item.id));
+  const media360 = await listMedia360(shown.map((item) => item.id));
+  const card = (item: (typeof shown)[number]) => {
+    const dealer = byId.get(item.tenantId)!;
+    return {
+      ...toVehicleCard(item),
+      photos: photosByVehicle.get(item.id) ?? [],
+      belowFipe: isBelowFipe(item),
+      inspected: isInspected(item),
+      has360: media360.has(item.id),
+      dealer: { slug: dealer.slug, name: dealer.name, city: dealer.city, state: dealer.state },
+    };
+  };
 
   // cidades de todas as revendas no ar, para o filtro de localização
   const cities = Array.from(
@@ -88,17 +104,9 @@ export const GET = withApi(async (request: Request) => {
 
   return jsonOk(
     {
-      vehicles: result.items.map((item) => {
-        const dealer = byId.get(item.tenantId)!;
-        return {
-          ...toVehicleCard(item),
-          photos: photosByVehicle.get(item.id) ?? [],
-          belowFipe: isBelowFipe(item),
-          inspected: isInspected(item),
-          has360: media360.has(item.id),
-          dealer: { slug: dealer.slug, name: dealer.name, city: dealer.city, state: dealer.state },
-        };
-      }),
+      vehicles: result.items.map(card),
+      // até 3 destaques em rodízio (`pickHighlights`); a lista principal não dá vantagem a destaque
+      highlights: highlights.map(card),
       facets: { ...facets, cities },
       filters: { ...applied, loja: query.loja, cidade: query.cidade, uf: query.uf, abaixoFipe: belowFipe || undefined, vistoriado: inspected || undefined, visao360: has360 || undefined },
       total: result.total,

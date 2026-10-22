@@ -66,3 +66,6 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 # OLX_OAUTH_SCOPE="basic_user_info autoupload"
 # MERCADOLIVRE_CLIENT_ID="..."
 # MERCADOLIVRE_CLIENT_SECRET="..."
+
+# Portal Carbud: "Entrar com Google". Mesmo Client ID do OAuth configurado no portal (Vercel).
+# GOOGLE_CLIENT_ID="....apps.googleusercontent.com"

@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   buyerCodes,
@@ -108,11 +108,16 @@ export async function verifyChallenge(rawEmail: string, code: string) {
     throw badRequest("Código inválido. Tente novamente.", { reason: "invalid" });
   }
   await db.update(buyerCodes).set({ usedAt: new Date() }).where(eq(buyerCodes.id, pending.id));
+  return openSession(email);
+}
 
+/** Cria a conta no primeiro acesso e abre a sessão. `name` só preenche conta que ainda não tem nome. */
+async function openSession(email: string, name?: string) {
+  const db = await getDb();
   const [buyer] = await db
     .insert(buyers)
-    .values({ email })
-    .onConflictDoUpdate({ target: buyers.email, set: { updatedAt: new Date() } })
+    .values({ email, name: name || null })
+    .onConflictDoUpdate({ target: buyers.email, set: { updatedAt: new Date(), ...(name && { name: sql`coalesce(${buyers.name}, ${name})` }) } })
     .returning();
 
   const token = generateResetToken();
@@ -120,6 +125,32 @@ export async function verifyChallenge(rawEmail: string, code: string) {
   await db.insert(buyerSessions).values({ buyerId: buyer.id, tokenHash: await hashResetToken(token), expiresAt });
 
   return { token, expiresAt: expiresAt.toISOString(), isNew: !buyer.name, buyer: buyerView(buyer) };
+}
+
+type GoogleTokenInfo = { aud?: string; iss?: string; email?: string; email_verified?: string; name?: string; exp?: string };
+
+/**
+ * "Entrar com Google": o portal faz o OAuth e manda o id_token; quem confia
+ * nele é o painel, conferindo no próprio Google (tokeninfo valida assinatura
+ * e validade) que o token foi emitido para o nosso client e com e-mail verificado.
+ */
+export async function verifyGoogle(idToken: string) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) throw new ApiError(503, "Login com Google não está configurado.");
+
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`).catch(() => null);
+  const info = response?.ok ? ((await response.json()) as GoogleTokenInfo) : null;
+  if (
+    !info?.email ||
+    info.aud !== clientId ||
+    !["accounts.google.com", "https://accounts.google.com"].includes(info.iss ?? "") ||
+    info.email_verified !== "true" ||
+    Number(info.exp) * 1000 < Date.now()
+  ) {
+    throw unauthorized("Não foi possível entrar com o Google. Tente novamente.");
+  }
+
+  return openSession(normalizeEmail(info.email), info.name?.trim().slice(0, 120));
 }
 
 function bearer(request: Request): string | null {

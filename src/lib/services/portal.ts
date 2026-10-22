@@ -100,3 +100,28 @@ export function sameText(a: string, b: string): boolean {
     value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
   return norm(a) === norm(b);
 }
+
+/**
+ * Destaques da busca do portal: poucos e em rodízio, sem vantagem para
+ * ninguém. Cada volta passa uma vez por cada revenda com destaque (ordem
+ * fixa pelo id), e dentro da revenda os carros dela se revezam; então loja
+ * com 10 destaques aparece tanto quanto loja com 1. `slot` avança com o
+ * relógio (um por minuto, o mesmo tempo do cache da busca).
+ */
+export function pickHighlights<T extends { id: string; tenantId: string }>(items: T[], slot: number, size = 3): T[] {
+  const byDealer = new Map<string, T[]>();
+  for (const item of [...items].sort((a, b) => a.id.localeCompare(b.id))) {
+    byDealer.set(item.tenantId, [...(byDealer.get(item.tenantId) ?? []), item]);
+  }
+  const dealers = [...byDealer.keys()].sort();
+  if (!dealers.length) return [];
+
+  const picked = new Map<string, T>();
+  // passa por no máximo um ciclo inteiro de posições; com poucos carros, para quando acabam
+  for (let position = slot * size; picked.size < Math.min(size, items.length) && position < slot * size + size * items.length; position++) {
+    const cars = byDealer.get(dealers[position % dealers.length])!;
+    const car = cars[Math.floor(position / dealers.length) % cars.length];
+    picked.set(car.id, car);
+  }
+  return [...picked.values()];
+}
