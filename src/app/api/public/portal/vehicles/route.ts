@@ -11,8 +11,6 @@ import { listStockFacets, listVehicles } from "@/lib/services/vehicles";
 
 export const dynamic = "force-dynamic";
 
-const CARD_PHOTOS = 6;
-
 /**
  * Busca do Portal Carbud: estoque publicado de todas as revendas no ar.
  *
@@ -44,7 +42,7 @@ export const GET = withApi(async (request: Request) => {
     listStockFacets(ids),
   ]);
 
-  // fotos da página numa consulta só: o card do portal desliza entre elas
+  // todas as fotos da página numa consulta só: o card do portal desliza entre elas (o portal carrega sob demanda)
   const photosByVehicle = new Map<string, { id: string; thumb: string; card: string; full: string }[]>();
   if (result.items.length > 0) {
     const db = await getDb();
@@ -55,8 +53,6 @@ export const GET = withApi(async (request: Request) => {
       .orderBy(asc(vehiclePhotos.position));
     for (const row of rows) {
       const list = photosByVehicle.get(row.vehicleId) ?? [];
-      // o card não precisa da galeria inteira; a ficha mostra o resto
-      if (list.length >= CARD_PHOTOS) continue;
       const variants = row.variants as PhotoVariants;
       list.push({
         id: row.id,

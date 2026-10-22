@@ -28,4 +28,6 @@ export const favoriteSnapshotSchema = z.object({
   subtitle: z.string().max(200),
   price: z.string().max(40),
   cover: z.string().max(500).nullable(),
+  /** Fotos do carrossel do card; favorito salvo antes disso só tem a capa. */
+  photos: z.array(z.string().max(500)).max(80).optional(),
 });

@@ -64,6 +64,7 @@ export type FavoriteSnapshot = {
   subtitle: string;
   price: string;
   cover: string | null;
+  photos?: string[];
 };
 
 /**
