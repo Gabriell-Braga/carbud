@@ -56,6 +56,7 @@ export function NewTenantForm() {
       addressState: String(form.get("addressState") ?? ""),
       dueDay: Number(form.get("dueDay") ?? 10),
       amountCents,
+      affiliateCode: String(form.get("affiliateCode") ?? "").trim(),
       ...(withAdmin
         ? {
             adminName: String(form.get("adminName") ?? ""),
@@ -216,6 +217,19 @@ export function NewTenantForm() {
                 <option value="readonly">Somente leitura</option>
                 <option value="full">Bloqueio total</option>
               </Select>
+            </FormField>
+            <FormField
+              label="Código do afiliado (opcional)"
+              htmlFor="affiliateCode"
+              hint="Quem indicou a revenda. Não dá desconto."
+              error={fieldErrors.affiliateCode}
+            >
+              <Input
+                id="affiliateCode"
+                name="affiliateCode"
+                placeholder="AF-..."
+                className="uppercase"
+              />
             </FormField>
           </div>
         </CardContent>

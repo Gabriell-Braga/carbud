@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { billingStatus, subscriptions, tenants } from "@/db/schema";
+import { manualPaymentExists, recordManualPayment } from "@/lib/services/affiliates";
 import { logAuditFor } from "@/lib/audit";
 import { actorFromContext } from "@/lib/audit";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
@@ -126,6 +127,9 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
   const input = parsed.data;
 
+  // reenvio do mesmo formulário: já registrado, não repete nada
+  if (await manualPaymentExists(input.idempotencyKey)) return jsonOk({ id, duplicate: true });
+
   const { tenant, billing } = await loadTenantAndBilling(id);
   const db = await getDb();
   const paidAt = input.paidAt ?? new Date();
@@ -152,6 +156,25 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
     note: input.note,
     actor: { userId: actor?.userId ?? null, email: actor?.email ?? null },
   });
+
+  /*
+   * Vira pagamento para a comissão de afiliado só fora do gateway: lá o
+   * recebimento chega pelo webhook com o id do Asaas, e lançar aqui também
+   * contaria o mesmo dinheiro duas vezes.
+   */
+  const subscription = await db
+    .select({ gatewaySubscriptionId: subscriptions.gatewaySubscriptionId })
+    .from(subscriptions)
+    .where(eq(subscriptions.tenantId, id))
+    .limit(1);
+  if (input.amountCents > 0 && !subscription[0]?.gatewaySubscriptionId) {
+    await recordManualPayment({
+      key: input.idempotencyKey,
+      tenantId: id,
+      amountCents: input.amountCents,
+      paidAt,
+    });
+  }
 
   await invalidateTenantCache(tenant);
   await logAuditFor(

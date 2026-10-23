@@ -275,6 +275,13 @@ export const WEBHOOK_EVENTS = [
   "PAYMENT_CHARGEBACK_REQUESTED",
   "PAYMENT_CHARGEBACK_DISPUTE",
   "PAYMENT_AWAITING_CHARGEBACK_REVERSAL",
+  // a cobrança ignora estes; a comissão de afiliado precisa deles para não
+  // pagar sobre dinheiro que voltou
+  "PAYMENT_PARTIALLY_REFUNDED",
+  "PAYMENT_REFUND_IN_PROGRESS",
+  "PAYMENT_REFUND_DENIED",
+  "PAYMENT_RECEIVED_IN_CASH_UNDONE",
+  "PAYMENT_DUNNING_RECEIVED",
 ] as const;
 
 export type AsaasWebhook = {
@@ -352,7 +359,14 @@ export type AsaasPaymentStatus =
   | "OVERDUE"
   | "REFUNDED"
   | "RECEIVED_IN_CASH"
-  | "AWAITING_RISK_ANALYSIS";
+  | "AWAITING_RISK_ANALYSIS"
+  | "REFUND_REQUESTED"
+  | "REFUND_IN_PROGRESS"
+  | "CHARGEBACK_REQUESTED"
+  | "CHARGEBACK_DISPUTE"
+  | "AWAITING_CHARGEBACK_REVERSAL"
+  | "DUNNING_REQUESTED"
+  | "DUNNING_RECEIVED";
 
 export type AsaasPayment = {
   id: string;
@@ -366,6 +380,15 @@ export type AsaasPayment = {
   invoiceUrl: string | null;
   bankSlipUrl: string | null;
   transactionReceiptUrl: string | null;
+  customer?: string | null;
+  subscription?: string | null;
+  externalReference?: string | null;
+  /** Preenchido quando pago com juros e multa: aí `value` já inclui os encargos. */
+  originalValue?: number | null;
+  interestValue?: number | null;
+  discount?: { value?: number | null; type?: string | null } | null;
+  clientPaymentDate?: string | null;
+  refunds?: { status?: string | null; value?: number | null }[] | null;
 };
 
 /** Cobranças de uma assinatura, da mais recente para a mais antiga. */

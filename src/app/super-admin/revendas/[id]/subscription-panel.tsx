@@ -50,6 +50,7 @@ const STATUS_TONES: Record<string, BadgeTone> = {
 
 export function SubscriptionPanel({
   tenantId,
+  affiliateCode: existingAffiliateCode,
   hasCnpj,
   subscription,
   planName,
@@ -57,6 +58,8 @@ export function SubscriptionPanel({
   billedCents,
 }: {
   tenantId: string;
+  /** Origem já registrada: a contratação não troca. */
+  affiliateCode: string | null;
   hasCnpj: boolean;
   subscription: SubscriptionSummary | null;
   planName: string | null;
@@ -70,6 +73,7 @@ export function SubscriptionPanel({
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [billingType, setBillingType] = useState("UNDEFINED");
   const [couponCode, setCouponCode] = useState("");
+  const [affiliateCode, setAffiliateCode] = useState("");
   const [dueDay, setDueDay] = useState("");
   const [working, setWorking] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -90,6 +94,7 @@ export function SubscriptionPanel({
         billingType,
         couponCode: couponCode.trim() || undefined,
         dueDay: dueDay ? Number(dueDay) : undefined,
+        affiliateCode: existingAffiliateCode ? undefined : affiliateCode.trim() || undefined,
       },
     );
 
@@ -290,6 +295,31 @@ export function SubscriptionPanel({
                     />
                   </FormField>
                 </div>
+
+                {/* separado do cupom de propósito: código de afiliado não dá desconto */}
+                {existingAffiliateCode ? (
+                  <p className="mb-4 text-[13px] text-muted">
+                    Afiliado de origem já registrado:{" "}
+                    <strong className="font-mono text-text">{existingAffiliateCode}</strong>. Para
+                    trocar, use &quot;Corrigir origem&quot; abaixo.
+                  </p>
+                ) : (
+                  <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <FormField
+                      label="Código do afiliado (opcional)"
+                      htmlFor="sub-affiliate"
+                      hint="Quem indicou a revenda. Não dá desconto."
+                      error={errors.affiliateCode}
+                    >
+                      <Input
+                        id="sub-affiliate"
+                        value={affiliateCode}
+                        placeholder="AF-..."
+                        onChange={(event) => setAffiliateCode(event.target.value.toUpperCase())}
+                      />
+                    </FormField>
+                  </div>
+                )}
 
                 {selectedPlan && selectedPlan.trialDays > 0 ? (
                   <p className="mb-4 text-[13px] text-muted">

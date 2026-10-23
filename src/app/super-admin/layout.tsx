@@ -1,4 +1,4 @@
-import { Building2, LayoutDashboard, ScrollText, SlidersHorizontal, Tags, Users } from "lucide-react";
+import { Building2, Handshake, LayoutDashboard, ScrollText, SlidersHorizontal, Tags, Users } from "lucide-react";
 import { AppShell, type NavSection } from "@/components/layout/shell";
 import { requireSuperAdminPage } from "@/lib/auth/guards";
 import { ROLE_LABELS } from "@/lib/auth/rbac";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const ICON = "h-3.5 w-3.5";
 
 /**
- * Três grupos de duas telas, cada um com um sentido próprio: o que se opera,
+ * Três grupos, cada um com um sentido próprio: o que se opera,
  * o que se cobra e o que sustenta a plataforma.
  *
  * "Configurações" mora em Cobrança porque é onde vivem multa, juros, trial e
@@ -35,6 +35,7 @@ const SECTIONS: NavSection[] = [
     label: "Cobrança",
     items: [
       { href: "/super-admin/planos", label: "Planos", icon: <Tags className={ICON} /> },
+      { href: "/super-admin/afiliados", label: "Afiliados", icon: <Handshake className={ICON} /> },
       {
         href: "/super-admin/configuracoes",
         label: "Configurações",

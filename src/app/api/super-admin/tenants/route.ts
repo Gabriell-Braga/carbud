@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
-import { billingStatus, tenantSites, tenants, users } from "@/db/schema";
-import { logAuditFor } from "@/lib/audit";
+import { billingStatus, newId, tenantAffiliations, tenantSites, tenants, users } from "@/db/schema";
+import { actorFromContext, logAuditFor } from "@/lib/audit";
+import { affiliationValues, resolveAffiliateForAttribution } from "@/lib/services/affiliates";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import { hashPassword } from "@/lib/auth/password";
 import { sendWelcomeInvite } from "@/lib/services/invites";
@@ -36,9 +37,17 @@ export const POST = withApi(async (request: Request) => {
     if (existingUser.length > 0) throw conflict("Já existe um usuário com este e-mail");
   }
 
-  const created = await db
+  // código inválido barra o cadastro antes de qualquer gravação
+  const affiliate = input.affiliateCode
+    ? await resolveAffiliateForAttribution(input.affiliateCode)
+    : null;
+  const actor = actorFromContext(context);
+
+  const tenantId = newId();
+  const insertTenant = db
     .insert(tenants)
     .values({
+      id: tenantId,
       name: input.name,
       slug: input.slug,
       legalName: input.legalName,
@@ -49,6 +58,19 @@ export const POST = withApi(async (request: Request) => {
       status: "active",
     })
     .returning();
+
+  // revenda e origem nascem juntas: nunca uma revenda indicada sem o vínculo
+  const [created] = affiliate
+    ? await db.batch([
+        insertTenant,
+        db.insert(tenantAffiliations).values(
+          affiliationValues(tenantId, affiliate, "tenant_create", {
+            userId: actor?.userId ?? null,
+            email: actor?.email ?? null,
+          }),
+        ),
+      ])
+    : [await insertTenant];
 
   const tenant = created[0];
 
@@ -109,6 +131,25 @@ export const POST = withApi(async (request: Request) => {
     },
     request,
   );
+
+  if (affiliate) {
+    await logAuditFor(
+      context,
+      {
+        action: "affiliate.attribution.create",
+        entity: "tenant_affiliation",
+        entityId: tenant.id,
+        tenantId: tenant.id,
+        metadata: {
+          affiliateId: affiliate.id,
+          code: affiliate.code,
+          commissionBps: affiliate.defaultCommissionBps,
+          source: "tenant_create",
+        },
+      },
+      request,
+    );
+  }
 
   return jsonOk({ id: tenant.id, slug: tenant.slug, adminUserId });
 });

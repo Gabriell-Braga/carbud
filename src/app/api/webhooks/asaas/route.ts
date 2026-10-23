@@ -1,9 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { billingStatus, subscriptions, tenants, webhookEvents } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import { markAcceptedDelivery, markRejectedDelivery } from "@/lib/gateway/delivery-log";
-import { advanceDueDate, mapAsaasEvent } from "@/lib/gateway/event-map";
+import { advanceDueDate, mapAsaasEvent, outcomeForPayment } from "@/lib/gateway/event-map";
+import { AFFILIATE_RELEVANT_EVENTS } from "@/lib/affiliates/rules";
+import { processAsaasPaymentEvent } from "@/lib/services/affiliates";
 import { clientIp } from "@/lib/http";
 import { invalidateTenantCache } from "@/lib/tenant/service";
 import { registerBillingEvent } from "@/lib/services/tenants";
@@ -72,15 +74,24 @@ export async function POST(request: Request) {
 
   await markAcceptedDelivery(eventType);
 
+  let processed: Record<string, unknown>;
   try {
-    const processed = await handleEvent(eventId, eventType, payload, request);
-    return Response.json({ received: true, ...processed });
+    processed = await handleEvent(eventId, eventType, payload, request);
   } catch (error) {
     // guarda o erro e AINDA ASSIM devolve 200, para não interromper a fila
     console.error("[asaas] falha ao processar", eventType, error);
     await recordFailure(eventId, eventType, payload, error);
-    return Response.json({ received: true, deferred: true });
+    processed = { deferred: true };
   }
+
+  // apuração de afiliados tem estado próprio: roda mesmo se a cobrança falhou,
+  // e falha dela fica pendente no painel sem refazer efeito de cobrança
+  const paymentId = payload.payment?.id;
+  if (paymentId && AFFILIATE_RELEVANT_EVENTS.has(eventType)) {
+    await processAsaasPaymentEvent({ eventId, eventType, paymentId });
+  }
+
+  return Response.json({ received: true, ...processed });
 }
 
 async function handleEvent(
@@ -90,36 +101,94 @@ async function handleEvent(
   request: Request,
 ) {
   const db = await getDb();
-
-  // idempotência: o Asaas reenvia até receber 200
-  const seen = await db
-    .select({ id: webhookEvents.id })
-    .from(webhookEvents)
-    .where(eq(webhookEvents.id, eventId))
-    .limit(1);
-  if (seen[0]) return { duplicate: true };
-
-  const outcome = mapAsaasEvent(eventType);
+  const mapped = mapAsaasEvent(eventType);
   const tenantId = await resolveTenant(payload);
 
-  await db.insert(webhookEvents).values({
-    id: eventId,
-    provider: "asaas",
-    eventType,
-    tenantId,
-    payload: payload as Record<string, unknown>,
-    processedAt: new Date(),
-  });
+  /*
+   * Idempotência pela própria inserção: a linha nasce sem processedAt e só o
+   * ganha depois dos efeitos. Antes, processedAt era gravado ANTES de aplicar,
+   * e uma falha no meio deixava o evento com cara de concluído para sempre.
+   */
+  const claimed = await db
+    .insert(webhookEvents)
+    .values({
+      id: eventId,
+      provider: "asaas",
+      eventType,
+      tenantId,
+      payload: payload as Record<string, unknown>,
+    })
+    .onConflictDoNothing()
+    .returning({ id: webhookEvents.id });
 
-  if (!outcome) return { ignored: "evento não mapeado" };
+  if (!claimed[0]) {
+    // só refaz o que falhou; quem pega a linha de volta é quem limpa o erro
+    const retaken = await db
+      .update(webhookEvents)
+      .set({ error: null, tenantId })
+      .where(
+        and(
+          eq(webhookEvents.id, eventId),
+          isNotNull(webhookEvents.error),
+          sql`${webhookEvents.processedAt} IS NULL`,
+        ),
+      )
+      .returning({ id: webhookEvents.id });
+    if (!retaken[0]) return { duplicate: true };
+  }
+
+  const result = await applyEvent(eventId, eventType, mapped, tenantId, payload, request);
+  await db
+    .update(webhookEvents)
+    .set({ processedAt: new Date(), error: null })
+    .where(eq(webhookEvents.id, eventId));
+  return result;
+}
+
+async function applyEvent(
+  eventId: string,
+  eventType: string,
+  mapped: ReturnType<typeof mapAsaasEvent>,
+  tenantId: string | null,
+  payload: AsaasPayload,
+  request: Request,
+): Promise<Record<string, unknown>> {
+  if (!mapped) return { ignored: "evento não mapeado" };
   if (!tenantId) return { ignored: "revenda não identificada" };
-  if (outcome.informational) {
-    await noteOnly(tenantId, outcome.note);
+  if (mapped.informational) {
+    await noteOnly(tenantId, mapped.note);
     return { noted: true };
   }
 
+  const outcome = outcomeForPayment(
+    mapped,
+    await paymentAlreadyRegistered(eventId, payload.payment?.id),
+  );
   await applyOutcome(tenantId, eventType, outcome, request);
   return { applied: eventType };
+}
+
+/** Outro evento positivo da mesma cobrança já foi aplicado? */
+async function paymentAlreadyRegistered(
+  eventId: string,
+  paymentId: string | undefined,
+): Promise<boolean> {
+  if (!paymentId) return false;
+  const db = await getDb();
+  const rows = await db
+    .select({ id: webhookEvents.id })
+    .from(webhookEvents)
+    .where(
+      and(
+        eq(webhookEvents.provider, "asaas"),
+        ne(webhookEvents.id, eventId),
+        isNotNull(webhookEvents.processedAt),
+        inArray(webhookEvents.eventType, ["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]),
+        sql`json_extract(${webhookEvents.payload}, '$.payment.id') = ${paymentId}`,
+      ),
+    )
+    .limit(1);
+  return Boolean(rows[0]);
 }
 
 /**
@@ -271,7 +340,11 @@ async function recordFailure(
         payload: payload as Record<string, unknown>,
         error: error instanceof Error ? error.message : String(error),
       })
-      .onConflictDoNothing();
+      // a linha já existe (foi reivindicada antes da falha): o erro precisa ir para ela
+      .onConflictDoUpdate({
+        target: webhookEvents.id,
+        set: { error: error instanceof Error ? error.message : String(error) },
+      });
   } catch (writeError) {
     console.error("[asaas] não consegui nem registrar a falha:", writeError);
   }

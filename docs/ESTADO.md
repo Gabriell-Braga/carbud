@@ -348,6 +348,48 @@ especialista em marketing, e mudanças de desenho não são nossa alçada.
   de alinhamento com quem desenhou e com o jurídico. **Pergunta aberta, nunca
   respondida.**
 
+### 9.7 Afiliados (fase 1 entregue, portal planejado)
+
+Painel Geral → Afiliados. Código `AF-` + 10 caracteres gerado no servidor,
+percentual em pontos-base fixado no vínculo da revenda, comissão recorrente
+sobre cada pagamento confirmado, repasse só **registrado** (nada é
+transferido). Código e cupom são independentes.
+
+Como funciona, para não reaprender:
+
+- Origem: `tenant_affiliations`, uma por revenda, gravada no cadastro ou na
+  contratação **antes** da primeira chamada ao Asaas. Troca só pela ficha da
+  revenda, com motivo, e só antes da primeira comissão.
+- Pagamento: `affiliate_payment_facts`, um por `payment.id`. A apuração
+  consulta o pagamento no Asaas (`getPayment`) em vez de confiar no evento,
+  então ordem de chegada e evento atrasado não importam. CONFIRMED e RECEIVED
+  da mesma cobrança dão um crédito só (índice único).
+- Estorno/contestação não reescrevem o crédito: viram ajuste em
+  `affiliate_commission_adjustments`. Contestação retém (fora do disponível).
+- Base em dúvida (desconto sem `originalValue`, encargo sem original, cobrança
+  fora de assinatura, revenda divergente) vai para "Pagamentos para conferir",
+  com botão de reprocessar e de informar a base à mão.
+- Recebimento manual (plano negociado) vira pagamento com a chave de
+  idempotência do formulário; em revenda com assinatura no gateway, não.
+- O webhook do Asaas agora só marca `processedAt` depois dos efeitos, grava o
+  erro na linha existente e não empurra o vencimento duas vezes quando
+  CONFIRMED e RECEIVED chegam para a mesma cobrança.
+
+Pendências:
+
+- **Rodar o migrate em produção** (0027) e, no Painel Geral → Configurações,
+  religar o webhook do Asaas para assinar os eventos novos de estorno
+  (`PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_REFUND_IN_PROGRESS`,
+  `PAYMENT_REFUND_DENIED`, `PAYMENT_RECEIVED_IN_CASH_UNDONE`,
+  `PAYMENT_DUNNING_RECEIVED`).
+- Antes de ativar financeiramente, alinhar com o dono do produto: base exata
+  (hoje: pago após desconto, sem juros/multa, antes da tarifa), termos do
+  vínculo quando o afiliado é inativado (hoje: continua recebendo) e calendário
+  de repasse.
+- Fase 2, **não implementada**: portal do afiliado (`/afiliado`, perfil
+  `affiliate`, tabela `affiliate_memberships`, guards próprios). Desenho na
+  especificação original; nenhuma tela ou link finge que ele existe.
+
 ---
 
 ## 10. Segurança — regras em vigor

@@ -76,6 +76,19 @@ export function mapAsaasEvent(eventType: string): EventOutcome | null {
   return MAP[eventType] ?? null;
 }
 
+/**
+ * CONFIRMED e RECEIVED da mesma cobrança são um pagamento só. Sem isto, cartão
+ * (que confirma num dia e recebe semanas depois) empurrava o vencimento duas
+ * vezes, e a revenda ganhava um mês de graça.
+ */
+export function outcomeForPayment(
+  outcome: EventOutcome,
+  samePaymentAlreadyRegistered: boolean,
+): EventOutcome {
+  if (!outcome.registersPayment || !samePaymentAlreadyRegistered) return outcome;
+  return { ...outcome, registersPayment: false, note: `${outcome.note} Cobrança já registrada.` };
+}
+
 export function isKnownEvent(eventType: string): boolean {
   return eventType in MAP;
 }

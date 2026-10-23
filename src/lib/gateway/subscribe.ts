@@ -11,6 +11,11 @@ import {
   type Plan,
 } from "@/db/schema";
 import { ApiError, badRequest, conflict } from "@/lib/http";
+import {
+  attachAffiliation,
+  resolveAffiliateForAttribution,
+  type AffiliateActor,
+} from "@/lib/services/affiliates";
 import { billingDate, brazilDateParts } from "./brazil-date";
 import { getPlatformSettings, invalidateEntitlements } from "@/lib/plans/service";
 import { invalidateTenantCache } from "@/lib/tenant/service";
@@ -30,6 +35,9 @@ export type ContractInput = {
   couponCode?: string | null;
   /** Dia do vencimento; sem isso usa o que já está na cobrança da revenda. */
   dueDay?: number;
+  /** Código de afiliado de origem. Vazio preserva a origem que já existir. */
+  affiliateCode?: string | null;
+  actor?: AffiliateActor;
 };
 
 /**
@@ -73,9 +81,13 @@ export async function contractSubscription(input: ContractInput) {
 
   const discount = await resolveCoupon(input.couponCode, plan);
   const priceCents = plan.priceCents;
+  const affiliate = input.affiliateCode
+    ? await resolveAffiliateForAttribution(input.affiliateCode)
+    : null;
 
   /* ------------------------------------------------ plano fora do gateway */
   if (plan.billingMode === "manual") {
+    const affiliation = await recordAffiliation(input, affiliate);
     await saveSubscription({
       tenantId: input.tenantId,
       planId: plan.id,
@@ -91,7 +103,7 @@ export async function contractSubscription(input: ContractInput) {
     });
 
     await applyPlanToTenant(input.tenantId, plan, priceCents, dueDay, nextDueDate);
-    return { mode: "manual" as const, planName: plan.name, nextDueDate };
+    return { mode: "manual" as const, planName: plan.name, nextDueDate, affiliation };
   }
 
   /* ---------------------------------------------------- plano com gateway */
@@ -113,6 +125,13 @@ export async function contractSubscription(input: ContractInput) {
     externalReference: row.tenant.id,
     notifications: settings.gatewayNotifications,
   };
+
+  /*
+   * A origem é gravada antes da primeira chamada que pode gerar cobrança: se o
+   * Asaas falhar depois, a indicação fica e a nova tentativa não a duplica; se
+   * o webhook chegar antes desta função terminar, a comissão já acha o vínculo.
+   */
+  const affiliation = await recordAffiliation(input, affiliate);
 
   const customer = existing[0]?.gatewayCustomerId
     ? await updateCustomer(existing[0].gatewayCustomerId, customerInput)
@@ -156,7 +175,22 @@ export async function contractSubscription(input: ContractInput) {
     nextDueDate,
     gatewayCustomerId: customer.id,
     gatewaySubscriptionId: subscription.id,
+    affiliation,
   };
+}
+
+async function recordAffiliation(
+  input: ContractInput,
+  affiliate: Awaited<ReturnType<typeof resolveAffiliateForAttribution>> | null,
+) {
+  if (!affiliate) return null;
+  const { created } = await attachAffiliation({
+    tenantId: input.tenantId,
+    affiliate,
+    source: "subscription",
+    actor: input.actor ?? { userId: null, email: null },
+  });
+  return { affiliateId: affiliate.id, code: affiliate.code, created };
 }
 
 /** Cancela no gateway e devolve a revenda ao controle manual. */

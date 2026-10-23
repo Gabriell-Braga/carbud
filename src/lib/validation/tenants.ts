@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BILLING_STATUS, BLOCK_MODES, TENANT_STATUS } from "@/db/schema";
 import { strongPasswordSchema } from "@/lib/auth/password-policy";
 import { onlyDigits } from "@/lib/utils";
+import { affiliateCodeField } from "./affiliates";
 
 /** Slugs que colidem com rotas do app ou têm significado especial. */
 export const RESERVED_SLUGS = [
@@ -61,6 +62,7 @@ export const createTenantSchema = z.object({
   adminName: optionalText(120),
   adminEmail: z.string().trim().toLowerCase().email("E-mail inválido").optional().or(z.literal("")),
   adminPassword: strongPasswordSchema.optional().or(z.literal("")),
+  affiliateCode: affiliateCodeField,
 });
 
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
@@ -97,6 +99,8 @@ export const billingPaymentSchema = z.object({
   note: optionalText(500),
   /** Marca a revenda como adimplente e reativa o site. */
   markAsPaid: z.boolean().default(true),
+  /** Gerada na tela por envio: o mesmo clique repetido não vira dois recebimentos. */
+  idempotencyKey: z.string().uuid(),
 });
 
 /** Valida o código do GTM (GTM-XXXXXXX). */

@@ -12,6 +12,8 @@ import { getTemplateManifest } from "@carbud/site-kit/manifests";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { effectiveBillingStatus, getTenantCoreById, graceDaysLeft } from "@/lib/tenant/service";
 import { getTenantSubscription, listActivePlanOptions } from "@/lib/services/subscriptions";
+import { getTenantAffiliation } from "@/lib/services/affiliates";
+import { AffiliationPanel } from "./affiliation-panel";
 import { BillingPanel } from "./billing-panel";
 import { PaymentsPanel } from "./payments-panel";
 import { SubscriptionPanel } from "./subscription-panel";
@@ -49,12 +51,23 @@ export default async function TenantDetailPage({ params, searchParams }: Props) 
   if (!detail) notFound();
 
   const financeiro = tab === "financeiro";
-  const [events, users, subscription, planOptions] = await Promise.all([
+  const [events, users, subscription, planOptions, affiliationRow] = await Promise.all([
     financeiro ? listBillingEvents(id) : Promise.resolve([]),
     tab === "usuarios" ? listTenantUsers(id) : Promise.resolve([]),
     financeiro ? getTenantSubscription(id) : Promise.resolve(null),
     financeiro ? listActivePlanOptions() : Promise.resolve([]),
+    financeiro ? getTenantAffiliation(id) : Promise.resolve(null),
   ]);
+  const affiliation = affiliationRow
+    ? {
+        affiliateId: affiliationRow.affiliate.id,
+        affiliateName: affiliationRow.affiliate.name,
+        code: affiliationRow.affiliation.codeSnapshot,
+        commissionBps: affiliationRow.affiliation.commissionBpsSnapshot,
+        attributedAt: affiliationRow.affiliation.attributedAt.toISOString(),
+        source: affiliationRow.affiliation.source,
+      }
+    : null;
 
   const template = getTemplateManifest(detail.tenant.templateId);
   const core = await getTenantCoreById(id);
@@ -121,6 +134,7 @@ export default async function TenantDetailPage({ params, searchParams }: Props) 
       {tab === "financeiro" ? (
         <SubscriptionPanel
           tenantId={id}
+          affiliateCode={affiliation?.code ?? null}
           hasCnpj={Boolean(detail.tenant.cnpj)}
           planName={subscription?.planName ?? null}
           plans={planOptions}
@@ -128,6 +142,8 @@ export default async function TenantDetailPage({ params, searchParams }: Props) 
           billedCents={detail.billing?.amountCents ?? null}
         />
       ) : null}
+
+      {financeiro ? <AffiliationPanel tenantId={id} affiliation={affiliation} /> : null}
 
       {financeiro && subscription?.summary?.gatewaySubscriptionId ? (
         <PaymentsPanel tenantId={id} />

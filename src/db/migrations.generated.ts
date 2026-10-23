@@ -282,5 +282,32 @@ export const MIGRATIONS: BundledMigration[] = [
       "CREATE TABLE `vehicle_media_360` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`vehicle_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`keys` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`vehicle_id`) REFERENCES `vehicles`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE UNIQUE INDEX `vehicle_media_360_vehicle_kind_unique` ON `vehicle_media_360` (`vehicle_id`,`kind`);"
     ]
+  },
+  {
+    "tag": "0027_affiliates",
+    "statements": [
+      "CREATE TABLE `affiliates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`code` text NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text,\n\t`phone` text,\n\t`notes` text,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`default_commission_bps` integer NOT NULL,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `affiliates_code_unique` ON `affiliates` (`code`);",
+      "CREATE INDEX `affiliates_status_idx` ON `affiliates` (`status`);",
+      "CREATE TABLE `tenant_affiliations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`affiliate_id` text NOT NULL,\n\t`code_snapshot` text NOT NULL,\n\t`commission_bps_snapshot` integer NOT NULL,\n\t`attributed_at` integer NOT NULL,\n\t`source` text NOT NULL,\n\t`created_by_user_id` text,\n\t`created_by_email` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`affiliate_id`) REFERENCES `affiliates`(`id`) ON UPDATE no action ON DELETE no action\n);",
+      "CREATE UNIQUE INDEX `tenant_affiliations_tenant_unique` ON `tenant_affiliations` (`tenant_id`);",
+      "CREATE INDEX `tenant_affiliations_affiliate_idx` ON `tenant_affiliations` (`affiliate_id`,`attributed_at`);",
+      "CREATE TABLE `affiliate_payment_facts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`source` text NOT NULL,\n\t`environment` text NOT NULL,\n\t`source_payment_id` text NOT NULL,\n\t`tenant_id` text,\n\t`gateway_customer_id` text,\n\t`gateway_subscription_id` text,\n\t`currency` text DEFAULT 'BRL' NOT NULL,\n\t`gateway_status` text NOT NULL,\n\t`gross_cents` integer DEFAULT 0 NOT NULL,\n\t`base_cents` integer,\n\t`base_override_cents` integer,\n\t`refunded_cents` integer DEFAULT 0 NOT NULL,\n\t`effective_at` integer,\n\t`review_reason` text,\n\t`last_checked_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `affiliate_payment_facts_source_unique` ON `affiliate_payment_facts` (`source`,`environment`,`source_payment_id`);",
+      "CREATE INDEX `affiliate_payment_facts_tenant_idx` ON `affiliate_payment_facts` (`tenant_id`,`effective_at`);",
+      "CREATE TABLE `affiliate_commissions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`payment_fact_id` text NOT NULL,\n\t`affiliation_id` text NOT NULL,\n\t`affiliate_id` text NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`base_cents` integer NOT NULL,\n\t`commission_bps` integer NOT NULL,\n\t`amount_cents` integer NOT NULL,\n\t`competence_at` integer NOT NULL,\n\t`status` text DEFAULT 'available' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`payment_fact_id`) REFERENCES `affiliate_payment_facts`(`id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`affiliation_id`) REFERENCES `tenant_affiliations`(`id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`affiliate_id`) REFERENCES `affiliates`(`id`) ON UPDATE no action ON DELETE no action\n);",
+      "CREATE UNIQUE INDEX `affiliate_commissions_fact_unique` ON `affiliate_commissions` (`payment_fact_id`);",
+      "CREATE INDEX `affiliate_commissions_affiliate_idx` ON `affiliate_commissions` (`affiliate_id`,`competence_at`);",
+      "CREATE INDEX `affiliate_commissions_tenant_idx` ON `affiliate_commissions` (`tenant_id`);",
+      "CREATE TABLE `affiliate_commission_adjustments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`commission_id` text NOT NULL,\n\t`affiliate_id` text NOT NULL,\n\t`idempotency_key` text NOT NULL,\n\t`amount_cents` integer NOT NULL,\n\t`reason` text NOT NULL,\n\t`source_ref` text,\n\t`actor_user_id` text,\n\t`actor_email` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`commission_id`) REFERENCES `affiliate_commissions`(`id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`affiliate_id`) REFERENCES `affiliates`(`id`) ON UPDATE no action ON DELETE no action\n);",
+      "CREATE UNIQUE INDEX `affiliate_adjustments_key_unique` ON `affiliate_commission_adjustments` (`idempotency_key`);",
+      "CREATE INDEX `affiliate_adjustments_commission_idx` ON `affiliate_commission_adjustments` (`commission_id`);",
+      "CREATE INDEX `affiliate_adjustments_affiliate_idx` ON `affiliate_commission_adjustments` (`affiliate_id`,`created_at`);",
+      "CREATE TABLE `affiliate_payouts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`affiliate_id` text NOT NULL,\n\t`amount_cents` integer NOT NULL,\n\t`paid_at` integer NOT NULL,\n\t`reference` text NOT NULL,\n\t`note` text,\n\t`status` text DEFAULT 'recorded' NOT NULL,\n\t`idempotency_key` text NOT NULL,\n\t`created_by_user_id` text,\n\t`created_by_email` text,\n\t`voided_at` integer,\n\t`voided_by_email` text,\n\t`void_reason` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`affiliate_id`) REFERENCES `affiliates`(`id`) ON UPDATE no action ON DELETE no action\n);",
+      "CREATE UNIQUE INDEX `affiliate_payouts_key_unique` ON `affiliate_payouts` (`idempotency_key`);",
+      "CREATE INDEX `affiliate_payouts_affiliate_idx` ON `affiliate_payouts` (`affiliate_id`,`paid_at`);",
+      "CREATE TABLE `affiliate_event_processing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`source` text NOT NULL,\n\t`source_payment_id` text,\n\t`event_type` text,\n\t`state` text DEFAULT 'pending' NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`last_error` text,\n\t`payment_fact_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `affiliate_event_processing_state_idx` ON `affiliate_event_processing` (`state`,`updated_at`);"
+    ]
   }
 ];

@@ -13,6 +13,9 @@ export const PERMISSIONS = [
   "platform:users:write",
   "platform:audit:read",
   "platform:impersonate",
+  "platform:affiliates:read",
+  "platform:affiliates:write",
+  "platform:affiliate-payouts:write",
   // tenant
   "vehicles:read",
   "vehicles:write",

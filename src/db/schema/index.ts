@@ -14,3 +14,4 @@ export * from "./password-resets";
 export * from "./plans";
 export * from "./subscriptions";
 export * from "./buyers";
+export * from "./affiliates";

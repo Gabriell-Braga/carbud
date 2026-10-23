@@ -73,6 +73,8 @@ export function BillingPanel({
    */
   const [amountCents, setAmountCents] = useState(billing?.amountCents ?? 0);
   const [paymentCents, setPaymentCents] = useState(billing?.amountCents ?? 0);
+  // uma por recebimento: reenviar depois de erro de rede não registra duas vezes
+  const [paymentKey, setPaymentKey] = useState(() => crypto.randomUUID());
 
   async function handleSettings(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,6 +112,7 @@ export function BillingPanel({
       referenceMonth: String(form.get("referenceMonth") ?? currentMonth()),
       note: String(form.get("paymentNote") ?? ""),
       markAsPaid: form.get("markAsPaid") === "on",
+      idempotencyKey: paymentKey,
     });
 
     setSavingPayment(false);
@@ -118,6 +121,7 @@ export function BillingPanel({
       return;
     }
     formElement.reset();
+    setPaymentKey(crypto.randomUUID());
     toast.success("Pagamento registrado.");
     router.refresh();
   }

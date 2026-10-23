@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceDueDate, isKnownEvent, mapAsaasEvent } from "./event-map";
+import { advanceDueDate, isKnownEvent, mapAsaasEvent, outcomeForPayment } from "./event-map";
 
 describe("tradução de evento do Asaas", () => {
   it("pagamento confirmado deixa adimplente e registra recebimento", () => {
@@ -69,5 +69,15 @@ describe("próximo vencimento", () => {
     // 31/01 + 1 mês não existe em fevereiro; precisa cair dentro de março
     const next = advanceDueDate(base, "MONTHLY");
     expect(next.getTime()).toBeGreaterThan(base.getTime());
+  });
+});
+
+describe("dois eventos positivos da mesma cobrança", () => {
+  it("o segundo não registra pagamento de novo nem empurra vencimento", () => {
+    const received = mapAsaasEvent("PAYMENT_RECEIVED")!;
+    const second = outcomeForPayment(received, true);
+    expect(second.registersPayment).toBe(false);
+    expect(second.billingStatus).toBe("adimplente");
+    expect(outcomeForPayment(received, false)).toBe(received);
   });
 });
