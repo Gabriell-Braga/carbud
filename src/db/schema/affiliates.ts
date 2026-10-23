@@ -228,6 +228,8 @@ export const affiliateEventProcessing = sqliteTable(
     id: text("id").primaryKey(),
     source: text("source").$type<PaymentFactSource>().notNull(),
     sourcePaymentId: text("source_payment_id"),
+    /** Ambiente do Asaas de onde veio o evento: é lá que o pagamento é consultado. */
+    environment: text("environment").$type<"sandbox" | "production">(),
     eventType: text("event_type"),
     state: text("state").$type<ProcessingState>().notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),

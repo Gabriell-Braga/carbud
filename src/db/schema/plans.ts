@@ -105,6 +105,15 @@ export const platformSettings = sqliteTable("platform_settings", {
   defaultGraceDays: integer("default_grace_days").notNull().default(5),
   /** Textos dos e-mails reescritos no Painel Geral — só o que difere do padrão. */
   emailTemplates: text("email_templates", { mode: "json" }).$type<EmailCopyOverrides>(),
+  /**
+   * Onde nascem as contratações novas. Só isso: assinatura que já existe
+   * continua no ambiente em que foi criada, e webhook de qualquer ambiente
+   * configurado é processado.
+   */
+  gatewayEnvironment: text("gateway_environment")
+    .$type<"sandbox" | "production">()
+    .notNull()
+    .default("production"),
   updatedAt: updatedAt(),
 });
 

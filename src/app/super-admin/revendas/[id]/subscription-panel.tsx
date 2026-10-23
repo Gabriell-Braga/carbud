@@ -20,6 +20,7 @@ export type SubscriptionSummary = {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   gatewaySubscriptionId: string | null;
+  gatewayEnvironment: string;
   lastEventType: string | null;
   lastEventAt: string | null;
 };
@@ -156,9 +157,15 @@ export function SubscriptionPanel({
               <Field
                 label="Situação"
                 value={
-                  <Badge tone={STATUS_TONES[subscription.status] ?? "neutral"}>
-                    {STATUS_LABELS[subscription.status] ?? subscription.status}
-                  </Badge>
+                  <span className="flex flex-wrap gap-1.5">
+                    <Badge tone={STATUS_TONES[subscription.status] ?? "neutral"}>
+                      {STATUS_LABELS[subscription.status] ?? subscription.status}
+                    </Badge>
+                    {subscription.gatewaySubscriptionId &&
+                    subscription.gatewayEnvironment === "sandbox" ? (
+                      <Badge tone="warning">Sandbox</Badge>
+                    ) : null}
+                  </span>
                 }
               />
               {/*

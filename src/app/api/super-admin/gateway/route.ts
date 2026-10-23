@@ -3,12 +3,15 @@ import { getDb } from "@/db";
 import { tenants, webhookEvents } from "@/db/schema";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import {
-  asaasEnvironment,
+  gatewayCredentials,
   isGatewayConfigured,
   listWebhooks,
   WEBHOOK_EVENTS,
 } from "@/lib/gateway/asaas";
 import { getWebhook, resumeWebhook } from "@/lib/gateway/asaas";
+import { z } from "zod";
+import { platformSettings } from "@/db/schema";
+import { activeGatewayEnvironment, invalidateSettings } from "@/lib/plans/service";
 import { lastDeliveries } from "@/lib/gateway/delivery-log";
 import { isKnownEvent } from "@/lib/gateway/event-map";
 import { logAuditFor } from "@/lib/audit";
@@ -28,10 +31,13 @@ export const dynamic = "force-dynamic";
 export const GET = withApi(async () => {
   await requireApiSuperAdmin("platform:billing:read");
 
-  if (!isGatewayConfigured()) {
+  // a saúde mostrada é a do ambiente ativo: é nele que nascem as contratações
+  const environment = await activeGatewayEnvironment();
+  if (!isGatewayConfigured(environment)) {
     return jsonOk({
       configured: false,
-      diagnostico: "Nenhuma chave do gateway configurada nas variáveis secretas.",
+      environment,
+      diagnostico: `Nenhuma chave de ${environment === "production" ? "produção" : "sandbox"} configurada nas variáveis secretas.`,
     });
   }
 
@@ -51,7 +57,7 @@ export const GET = withApi(async () => {
       .orderBy(desc(webhookEvents.receivedAt))
       .limit(10),
     lastDeliveries(),
-    listWebhooks().catch((error: unknown) => ({
+    listWebhooks(environment).catch((error: unknown) => ({
       data: [],
       error: error instanceof Error ? error.message : String(error),
     })),
@@ -75,7 +81,7 @@ export const GET = withApi(async () => {
 
   return jsonOk({
     configured: true,
-    environment: asaasEnvironment(),
+    environment,
     webhook: ours
       ? {
           url: ours.url,
@@ -168,14 +174,15 @@ function diagnose(state: {
 export const POST = withApi(async (request: Request) => {
   const context = await requireApiSuperAdmin("platform:billing:write");
 
-  if (!isGatewayConfigured()) throw badRequest("Gateway não configurado");
+  const environment = await activeGatewayEnvironment();
+  if (!isGatewayConfigured(environment)) throw badRequest("Gateway não configurado");
 
-  const { data } = await listWebhooks();
+  const { data } = await listWebhooks(environment);
   const ours = data.find((hook) => hook.url?.includes("/api/webhooks/asaas"));
   if (!ours) throw notFound("Nenhum webhook aponta para cá");
 
-  await resumeWebhook(ours.id);
-  const after = await getWebhook(ours.id);
+  await resumeWebhook(environment, ours.id);
+  const after = await getWebhook(environment, ours.id);
 
   await logAuditFor(
     context,
@@ -183,7 +190,7 @@ export const POST = withApi(async (request: Request) => {
       action: "gateway.webhook.resume",
       entity: "webhook",
       entityId: ours.id,
-      metadata: { enabled: after.enabled, interrupted: Boolean(after.interrupted) },
+      metadata: { environment, enabled: after.enabled, interrupted: Boolean(after.interrupted) },
     },
     request,
   );
@@ -194,4 +201,47 @@ export const POST = withApi(async (request: Request) => {
     events: after.events ?? [],
     resolvido: after.enabled && !after.interrupted,
   });
+});
+
+const environmentSchema = z.object({ environment: z.enum(["sandbox", "production"]) });
+
+/**
+ * Troca o ambiente das contratações novas. Assinaturas existentes continuam
+ * no ambiente em que nasceram, e webhooks dos dois ambientes seguem chegando.
+ */
+export const PATCH = withApi(async (request: Request) => {
+  const context = await requireApiSuperAdmin("platform:billing:write");
+
+  const parsed = environmentSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
+  const { environment } = parsed.data;
+
+  if (!gatewayCredentials()[environment]) {
+    throw badRequest(
+      environment === "production"
+        ? "Cadastre ASAAS_API_KEY com a chave de produção antes de ligar produção."
+        : "Cadastre ASAAS_SANDBOX_API_KEY antes de ligar o sandbox.",
+    );
+  }
+
+  const db = await getDb();
+  const previous = await activeGatewayEnvironment();
+  await db
+    .insert(platformSettings)
+    .values({ id: "default", gatewayEnvironment: environment })
+    .onConflictDoUpdate({ target: platformSettings.id, set: { gatewayEnvironment: environment } });
+  await invalidateSettings();
+
+  await logAuditFor(
+    context,
+    {
+      action: "gateway.environment.change",
+      entity: "platform_settings",
+      entityId: "default",
+      metadata: { from: previous, to: environment },
+    },
+    request,
+  );
+
+  return jsonOk({ environment });
 });

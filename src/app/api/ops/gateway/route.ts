@@ -3,11 +3,11 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { billingStatus, plans, subscriptions, tenants, webhookEvents } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
-import { asaasEnvironment, listWebhooks, WEBHOOK_EVENTS } from "@/lib/gateway/asaas";
+import { gatewayCredentials, listWebhooks, WEBHOOK_EVENTS } from "@/lib/gateway/asaas";
 import { contractSubscription } from "@/lib/gateway/subscribe";
 import { badRequest, jsonOk, withApi } from "@/lib/http";
 import { assertOpsSecret } from "@/lib/ops";
-import { getPlatformSettings } from "@/lib/plans/service";
+import { activeGatewayEnvironment, getPlatformSettings } from "@/lib/plans/service";
 import {
   effectiveBillingStatus,
   getTenantCoreById,
@@ -28,13 +28,17 @@ export const dynamic = "force-dynamic";
 export const GET = withApi(async (request: Request) => {
   assertOpsSecret(request);
 
-  const apiKeyPresent = Boolean(process.env.ASAAS_API_KEY);
-  const webhookTokenPresent = Boolean(process.env.ASAAS_WEBHOOK_TOKEN);
+  const credentials = gatewayCredentials();
+  const environment = await activeGatewayEnvironment();
+  const apiKeyPresent = Boolean(credentials[environment]);
+  const present = (name: string) => (process.env[name] ? "configurado" : "AUSENTE");
 
   const report: Record<string, unknown> = {
     segredos: {
-      ASAAS_API_KEY: apiKeyPresent ? "configurado" : "AUSENTE",
-      ASAAS_WEBHOOK_TOKEN: webhookTokenPresent ? "configurado" : "AUSENTE",
+      ASAAS_API_KEY: present("ASAAS_API_KEY"),
+      ASAAS_WEBHOOK_TOKEN: present("ASAAS_WEBHOOK_TOKEN"),
+      ASAAS_SANDBOX_API_KEY: present("ASAAS_SANDBOX_API_KEY"),
+      ASAAS_SANDBOX_WEBHOOK_TOKEN: present("ASAAS_SANDBOX_WEBHOOK_TOKEN"),
       // só a presença e o tamanho: o valor nunca sai daqui
       VAULT_KEY: describeVaultKey(),
     },
@@ -45,15 +49,15 @@ export const GET = withApi(async (request: Request) => {
   if (tenantRef) report.revenda = await tenantReport(tenantRef);
 
   if (!apiKeyPresent) {
-    report.proximoPasso = "Cadastrar ASAAS_API_KEY nas Secret Variables e refazer o deploy.";
+    report.proximoPasso = `Sem chave para o ambiente ativo (${environment}). Cadastrar nas Secret Variables e refazer o deploy.`;
     return jsonOk(report);
   }
 
-  report.ambiente = asaasEnvironment();
+  report.ambiente = environment;
   report.configuracoes = await getPlatformSettings();
 
   try {
-    const { data } = await listWebhooks();
+    const { data } = await listWebhooks(environment);
     report.conexao = "ok";
     report.webhooks = data.map((hook) => ({
       id: hook.id,

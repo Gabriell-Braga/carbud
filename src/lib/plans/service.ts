@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS = {
   defaultTrialDays: 0,
   gatewayNotifications: true,
   defaultGraceDays: 5,
+  gatewayEnvironment: "production" as const,
 };
 
 export async function getPlatformSettings(): Promise<
@@ -50,8 +51,14 @@ export async function getPlatformSettings(): Promise<
       defaultTrialDays: row.defaultTrialDays,
       gatewayNotifications: row.gatewayNotifications,
       defaultGraceDays: row.defaultGraceDays,
+      gatewayEnvironment: row.gatewayEnvironment,
     };
   });
+}
+
+/** Ambiente do Asaas em que as contratações novas são criadas. */
+export async function activeGatewayEnvironment(): Promise<"sandbox" | "production"> {
+  return (await getPlatformSettings()).gatewayEnvironment;
 }
 
 export async function invalidateSettings(): Promise<void> {

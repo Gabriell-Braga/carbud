@@ -49,6 +49,7 @@ export async function getTenantSubscription(tenantId: string) {
       trialEndsAt: row.subscription.trialEndsAt?.toISOString() ?? null,
       currentPeriodEnd: row.subscription.currentPeriodEnd?.toISOString() ?? null,
       gatewaySubscriptionId: row.subscription.gatewaySubscriptionId,
+      gatewayEnvironment: row.subscription.gatewayEnvironment ?? "production",
       lastEventType: row.subscription.lastEventType,
       lastEventAt: row.subscription.lastEventAt?.toISOString() ?? null,
     },

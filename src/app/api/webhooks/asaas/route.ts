@@ -6,6 +6,8 @@ import { markAcceptedDelivery, markRejectedDelivery } from "@/lib/gateway/delive
 import { advanceDueDate, mapAsaasEvent, outcomeForPayment } from "@/lib/gateway/event-map";
 import { AFFILIATE_RELEVANT_EVENTS } from "@/lib/affiliates/rules";
 import { processAsaasPaymentEvent } from "@/lib/services/affiliates";
+import { gatewayCredentials, type AsaasEnvironment } from "@/lib/gateway/asaas";
+import { parsePaymentReference } from "@/lib/gateway/references";
 import { clientIp } from "@/lib/http";
 import { invalidateTenantCache } from "@/lib/tenant/service";
 import { registerBillingEvent } from "@/lib/services/tenants";
@@ -39,19 +41,34 @@ type AsaasPayload = {
  *    nunca devolvida como erro.
  */
 export async function POST(request: Request) {
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN;
-  if (!expected) {
-    console.error("[asaas] ASAAS_WEBHOOK_TOKEN não configurado");
-    await markRejectedDelivery("ASAAS_WEBHOOK_TOKEN não está configurado aqui");
+  /*
+   * Produção e sandbox entregam aqui, cada um com seu token. O token que
+   * confere diz de qual ambiente o evento veio — e é nesse ambiente que o
+   * pagamento é consultado depois, não no que estiver ativo na tela.
+   */
+  const tokens = Object.entries(gatewayCredentials())
+    .filter(([, credentials]) => credentials?.webhookToken)
+    .map(([environment, credentials]) => ({
+      environment: environment as AsaasEnvironment,
+      token: credentials!.webhookToken!,
+    }));
+  if (tokens.length === 0) {
+    console.error("[asaas] nenhum token de webhook configurado");
+    await markRejectedDelivery("nenhum ASAAS_WEBHOOK_TOKEN configurado aqui");
     return new Response("unauthorized", { status: 401 });
   }
 
   const provided = request.headers.get("asaas-access-token") ?? "";
-  if (!timingSafeEqual(provided, expected)) {
+  // compara com todos, sem parar no primeiro: o tempo não revela qual existe
+  let environment: AsaasEnvironment | null = null;
+  for (const candidate of tokens) {
+    if (timingSafeEqual(provided, candidate.token)) environment = candidate.environment;
+  }
+  if (!environment) {
     console.warn("[asaas] token inválido de", clientIp(request));
     await markRejectedDelivery(
       provided
-        ? "o token enviado não confere com ASAAS_WEBHOOK_TOKEN"
+        ? "o token enviado não confere com nenhum ASAAS_WEBHOOK_TOKEN"
         : "a entrega veio sem o header asaas-access-token",
     );
     return new Response("unauthorized", { status: 401 });
@@ -88,7 +105,7 @@ export async function POST(request: Request) {
   // e falha dela fica pendente no painel sem refazer efeito de cobrança
   const paymentId = payload.payment?.id;
   if (paymentId && AFFILIATE_RELEVANT_EVENTS.has(eventType)) {
-    await processAsaasPaymentEvent({ eventId, eventType, paymentId });
+    await processAsaasPaymentEvent({ eventId, eventType, paymentId, environment });
   }
 
   return Response.json({ received: true, ...processed });
@@ -160,10 +177,16 @@ async function applyEvent(
     return { noted: true };
   }
 
-  const outcome = outcomeForPayment(
-    mapped,
-    await paymentAlreadyRegistered(eventId, payload.payment?.id),
-  );
+  /*
+   * O primeiro mês promocional não empurra vencimento: a contratação já marcou
+   * o primeiro vencimento cheio para o mês seguinte, e somar mais um mês aqui
+   * daria dois meses pelo preço do promocional.
+   */
+  const promo = parsePaymentReference(payload.payment?.externalReference).promo;
+  const outcome =
+    promo && mapped.registersPayment
+      ? { ...mapped, registersPayment: false, note: "Primeiro mês promocional pago no cartão." }
+      : outcomeForPayment(mapped, await paymentAlreadyRegistered(eventId, payload.payment?.id));
   await applyOutcome(tenantId, eventType, outcome, request);
   return { applied: eventType };
 }
@@ -198,7 +221,7 @@ async function paymentAlreadyRegistered(
  */
 async function resolveTenant(payload: AsaasPayload): Promise<string | null> {
   const db = await getDb();
-  const reference = payload.payment?.externalReference;
+  const reference = parsePaymentReference(payload.payment?.externalReference).tenantId;
 
   if (reference) {
     const found = await db

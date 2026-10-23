@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/shell";
 import { Tabs } from "@/components/ui/tabs";
 import { requireSuperAdminPage } from "@/lib/auth/guards";
-import { asaasEnvironment } from "@/lib/gateway/asaas";
+import { gatewayCredentials } from "@/lib/gateway/asaas";
 import { getPlatformSettings } from "@/lib/plans/service";
 import { emailProvider } from "@/lib/email";
 import { getEmailCopyOverrides } from "@/lib/email/copy-store";
@@ -42,8 +42,14 @@ export default async function PlatformSettingsPage({
 
   const settings = await getPlatformSettings();
 
-  // só o ambiente, nunca a chave — o prefixo dela já diz sandbox ou produção
-  const environment = process.env.ASAAS_API_KEY ? asaasEnvironment() : null;
+  // só quais ambientes têm chave e token, nunca os valores
+  const credentials = gatewayCredentials();
+  const configured = {
+    production: credentials.production
+      ? { webhookToken: Boolean(credentials.production.webhookToken) }
+      : null,
+    sandbox: credentials.sandbox ? { webhookToken: Boolean(credentials.sandbox.webhookToken) } : null,
+  };
 
   return (
     <>
@@ -65,7 +71,7 @@ export default async function PlatformSettingsPage({
 
       {tab === "gateway" ? (
         <>
-          <GatewayStatus environment={environment} />
+          <GatewayStatus active={settings.gatewayEnvironment} configured={configured} />
           <WebhookHealth />
         </>
       ) : null}

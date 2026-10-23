@@ -45,40 +45,71 @@ function statusFor(gatewayStatus: number): number {
   return 502;
 }
 
-function config(): { baseUrl: string; apiKey: string; environment: AsaasEnvironment } {
-  const apiKey = process.env.ASAAS_API_KEY;
-  if (!apiKey) throw new AsaasError(500, "ASAAS_API_KEY não configurado");
+/** A própria chave diz o ambiente: produção começa com $aact_prod_. */
+export function environmentOfKey(apiKey: string): AsaasEnvironment {
+  return apiKey.startsWith("$aact_prod_") ? "production" : "sandbox";
+}
 
-  // a própria chave diz o ambiente: prod começa com $aact_prod_
-  const environment: AsaasEnvironment = apiKey.startsWith("$aact_prod_")
-    ? "production"
-    : "sandbox";
+/**
+ * Chave e token de webhook de cada ambiente.
+ *
+ * `ASAAS_API_KEY`/`ASAAS_WEBHOOK_TOKEN` são o par principal e o ambiente sai do
+ * prefixo da chave — instalação antiga com chave de sandbox ali continua
+ * funcionando. `ASAAS_SANDBOX_*` é o par de teste, para alternar sem trocar
+ * segredo nem refazer deploy.
+ */
+export function gatewayCredentials(): Partial<
+  Record<AsaasEnvironment, { apiKey: string; webhookToken: string | null; source: string }>
+> {
+  const result: Partial<
+    Record<AsaasEnvironment, { apiKey: string; webhookToken: string | null; source: string }>
+  > = {};
+  const main = process.env.ASAAS_API_KEY;
+  if (main) {
+    result[environmentOfKey(main)] = {
+      apiKey: main,
+      webhookToken: process.env.ASAAS_WEBHOOK_TOKEN || null,
+      source: "ASAAS_API_KEY",
+    };
+  }
+  const sandbox = process.env.ASAAS_SANDBOX_API_KEY;
+  if (sandbox && !result.sandbox) {
+    result.sandbox = {
+      apiKey: sandbox,
+      webhookToken: process.env.ASAAS_SANDBOX_WEBHOOK_TOKEN || null,
+      source: "ASAAS_SANDBOX_API_KEY",
+    };
+  }
+  return result;
+}
 
-  const override = process.env.ASAAS_ENV;
-  const resolved: AsaasEnvironment =
-    override === "production" || override === "sandbox" ? override : environment;
+export function isGatewayConfigured(environment: AsaasEnvironment): boolean {
+  return Boolean(gatewayCredentials()[environment]);
+}
 
+function config(environment: AsaasEnvironment): { baseUrl: string; apiKey: string } {
+  const credentials = gatewayCredentials()[environment];
+  if (!credentials) {
+    throw new AsaasError(
+      500,
+      environment === "production"
+        ? "Chave de produção do Asaas não configurada (ASAAS_API_KEY)"
+        : "Chave de sandbox do Asaas não configurada (ASAAS_SANDBOX_API_KEY)",
+    );
+  }
   return {
-    apiKey,
-    environment: resolved,
-    baseUrl: resolved === "production" ? PRODUCTION_URL : SANDBOX_URL,
+    apiKey: credentials.apiKey,
+    baseUrl: environment === "production" ? PRODUCTION_URL : SANDBOX_URL,
   };
 }
 
-export function asaasEnvironment(): AsaasEnvironment {
-  return config().environment;
-}
-
-export function isGatewayConfigured(): boolean {
-  return Boolean(process.env.ASAAS_API_KEY);
-}
-
 async function request<T>(
+  environment: AsaasEnvironment,
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const { baseUrl, apiKey } = config();
+  const { baseUrl, apiKey } = config(environment);
 
   const response = await fetch(`${baseUrl}${path}`, {
     method,
@@ -177,15 +208,19 @@ function customerBody(input: AsaasCustomerInput) {
   };
 }
 
-export function createCustomer(input: AsaasCustomerInput): Promise<AsaasCustomer> {
-  return request<AsaasCustomer>("POST", "/customers", customerBody(input));
+export function createCustomer(
+  env: AsaasEnvironment,
+  input: AsaasCustomerInput,
+): Promise<AsaasCustomer> {
+  return request<AsaasCustomer>(env, "POST", "/customers", customerBody(input));
 }
 
 export function updateCustomer(
+  env: AsaasEnvironment,
   customerId: string,
   input: AsaasCustomerInput,
 ): Promise<AsaasCustomer> {
-  return request<AsaasCustomer>("POST", `/customers/${customerId}`, customerBody(input));
+  return request<AsaasCustomer>(env, "POST", `/customers/${customerId}`, customerBody(input));
 }
 
 /* ------------------------------------------------------------------------ */
@@ -208,7 +243,45 @@ export type AsaasSubscriptionInput = {
   /** Juros de mora ao mês, em pontos percentuais. */
   interestPercent: number;
   discount?: { type: "PERCENTAGE" | "FIXED"; value: number } | null;
+  /** Assinatura no cartão: cobra sozinha a cada ciclo, sem fatura para pagar. */
+  card?: AsaasCardCharge | null;
 };
+
+/**
+ * Cartão para cobrança direta. Ou o token (devolvido por um pagamento
+ * aprovado), ou os dados digitados — nunca guardados por nós.
+ */
+export type AsaasCardCharge = {
+  token?: string | null;
+  creditCard?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  } | null;
+  holderInfo?: {
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    postalCode: string;
+    addressNumber: string;
+    phone: string;
+  } | null;
+  /** IP de quem digitou o cartão, não o do servidor: o antifraude do Asaas usa. */
+  remoteIp: string;
+};
+
+function cardBody(card: AsaasCardCharge) {
+  if (card.token) return { creditCardToken: card.token, remoteIp: card.remoteIp };
+  return {
+    creditCard: card.creditCard,
+    creditCardHolderInfo: card.holderInfo
+      ? { ...card.holderInfo, mobilePhone: card.holderInfo.phone }
+      : undefined,
+    remoteIp: card.remoteIp,
+  };
+}
 
 export type AsaasSubscription = {
   id: string;
@@ -217,8 +290,11 @@ export type AsaasSubscription = {
   value: number;
 };
 
-export function createSubscription(input: AsaasSubscriptionInput): Promise<AsaasSubscription> {
-  return request<AsaasSubscription>("POST", "/subscriptions", {
+export function createSubscription(
+  env: AsaasEnvironment,
+  input: AsaasSubscriptionInput,
+): Promise<AsaasSubscription> {
+  return request<AsaasSubscription>(env, "POST", "/subscriptions", {
     customer: input.customerId,
     billingType: input.billingType,
     value: toReais(input.valueCents),
@@ -231,10 +307,12 @@ export function createSubscription(input: AsaasSubscriptionInput): Promise<Asaas
     ...(input.discount
       ? { discount: { value: input.discount.value, type: input.discount.type, dueDateLimitDays: 0 } }
       : {}),
+    ...(input.card ? cardBody(input.card) : {}),
   });
 }
 
 export function updateSubscription(
+  env: AsaasEnvironment,
   subscriptionId: string,
   changes: Partial<{
     valueCents: number;
@@ -245,7 +323,7 @@ export function updateSubscription(
     status: "ACTIVE" | "INACTIVE";
   }>,
 ): Promise<AsaasSubscription> {
-  return request<AsaasSubscription>("POST", `/subscriptions/${subscriptionId}`, {
+  return request<AsaasSubscription>(env, "POST", `/subscriptions/${subscriptionId}`, {
     ...(changes.valueCents !== undefined ? { value: toReais(changes.valueCents) } : {}),
     ...(changes.billingType ? { billingType: changes.billingType } : {}),
     ...(changes.cycle ? { cycle: changes.cycle } : {}),
@@ -255,8 +333,11 @@ export function updateSubscription(
   });
 }
 
-export function cancelSubscription(subscriptionId: string): Promise<{ deleted: boolean }> {
-  return request<{ deleted: boolean }>("DELETE", `/subscriptions/${subscriptionId}`);
+export function cancelSubscription(
+  env: AsaasEnvironment,
+  subscriptionId: string,
+): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(env, "DELETE", `/subscriptions/${subscriptionId}`);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -306,13 +387,16 @@ export type AsaasWebhook = {
  * Cria o webhook já com os eventos certos.
  * `authToken` volta só nesta resposta — precisa ser guardado na hora.
  */
-export function createWebhook(input: {
-  name: string;
-  url: string;
-  email: string;
-  authToken?: string;
-}): Promise<AsaasWebhook> {
-  return request<AsaasWebhook>("POST", "/webhooks", {
+export function createWebhook(
+  env: AsaasEnvironment,
+  input: {
+    name: string;
+    url: string;
+    email: string;
+    authToken?: string;
+  },
+): Promise<AsaasWebhook> {
+  return request<AsaasWebhook>(env, "POST", "/webhooks", {
     name: input.name,
     url: input.url,
     email: input.email,
@@ -325,12 +409,12 @@ export function createWebhook(input: {
   });
 }
 
-export function listWebhooks(): Promise<{ data: AsaasWebhook[] }> {
-  return request<{ data: AsaasWebhook[] }>("GET", "/webhooks");
+export function listWebhooks(env: AsaasEnvironment): Promise<{ data: AsaasWebhook[] }> {
+  return request<{ data: AsaasWebhook[] }>(env, "GET", "/webhooks");
 }
 
-export function getWebhook(webhookId: string): Promise<AsaasWebhook> {
-  return request<AsaasWebhook>("GET", `/webhooks/${webhookId}`);
+export function getWebhook(env: AsaasEnvironment, webhookId: string): Promise<AsaasWebhook> {
+  return request<AsaasWebhook>(env, "GET", `/webhooks/${webhookId}`);
 }
 
 /**
@@ -340,8 +424,8 @@ export function getWebhook(webhookId: string): Promise<AsaasWebhook> {
  * parada e evento não assinado — se resolvem no mesmo lugar, e quem clica não
  * tem por que saber qual das duas era.
  */
-export function resumeWebhook(webhookId: string): Promise<AsaasWebhook> {
-  return request<AsaasWebhook>("PUT", `/webhooks/${webhookId}`, {
+export function resumeWebhook(env: AsaasEnvironment, webhookId: string): Promise<AsaasWebhook> {
+  return request<AsaasWebhook>(env, "PUT", `/webhooks/${webhookId}`, {
     enabled: true,
     interrupted: false,
     events: WEBHOOK_EVENTS,
@@ -393,16 +477,18 @@ export type AsaasPayment = {
 
 /** Cobranças de uma assinatura, da mais recente para a mais antiga. */
 export function listSubscriptionPayments(
+  env: AsaasEnvironment,
   subscriptionId: string,
 ): Promise<{ data: AsaasPayment[] }> {
   return request<{ data: AsaasPayment[] }>(
+    env,
     "GET",
     `/subscriptions/${subscriptionId}/payments?limit=20`,
   );
 }
 
-export function getPayment(paymentId: string): Promise<AsaasPayment> {
-  return request<AsaasPayment>("GET", `/payments/${paymentId}`);
+export function getPayment(env: AsaasEnvironment, paymentId: string): Promise<AsaasPayment> {
+  return request<AsaasPayment>(env, "GET", `/payments/${paymentId}`);
 }
 
 /**
@@ -413,12 +499,46 @@ export function getPayment(paymentId: string): Promise<AsaasPayment> {
  * produção é a baixa manual de quem pagou por fora.
  */
 export function receivePaymentInCash(
+  env: AsaasEnvironment,
   paymentId: string,
   input: { value: number; date: Date; notifyCustomer?: boolean },
 ): Promise<AsaasPayment> {
-  return request<AsaasPayment>("POST", `/payments/${paymentId}/receiveInCash`, {
+  return request<AsaasPayment>(env, "POST", `/payments/${paymentId}/receiveInCash`, {
     paymentDate: toAsaasDate(input.date),
     value: input.value,
     notifyCustomer: input.notifyCustomer ?? false,
   });
+}
+
+/**
+ * Cobrança avulsa no cartão, processada na hora.
+ *
+ * Cartão recusado volta como erro 400 do Asaas e nada fica gravado lá. Aprovado,
+ * a resposta pode trazer `creditCardToken` — que serve para a assinatura
+ * seguinte sem pedir o cartão de novo.
+ */
+export function createCardPayment(
+  env: AsaasEnvironment,
+  input: {
+    customerId: string;
+    valueCents: number;
+    description: string;
+    externalReference: string;
+    card: AsaasCardCharge;
+  },
+): Promise<AsaasPayment & { creditCard?: { creditCardToken?: string | null } | null; creditCardToken?: string | null }> {
+  return request(env, "POST", "/payments", {
+    customer: input.customerId,
+    billingType: "CREDIT_CARD",
+    value: toReais(input.valueCents),
+    dueDate: toAsaasDate(new Date()),
+    description: input.description,
+    externalReference: input.externalReference,
+    ...cardBody(input.card),
+  });
+}
+
+/** Estorno integral. */
+export function refundPayment(env: AsaasEnvironment, paymentId: string): Promise<AsaasPayment> {
+  return request<AsaasPayment>(env, "POST", `/payments/${paymentId}/refund`, {});
 }

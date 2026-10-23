@@ -18,13 +18,18 @@ import {
 } from "@/lib/services/affiliates";
 import { billingDate, brazilDateParts } from "./brazil-date";
 import { getPlatformSettings, invalidateEntitlements } from "@/lib/plans/service";
+import { PROMO_FIRST_PAYMENT_CENTS, promoNextDueDate, promoReference } from "./references";
 import { invalidateTenantCache } from "@/lib/tenant/service";
 import { onlyDigits } from "@/lib/utils";
 import {
   cancelSubscription as cancelAtGateway,
+  createCardPayment,
   createCustomer,
   createSubscription,
+  isGatewayConfigured,
+  refundPayment,
   updateCustomer,
+  type AsaasCardCharge,
   type AsaasCycle,
 } from "./asaas";
 
@@ -38,6 +43,12 @@ export type ContractInput = {
   /** Código de afiliado de origem. Vazio preserva a origem que já existir. */
   affiliateCode?: string | null;
   actor?: AffiliateActor;
+  /**
+   * Contratação no cartão com primeiro pagamento promocional: cobra
+   * PROMO_FIRST_PAYMENT_CENTS na hora e a assinatura começa a cobrar o valor
+   * cheio no mês seguinte, no mesmo cartão. Substitui o período de teste.
+   */
+  card?: Omit<AsaasCardCharge, "token"> | null;
 };
 
 /**
@@ -75,9 +86,16 @@ export async function contractSubscription(input: ContractInput) {
   }
 
   const settings = await getPlatformSettings();
-  const dueDay = input.dueDay ?? row.billing?.dueDay ?? 10;
-  const trialDays = plan.trialDays || settings.defaultTrialDays;
-  const nextDueDate = firstDueDate(dueDay, trialDays);
+  const environment = settings.gatewayEnvironment;
+  const promo = Boolean(input.card);
+  // no cartão o pagamento promocional faz o papel do teste: não há trial por cima
+  const trialDays = promo ? 0 : plan.trialDays || settings.defaultTrialDays;
+  const nextDueDate = promo
+    ? promoNextDueDate()
+    : firstDueDate(input.dueDay ?? row.billing?.dueDay ?? 10, trialDays);
+  const dueDay = promo
+    ? brazilDateParts(nextDueDate).day
+    : (input.dueDay ?? row.billing?.dueDay ?? 10);
 
   const discount = await resolveCoupon(input.couponCode, plan);
   const priceCents = plan.priceCents;
@@ -86,6 +104,9 @@ export async function contractSubscription(input: ContractInput) {
     : null;
 
   /* ------------------------------------------------ plano fora do gateway */
+  if (plan.billingMode === "manual" && promo) {
+    throw badRequest("Plano negociado não é cobrado no cartão pelo sistema.");
+  }
   if (plan.billingMode === "manual") {
     const affiliation = await recordAffiliation(input, affiliate);
     await saveSubscription({
@@ -111,6 +132,13 @@ export async function contractSubscription(input: ContractInput) {
   if (cpfCnpj.length !== 14 && cpfCnpj.length !== 11) {
     throw badRequest("Informe o CNPJ da revenda antes de contratar: o gateway exige.");
   }
+  if (!isGatewayConfigured(environment)) {
+    throw badRequest(
+      environment === "production"
+        ? "Gateway em produção sem chave configurada."
+        : "Gateway em sandbox sem chave configurada.",
+    );
+  }
 
   const customerInput = {
     name: row.tenant.legalName || row.tenant.name,
@@ -133,35 +161,73 @@ export async function contractSubscription(input: ContractInput) {
    */
   const affiliation = await recordAffiliation(input, affiliate);
 
-  const customer = existing[0]?.gatewayCustomerId
-    ? await updateCustomer(existing[0].gatewayCustomerId, customerInput)
-    : await createCustomer(customerInput);
+  // cliente de um ambiente não existe no outro: trocou o ambiente, cria de novo
+  const reusable =
+    existing[0]?.gatewayCustomerId &&
+    (existing[0].gatewayEnvironment ?? "production") === environment
+      ? existing[0].gatewayCustomerId
+      : null;
+  const customer = reusable
+    ? await updateCustomer(environment, reusable, customerInput)
+    : await createCustomer(environment, customerInput);
 
-  const subscription = await createSubscription({
-    customerId: customer.id,
-    billingType: (input.billingType ?? "UNDEFINED") as BillingType,
-    valueCents: priceCents,
-    nextDueDate,
-    cycle: plan.cycle as AsaasCycle,
-    description: `${plan.name} · ${row.tenant.name}`,
-    externalReference: row.tenant.id,
-    finePercent: settings.finePercent,
-    interestPercent: settings.interestPercent,
-    discount: discount
-      ? { type: discount.type, value: discount.value }
-      : null,
-  });
+  const billingType: BillingType = promo ? "CREDIT_CARD" : (input.billingType ?? "UNDEFINED");
+  let card: AsaasCardCharge | null = null;
+  let promoPaymentId: string | null = null;
+
+  if (input.card) {
+    // recusado, o Asaas devolve 400 com o motivo e nada mais acontece
+    const payment = await createCardPayment(environment, {
+      customerId: customer.id,
+      valueCents: PROMO_FIRST_PAYMENT_CENTS,
+      description: `${plan.name} · primeiro mês promocional`,
+      externalReference: promoReference(row.tenant.id),
+      card: input.card,
+    });
+    promoPaymentId = payment.id;
+    const token = payment.creditCardToken ?? payment.creditCard?.creditCardToken ?? null;
+    // sem token (tokenização desligada na conta), a assinatura valida o cartão
+    // de novo com os mesmos dados, sem cobrar: o vencimento dela é futuro
+    card = token ? { token, remoteIp: input.card.remoteIp } : input.card;
+  }
+
+  let subscription;
+  try {
+    subscription = await createSubscription(environment, {
+      customerId: customer.id,
+      billingType,
+      valueCents: priceCents,
+      nextDueDate,
+      cycle: plan.cycle as AsaasCycle,
+      description: `${plan.name} · ${row.tenant.name}`,
+      externalReference: row.tenant.id,
+      finePercent: settings.finePercent,
+      interestPercent: settings.interestPercent,
+      discount: discount ? { type: discount.type, value: discount.value } : null,
+      card,
+    });
+  } catch (error) {
+    // cobrou o promocional e a assinatura não nasceu: devolve o dinheiro
+    if (promoPaymentId) {
+      const refundId = promoPaymentId;
+      await refundPayment(environment, refundId).catch((refundError: unknown) =>
+        console.error("[assinatura] não consegui estornar o promocional", refundId, refundError),
+      );
+    }
+    throw error;
+  }
 
   await saveSubscription({
     tenantId: input.tenantId,
     planId: plan.id,
     status: trialDays > 0 ? "trialing" : "active",
-    billingType: (input.billingType ?? "UNDEFINED") as BillingType,
+    billingType,
     priceCents,
     couponCode: discount?.code ?? null,
     discountCents: discount?.centsOff ?? 0,
     trialEndsAt: trialDays > 0 ? nextDueDate : null,
     currentPeriodEnd: nextDueDate,
+    gatewayEnvironment: environment,
     gatewayCustomerId: customer.id,
     gatewaySubscriptionId: subscription.id,
   });
@@ -175,6 +241,8 @@ export async function contractSubscription(input: ContractInput) {
     nextDueDate,
     gatewayCustomerId: customer.id,
     gatewaySubscriptionId: subscription.id,
+    environment,
+    promoPaymentId,
     affiliation,
   };
 }
@@ -207,7 +275,10 @@ export async function cancelTenantSubscription(tenantId: string) {
 
   if (subscription.gatewaySubscriptionId) {
     try {
-      await cancelAtGateway(subscription.gatewaySubscriptionId);
+      await cancelAtGateway(
+        subscription.gatewayEnvironment ?? "production",
+        subscription.gatewaySubscriptionId,
+      );
     } catch (error) {
       // já cancelada no gateway não pode travar o cancelamento aqui
       if (!(error instanceof ApiError) && !(error as { status?: number })?.status) throw error;
@@ -234,6 +305,7 @@ async function saveSubscription(values: {
   discountCents: number;
   trialEndsAt: Date | null;
   currentPeriodEnd: Date;
+  gatewayEnvironment?: "sandbox" | "production" | null;
   gatewayCustomerId: string | null;
   gatewaySubscriptionId: string | null;
 }) {

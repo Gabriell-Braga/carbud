@@ -348,6 +348,31 @@ especialista em marketing, e mudanças de desenho não são nossa alçada.
   de alinhamento com quem desenhou e com o jurídico. **Pergunta aberta, nunca
   respondida.**
 
+### 9.8 Asaas: sandbox e produção lado a lado, contratação no cartão
+
+Dois pares de segredo: `ASAAS_API_KEY`/`ASAAS_WEBHOOK_TOKEN` (o ambiente sai do
+prefixo da chave) e `ASAAS_SANDBOX_API_KEY`/`ASAAS_SANDBOX_WEBHOOK_TOKEN`. A
+chave seletora em Painel Geral → Configurações → Gateway escolhe **só onde
+nascem as contratações novas**. Cada assinatura guarda o ambiente em que
+nasceu (`subscriptions.gateway_environment`, null = produção), e cancelar ou
+listar cobranças vai para lá. O webhook aceita os dois tokens, e o token que
+confere diz de qual ambiente veio o evento — trocar a chave não perde evento.
+
+Contratação no cartão (`/admin/assinatura`, pela própria revenda, nunca em
+impersonation): cobra R$ 5 na hora (`PROMO_FIRST_PAYMENT_CENTS`, cobrança
+avulsa com `externalReference = promo:<tenantId>`) e cria a assinatura no
+cartão com o primeiro vencimento cheio no mesmo dia do mês seguinte (29–31
+viram 28). O webhook reconhece o promocional pela referência: marca adimplente
+sem empurrar vencimento, e a comissão de afiliado conta os R$ 5 como receita da
+assinatura. Se a assinatura falhar depois do promocional, os R$ 5 são
+estornados. Os dados do cartão só atravessam o Worker até o Asaas: não são
+gravados, logados nem auditados.
+
+Pendências: testar ponta a ponta no sandbox (sem chave local até agora); em
+produção, pedir ao gerente do Asaas a **tokenização** — sem ela a assinatura
+valida o cartão com os dados de novo (funciona), mas trocar valor ou vencimento
+de assinatura no cartão depois fica bloqueado.
+
 ### 9.7 Afiliados (fase 1 entregue, portal planejado)
 
 Painel Geral → Afiliados. Código `AF-` + 10 caracteres gerado no servidor,

@@ -35,6 +35,13 @@ export const subscriptions = sqliteTable(
     status: text("status").$type<SubscriptionStatus>().notNull().default("manual"),
     billingType: text("billing_type").$type<BillingType>().notNull().default("UNDEFINED"),
 
+    /**
+     * Ambiente do Asaas em que cliente e assinatura existem. Os ids de um não
+     * existem no outro, então cancelar ou listar cobranças tem que ir para cá,
+     * e não para o ambiente ativo agora. Null = anterior à chave de ambiente,
+     * tratado como produção.
+     */
+    gatewayEnvironment: text("gateway_environment").$type<"sandbox" | "production">(),
     gatewayCustomerId: text("gateway_customer_id"),
     gatewaySubscriptionId: text("gateway_subscription_id"),
 

@@ -3,6 +3,7 @@ import {
   Building2,
   Calculator,
   Car,
+  CreditCard,
   Handshake,
   KanbanSquare,
   LayoutDashboard,
@@ -110,6 +111,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       : []),
     ...(can(context.role, "api:manage")
       ? [{ href: "/admin/integracoes", label: "API e webhooks", icon: <Plug className={ICON} /> }]
+      : []),
+    ...(can(context.role, "tenant:settings") && !context.impersonating
+      ? [{ href: "/admin/assinatura", label: "Assinatura", icon: <CreditCard className={ICON} /> }]
       : []),
   ];
 

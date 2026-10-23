@@ -5,7 +5,7 @@ import { subscriptions } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import {
-  asaasEnvironment,
+  type AsaasEnvironment,
   getPayment,
   isGatewayConfigured,
   listSubscriptionPayments,
@@ -17,17 +17,27 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
-async function gatewaySubscriptionId(tenantId: string): Promise<string> {
+/** Assinatura no gateway e o ambiente em que ela existe — não o ambiente ativo agora. */
+async function gatewaySubscription(
+  tenantId: string,
+): Promise<{ id: string; environment: AsaasEnvironment }> {
   const db = await getDb();
   const rows = await db
-    .select({ gatewaySubscriptionId: subscriptions.gatewaySubscriptionId })
+    .select({
+      gatewaySubscriptionId: subscriptions.gatewaySubscriptionId,
+      gatewayEnvironment: subscriptions.gatewayEnvironment,
+    })
     .from(subscriptions)
     .where(eq(subscriptions.tenantId, tenantId))
     .limit(1);
 
   const id = rows[0]?.gatewaySubscriptionId;
   if (!id) throw notFound("Esta revenda não tem assinatura no gateway");
-  return id;
+  const environment = rows[0].gatewayEnvironment ?? "production";
+  if (!isGatewayConfigured(environment)) {
+    throw badRequest(`Gateway sem chave de ${environment === "production" ? "produção" : "sandbox"}`);
+  }
+  return { id, environment };
 }
 
 /**
@@ -40,12 +50,11 @@ export const GET = withApi(async (_request: Request, { params }: Params) => {
   await requireApiSuperAdmin("platform:billing:read");
   const { id } = await params;
 
-  if (!isGatewayConfigured()) throw badRequest("Gateway não configurado");
-
-  const { data } = await listSubscriptionPayments(await gatewaySubscriptionId(id));
+  const subscription = await gatewaySubscription(id);
+  const { data } = await listSubscriptionPayments(subscription.environment, subscription.id);
 
   return jsonOk({
-    environment: asaasEnvironment(),
+    environment: subscription.environment,
     payments: data.map((payment) => ({
       id: payment.id,
       status: payment.status,
@@ -70,14 +79,13 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
   const context = await requireApiSuperAdmin("platform:billing:write");
   const { id } = await params;
 
-  if (!isGatewayConfigured()) throw badRequest("Gateway não configurado");
-
   const parsed = receiveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
 
   // confere que a cobrança é mesmo da assinatura desta revenda
-  const subscriptionId = await gatewaySubscriptionId(id);
-  const { data } = await listSubscriptionPayments(subscriptionId);
+  const subscription = await gatewaySubscription(id);
+  const { environment } = subscription;
+  const { data } = await listSubscriptionPayments(environment, subscription.id);
   const target = data.find((payment) => payment.id === parsed.data.paymentId);
   if (!target) throw notFound("Cobrança não encontrada nesta assinatura");
 
@@ -86,8 +94,8 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
   }
 
   // o Asaas ja devolve o valor em reais; nao ha conversao a fazer aqui
-  await receivePaymentInCash(target.id, { value: target.value, date: new Date() });
-  const updated = await getPayment(target.id);
+  await receivePaymentInCash(environment, target.id, { value: target.value, date: new Date() });
+  const updated = await getPayment(environment, target.id);
 
   await logAuditFor(
     context,
@@ -96,7 +104,7 @@ export const POST = withApi(async (request: Request, { params }: Params) => {
       entity: "payment",
       entityId: target.id,
       tenantId: id,
-      metadata: { environment: asaasEnvironment(), value: target.value },
+      metadata: { environment, value: target.value },
     },
     request,
   );

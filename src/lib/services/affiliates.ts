@@ -26,7 +26,8 @@ import {
   refundedCentsOf,
   type PaymentClass,
 } from "@/lib/affiliates/rules";
-import { asaasEnvironment, getPayment, type AsaasPayment } from "@/lib/gateway/asaas";
+import { getPayment, type AsaasEnvironment, type AsaasPayment } from "@/lib/gateway/asaas";
+import { parsePaymentReference } from "@/lib/gateway/references";
 import { billingDate } from "@/lib/gateway/brazil-date";
 import { badRequest, conflict, notFound } from "@/lib/http";
 
@@ -217,16 +218,22 @@ async function resolvePaymentTenant(
 ): Promise<{ tenantId: string | null; review?: string }> {
   const db = await getDb();
 
+  const reference = parsePaymentReference(payment.externalReference);
   let byReference: string | null = null;
-  if (payment.externalReference) {
+  if (reference.tenantId) {
     const rows = await db
       .select({ id: tenants.id })
       .from(tenants)
-      .where(eq(tenants.id, payment.externalReference))
+      .where(eq(tenants.id, reference.tenantId))
       .limit(1);
     byReference = rows[0]?.id ?? null;
   }
 
+  // o primeiro mês promocional da contratação no cartão é avulso por desenho,
+  // mas é receita da assinatura: entra na comissão como qualquer mensalidade
+  if (!payment.subscription && reference.promo && byReference) {
+    return { tenantId: byReference };
+  }
   if (!payment.subscription) {
     return { tenantId: byReference, review: "Cobrança fora de assinatura" };
   }
@@ -267,8 +274,11 @@ async function resolvePaymentTenant(
  * importa, e um RECEIVED atrasado depois de um estorno não ressuscita nada,
  * porque a consulta já devolve REFUNDED.
  */
-async function syncAsaasFact(paymentId: string): Promise<AffiliatePaymentFact> {
-  const payment = await getPayment(paymentId);
+async function syncAsaasFact(
+  environment: AsaasEnvironment,
+  paymentId: string,
+): Promise<AffiliatePaymentFact> {
+  const payment = await getPayment(environment, paymentId);
   const paymentClass = classifyPaymentStatus(payment.status);
   const tenant = await resolvePaymentTenant(payment);
   const base = paymentClass === "unpaid" ? null : asaasCommissionBase(payment);
@@ -304,7 +314,7 @@ async function syncAsaasFact(paymentId: string): Promise<AffiliatePaymentFact> {
     .insert(affiliatePaymentFacts)
     .values({
       source: "asaas",
-      environment: asaasEnvironment(),
+      environment,
       sourcePaymentId: payment.id,
       effectiveAt,
       ...values,
@@ -463,7 +473,8 @@ async function runProcessing(id: string) {
     let fact: AffiliatePaymentFact | undefined;
     if (row.source === "asaas") {
       if (!row.sourcePaymentId) throw new Error("Evento sem id de pagamento");
-      fact = await syncAsaasFact(row.sourcePaymentId);
+      // eventos anteriores à chave de ambiente eram todos de produção
+      fact = await syncAsaasFact(row.environment ?? "production", row.sourcePaymentId);
     } else if (paymentFactId) {
       fact = (
         await db
@@ -497,6 +508,7 @@ export async function processAsaasPaymentEvent(input: {
   eventId: string;
   eventType: string;
   paymentId: string;
+  environment: AsaasEnvironment;
 }) {
   try {
     const db = await getDb();
@@ -506,6 +518,7 @@ export async function processAsaasPaymentEvent(input: {
         id: input.eventId,
         source: "asaas",
         sourcePaymentId: input.paymentId,
+        environment: input.environment,
         eventType: input.eventType,
       })
       .onConflictDoNothing();

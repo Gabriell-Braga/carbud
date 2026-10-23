@@ -309,5 +309,13 @@ export const MIGRATIONS: BundledMigration[] = [
       "CREATE TABLE `affiliate_event_processing` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`source` text NOT NULL,\n\t`source_payment_id` text,\n\t`event_type` text,\n\t`state` text DEFAULT 'pending' NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`last_error` text,\n\t`payment_fact_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
       "CREATE INDEX `affiliate_event_processing_state_idx` ON `affiliate_event_processing` (`state`,`updated_at`);"
     ]
+  },
+  {
+    "tag": "0028_gateway_environment",
+    "statements": [
+      "ALTER TABLE `platform_settings` ADD `gateway_environment` text DEFAULT 'production' NOT NULL;",
+      "ALTER TABLE `subscriptions` ADD `gateway_environment` text;",
+      "ALTER TABLE `affiliate_event_processing` ADD `environment` text;"
+    ]
   }
 ];

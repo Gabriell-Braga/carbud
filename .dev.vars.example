@@ -26,13 +26,17 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 # NEXT_PUBLIC_BASE_PATH do BASE_URL que o Webflow Cloud injeta no build.
 
 # --- Gateway de pagamento (Asaas) ---------------------------------------
+# Dois pares, um por ambiente. Qual recebe as contratacoes novas e escolhido
+# no Painel Geral > Configuracoes > Gateway; webhook dos dois e processado.
 # A propria chave diz o ambiente: $aact_hmlg_ = sandbox, $aact_prod_ = producao.
-# ASAAS_API_KEY="$aact_hmlg_..."
+# ASAAS_API_KEY="$aact_prod_..."
 # Token estatico que o Asaas envia no header asaas-access-token do webhook.
 # Gerado na criacao do webhook — guarde na hora, ele aparece uma unica vez.
 # ASAAS_WEBHOOK_TOKEN="..."
-# Opcional: forca o ambiente independentemente do prefixo da chave.
-# ASAAS_ENV="sandbox"
+# Par do sandbox. Local, prefira so este: com a chave de producao aqui, uma
+# contratacao de teste vira cobranca real.
+# ASAAS_SANDBOX_API_KEY="$aact_hmlg_..."
+# ASAAS_SANDBOX_WEBHOOK_TOKEN="..."
 
 # Origem publica do painel, sem o mount path. Atras do proxy do Webflow Cloud o
 # host do request e o do worker (*.wf-app-prod.cosmic.webflow.services), e toda
