@@ -61,6 +61,7 @@ const vehicleFields = {
   description: z.preprocess(emptyToNull, z.string().trim().max(5000).nullable().optional()),
   status: z.enum(VEHICLE_STATUS),
   featured: z.boolean(),
+  storeId: z.preprocess(emptyToNull, z.string().uuid().nullable().optional()),
   fipeCode: z.string().trim().max(20).nullable().optional(),
   fipePriceCents: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   fipeReference: z.string().trim().max(40).nullable().optional(),

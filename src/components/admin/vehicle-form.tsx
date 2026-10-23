@@ -53,12 +53,15 @@ export function VehicleForm({
   readOnly,
   photos = [],
   appraisalId,
+  stores = [],
 }: {
   initial: VehicleFormValues;
   readOnly?: boolean;
   photos?: PhotoItem[];
   /** Avaliação que originou esta ficha, quando veio de lá. */
   appraisalId?: string;
+  /** Unidades ativas; vazio esconde o campo (revenda de uma loja só). */
+  stores?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -294,6 +297,8 @@ export function VehicleForm({
       description: values.description,
       status: values.status,
       featured: values.featured,
+      // sem unidades na tela, não mexe no que está gravado
+      ...(stores.length > 0 ? { storeId: values.storeId } : {}),
       fipeCode: values.fipeCode,
       fipePriceCents: values.fipePriceCents,
       fipeReference: values.fipeReference,
@@ -655,6 +660,24 @@ export function VehicleForm({
               ))}
             </Select>
           </FormField>
+
+          {stores.length > 0 ? (
+            <FormField label="Unidade" htmlFor="storeId" hint="Loja onde o carro está.">
+              <Select
+                id="storeId"
+                disabled={readOnly}
+                value={values.storeId}
+                onChange={(event) => update("storeId", event.target.value)}
+              >
+                <option value="">Sem unidade</option>
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          ) : null}
 
           <div className="mb-4 flex flex-col justify-center gap-2.5">
             <label className="flex items-center gap-2 text-[13px] text-text">

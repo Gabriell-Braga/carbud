@@ -9,6 +9,7 @@ import { syncInBackground } from "@/lib/services/portal-sync";
 import { getOrigin } from "@/lib/seo/urls";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
 import { checkTenantLimit } from "@/lib/plans/service";
+import { assertStoreOfTenant } from "@/lib/services/stores";
 import { vehicleSchema } from "@/lib/validation/vehicles";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export const POST = withApi(async (request: Request) => {
   const parsed = vehicleSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
   const input = parsed.data;
+  await assertStoreOfTenant(context.tenant.id, input.storeId);
 
   // rascunho não ocupa vaga; só publicar consome o limite do plano
   if (input.status === "available" || input.status === "reserved") {
@@ -52,6 +54,7 @@ export const POST = withApi(async (request: Request) => {
       description: input.description,
       status: input.status,
       featured: input.featured,
+      storeId: input.storeId,
     })
     .returning({ id: vehicles.id, slug: vehicles.slug });
   await queueVehicleSync(context.tenant.id, created[0].id);

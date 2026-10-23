@@ -18,6 +18,8 @@ export type VehicleFormValues = {
   description: string;
   status: string;
   featured: boolean;
+  /** Unidade dona do carro; vazio = nenhuma escolhida. */
+  storeId: string;
   /** Referência da FIPE gravada na última consulta. */
   fipeCode: string | null;
   fipePriceCents: number | null;

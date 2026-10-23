@@ -11,6 +11,7 @@ import { getOrigin } from "@/lib/seo/urls";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
 import { trackVehicleSold } from "@/lib/tracking/sale";
 import { checkTenantLimit } from "@/lib/plans/service";
+import { assertStoreOfTenant } from "@/lib/services/stores";
 import { vehicleUpdateSchema } from "@/lib/validation/vehicles";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,10 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
 
   const existing = await getVehicle(context.tenant.id, id);
   if (!existing) throw notFound("Veículo não encontrado");
+  // gravar a mesma unidade de antes passa mesmo se ela foi desativada depois
+  if (input.storeId !== existing.vehicle.storeId) {
+    await assertStoreOfTenant(context.tenant.id, input.storeId);
+  }
 
   // tirar do rascunho ocupa uma vaga: precisa caber no plano
   const willPublish = input.status === "available" || input.status === "reserved";

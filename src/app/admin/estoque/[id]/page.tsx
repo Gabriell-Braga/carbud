@@ -11,6 +11,9 @@ import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { getVehicle, isInspected, listMedia360 } from "@/lib/services/vehicles";
 import { mediaUrl } from "@/lib/paths";
+import { publicSiteUrl } from "@/lib/services/domains";
+import { listStores } from "@/lib/services/stores";
+import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { DeleteVehicleButton } from "./delete-button";
 import { InspectionCard, Media360Card } from "./inspection-360";
@@ -37,7 +40,18 @@ export default async function EditVehiclePage({ params }: Props) {
 
   const { vehicle, photos } = found;
   const canWrite = can(context.role, "vehicles:write") && context.access === "full";
-  const media360 = (await listMedia360([vehicle.id])).get(vehicle.id) ?? { spin: [], pano: null };
+  const [media360Map, siteUrl, multiStore] = await Promise.all([
+    listMedia360([vehicle.id]),
+    publicSiteUrl(context.tenant.id),
+    tenantHasFeature(context.tenant.id, "gestao_multiunidade"),
+  ]);
+  const stores = multiStore ? await listStores(context.tenant.id, true) : [];
+  const media360 = media360Map.get(vehicle.id) ?? { spin: [], pano: null };
+  // a prévia interna só quando a revenda ainda não tem domínio no ar
+  const vehiclePath = `/veiculo/${vehicle.slug}`;
+  const siteVehicleUrl = siteUrl
+    ? `${siteUrl}${vehiclePath}`
+    : tenantPublicPath(context.tenant.slug, vehiclePath);
 
   return (
     <>
@@ -54,7 +68,7 @@ export default async function EditVehiclePage({ params }: Props) {
             </Link>
             {vehicle.status !== "draft" ? (
               <Link
-                href={tenantPublicPath(context.tenant.slug, `/veiculo/${vehicle.slug}`)}
+                href={siteVehicleUrl}
                 target="_blank"
               >
                 <Button variant="secondary">
@@ -75,6 +89,7 @@ export default async function EditVehiclePage({ params }: Props) {
       <div className="flex flex-col gap-4">
         <VehicleForm
           readOnly={!canWrite}
+          stores={stores.map((store) => ({ id: store.id, name: store.name }))}
           photos={photos.map((photo) => ({
             id: photo.id,
             variants: photo.variants,
@@ -101,6 +116,7 @@ export default async function EditVehiclePage({ params }: Props) {
             description: vehicle.description ?? "",
             status: vehicle.status,
             featured: vehicle.featured,
+            storeId: vehicle.storeId ?? "",
             fipeCode: vehicle.fipeCode,
             fipePriceCents: vehicle.fipePriceCents,
             fipeReference: vehicle.fipeReference,

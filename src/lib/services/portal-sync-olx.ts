@@ -231,14 +231,19 @@ async function checkReviews(client: OlxClient, tenantId: string): Promise<void> 
         eq(vehiclePublications.status, "publicado"),
       ),
     );
-  const waiting = rows.filter((row) => row.lastError || !row.meta?.listId);
+  // aprovado sem URL também espera: o status do lote pode trazer o list_id
+  // antes da URL, e sem esta condição o carro nunca mais era consultado
+  const waiting = rows.filter(
+    (row) => row.lastError || !row.meta?.listId || !row.externalUrl,
+  );
 
   // um lote responde por vários carros: consulta cada token uma vez só
   const byToken = new Map<string, VehiclePublication[]>();
+  const withoutToken: VehiclePublication[] = [];
   for (const row of waiting) {
     const token = row.meta?.importToken;
-    if (!token) continue;
-    byToken.set(token, [...(byToken.get(token) ?? []), row]);
+    if (!token) withoutToken.push(row);
+    else byToken.set(token, [...(byToken.get(token) ?? []), row]);
   }
 
   for (const [token, publications] of byToken) {
@@ -252,26 +257,34 @@ async function checkReviews(client: OlxClient, tenantId: string): Promise<void> 
 
     for (const publication of publications) {
       const ad = status?.ads?.[publication.externalId ?? ""];
-      if (ad) {
+      if (ad && (ad.url || !isAccepted(ad.status))) {
         await applyReview(publication, ad.status, ad.list_id, ad.url, ad.message);
         continue;
       }
-      // token vencido (7 dias): pergunta pelo anúncio, se já sabemos o list_id
-      const listId = publication.meta?.listId;
-      if (!status && listId) {
-        const published = await client.adStatus(listId).catch(() => null);
-        if (published) {
-          await applyReview(
-            publication,
-            published.status,
-            published.list_id,
-            published.url,
-            published.message,
-          );
-        }
-      }
+      // token vencido (7 dias) ou lote sem URL: pergunta pelo anúncio
+      await reviewByListId(client, publication, ad?.list_id);
     }
   }
+
+  for (const publication of withoutToken) await reviewByListId(client, publication);
+}
+
+async function reviewByListId(
+  client: OlxClient,
+  publication: VehiclePublication,
+  knownListId?: string,
+): Promise<void> {
+  const listId = knownListId ?? publication.meta?.listId;
+  if (!listId) return;
+  const published = await client.adStatus(String(listId)).catch(() => null);
+  if (!published) return;
+  await applyReview(
+    publication,
+    published.status,
+    published.list_id ?? String(listId),
+    published.url,
+    published.message,
+  );
 }
 
 async function applyReview(

@@ -5,6 +5,8 @@ import { emptyVehicle } from "@/components/admin/vehicle-defaults";
 import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { getAppraisal } from "@/lib/services/appraisals";
+import { defaultStoreId, listStores } from "@/lib/services/stores";
+import { tenantHasFeature } from "@/lib/api/feature-guard";
 
 export const metadata: Metadata = { title: "Novo veículo" };
 export const dynamic = "force-dynamic";
@@ -33,7 +35,16 @@ export default async function NewVehiclePage({
       ? await getAppraisal(context.tenant.id, avaliacao)
       : null;
 
+  const stores = (await tenantHasFeature(context.tenant.id, "gestao_multiunidade"))
+    ? await listStores(context.tenant.id, true)
+    : [];
+
   const initial = emptyVehicle();
+  if (stores.length > 0) {
+    // a unidade da avaliação vale mais que a padrão: o carro entrou por ela
+    const preferred = appraisal?.storeId ?? (await defaultStoreId(context.tenant.id));
+    initial.storeId = stores.some((store) => store.id === preferred) ? preferred! : "";
+  }
   if (appraisal) {
     initial.brand = appraisal.brand;
     initial.model = appraisal.model;
@@ -60,7 +71,11 @@ export default async function NewVehiclePage({
             : "Ficha e fotos na mesma tela. Nada é publicado até você salvar."
         }
       />
-      <VehicleForm initial={initial} appraisalId={appraisal?.id} />
+      <VehicleForm
+        initial={initial}
+        appraisalId={appraisal?.id}
+        stores={stores.map((store) => ({ id: store.id, name: store.name }))}
+      />
     </>
   );
 }

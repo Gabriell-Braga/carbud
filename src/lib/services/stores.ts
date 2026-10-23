@@ -22,6 +22,13 @@ export async function getStore(tenantId: string, id: string): Promise<Store | nu
   return rows[0] ?? null;
 }
 
+/** Id vindo do formulário: unidade de outra revenda não pode ser gravada. */
+export async function assertStoreOfTenant(tenantId: string, id: string | null | undefined) {
+  if (!id) return;
+  const store = await getStore(tenantId, id);
+  if (!store || !store.active) throw badRequest("Unidade inválida.");
+}
+
 /** Slug único dentro da revenda; duas unidades podem ter nomes parecidos. */
 async function uniqueSlug(tenantId: string, name: string, ignoreId?: string): Promise<string> {
   const db = await getDb();
