@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  stores as storesTable,
   tenantBanners,
   tenantSites,
   tenants,
@@ -32,7 +33,38 @@ import {
   type ThemeTokens,
   type VehicleView,
 } from "@carbud/site-kit/contract";
+import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { isInspected, type Media360, type VehicleListItem } from "./vehicles";
+
+type AddressSource = {
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  addressDistrict?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressZip?: string | null;
+} | null;
+
+function toAddress(source: AddressSource): SiteData["contact"]["address"] {
+  const parts = [
+    [source?.addressStreet, source?.addressNumber].filter(Boolean).join(", "),
+    source?.addressComplement,
+    source?.addressDistrict,
+    [source?.addressCity, source?.addressState].filter(Boolean).join(" - "),
+    source?.addressZip,
+  ].filter(Boolean);
+  return {
+    street: source?.addressStreet ?? null,
+    number: source?.addressNumber ?? null,
+    complement: source?.addressComplement ?? null,
+    district: source?.addressDistrict ?? null,
+    city: source?.addressCity ?? null,
+    state: source?.addressState ?? null,
+    zip: source?.addressZip ?? null,
+    full: parts.length > 0 ? parts.join(" · ") : null,
+  };
+}
 
 /** Só os ids públicos de rastreamento — o que já vai para o HTML do site. */
 export type PublicTrackingIds = {
@@ -97,13 +129,35 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
   const manifest = findTemplateManifest(row.tenant.templateId);
   const theme: ThemeTokens = composeTheme(manifest?.defaultTheme, site?.theme);
 
-  const addressParts = [
-    [site?.addressStreet, site?.addressNumber].filter(Boolean).join(", "),
-    site?.addressComplement,
-    site?.addressDistrict,
-    [site?.addressCity, site?.addressState].filter(Boolean).join(" - "),
-    site?.addressZip,
-  ].filter(Boolean);
+  /*
+   * Com unidades cadastradas, o endereço do site é o delas.
+   *
+   * Antes a revenda preenchia o endereço duas vezes (no Site e em cada
+   * unidade) e o site só lia o primeiro — quem abria a segunda loja não a via
+   * no site. A unidade padrão vira o endereço principal, e as demais aparecem
+   * listadas no contato. Sem o recurso no plano, as unidades não existem para
+   * o site, nem as que sobraram de um plano anterior.
+   */
+  const storeRows = (await tenantHasFeature(row.tenant.id, "gestao_multiunidade"))
+    ? await db
+        .select()
+        .from(storesTable)
+        .where(and(eq(storesTable.tenantId, row.tenant.id), eq(storesTable.active, true)))
+        .orderBy(asc(storesTable.sortOrder), asc(storesTable.name))
+    : [];
+  const stores = storeRows.map((store) => ({
+    id: store.id,
+    name: store.name,
+    isDefault: store.isDefault,
+    phone: formatPhoneBR(store.phone),
+    whatsapp: formatPhoneBR(store.whatsapp),
+    whatsappDigits: store.whatsapp ? normalizeWhatsapp(store.whatsapp) : null,
+    email: store.email,
+    address: toAddress(store),
+  }));
+  const mainStore = stores.find((store) => store.isDefault) ?? stores[0];
+  const storeHasAddress = Boolean(mainStore?.address.full);
+  const address = mainStore && storeHasAddress ? mainStore.address : toAddress(site);
 
   return {
     tenantId: row.tenant.id,
@@ -128,6 +182,7 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
     faviconUrl: mediaUrl(site?.faviconKey),
     faviconDarkUrl: mediaUrl(site?.faviconDarkKey),
     theme,
+    stores,
     aboutTitle: site?.aboutTitle ?? null,
     aboutText: site?.aboutText ?? null,
     contact: {
@@ -139,24 +194,19 @@ async function loadSiteData(slug: string): Promise<CachedSite | null> {
        * um "(31) 3555-0199" no card seguinte faz a pagina parecer mal montada.
        * Formatar no servico vale para os dois apps e para todo template.
        */
-      phone: formatPhoneBR(site?.phone),
-      whatsapp: formatPhoneBR(site?.whatsapp),
-      whatsappDigits: site?.whatsapp ? normalizeWhatsapp(site.whatsapp) : null,
+      // o contato central do Site vence; a unidade padrão só cobre o vazio
+      phone: formatPhoneBR(site?.phone) ?? mainStore?.phone ?? null,
+      whatsapp: formatPhoneBR(site?.whatsapp) ?? mainStore?.whatsapp ?? null,
+      whatsappDigits: site?.whatsapp
+        ? normalizeWhatsapp(site.whatsapp)
+        : (mainStore?.whatsappDigits ?? null),
       whatsappForm: site?.whatsappForm ?? false,
       whatsappFormFields: site?.whatsappFormFields ?? DEFAULT_WHATSAPP_FORM_FIELDS,
-      email: site?.email ?? null,
-      address: {
-        street: site?.addressStreet ?? null,
-        number: site?.addressNumber ?? null,
-        complement: site?.addressComplement ?? null,
-        district: site?.addressDistrict ?? null,
-        city: site?.addressCity ?? null,
-        state: site?.addressState ?? null,
-        zip: site?.addressZip ?? null,
-        full: addressParts.length > 0 ? addressParts.join(" · ") : null,
-      },
-      // o filtro vale também para o que já estava salvo antes da validação
-      mapsUrl: safeHref(site?.mapsUrl),
+      email: site?.email ?? mainStore?.email ?? null,
+      address,
+      // o link manual é do endereço do Site: com o da unidade, apontaria
+      // para outro lugar. O filtro vale também para o que já estava salvo.
+      mapsUrl: storeHasAddress ? null : safeHref(site?.mapsUrl),
       businessHours: site?.businessHours ?? [],
       social: Object.fromEntries(
         Object.entries(site?.social ?? {}).map(([network, url]) => [network, safeHref(url) ?? undefined]),
@@ -389,5 +439,6 @@ export function toVehicleDetail(
         : null,
     spin: media360.spin.map((key) => mediaUrl(key) ?? ""),
     pano: mediaUrl(media360.pano),
+    storeId: vehicle.storeId,
   };
 }

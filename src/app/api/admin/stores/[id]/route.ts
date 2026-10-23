@@ -1,3 +1,4 @@
+import { invalidateTenantCache } from "@/lib/tenant/service";
 import { logAuditFor } from "@/lib/audit";
 import { parsePatch } from "@/lib/validation/patch";
 import { requireApiTenant } from "@/lib/auth/guards";
@@ -23,6 +24,8 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
     // só mexe no e-mail se ele veio; antes, qualquer PATCH sem e-mail o apagava
     ...("email" in parsed.data ? { email: parsed.data.email || null } : {}),
   });
+  // o site lê as unidades (endereço, lista no contato): não pode esperar o TTL
+  await invalidateTenantCache(context.tenant);
   await logAuditFor(context, { action: "store.update", entity: "store", entityId: id }, request);
   return jsonOk({ id });
 });
@@ -33,6 +36,8 @@ export const DELETE = withApi(async (request: Request, { params }: Params) => {
   const { id } = await params;
 
   await deleteStore(context.tenant.id, id);
+  // o site lê as unidades (endereço, lista no contato): não pode esperar o TTL
+  await invalidateTenantCache(context.tenant);
   await logAuditFor(context, { action: "store.delete", entity: "store", entityId: id }, request);
   return jsonOk({ deleted: true });
 });

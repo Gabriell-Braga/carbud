@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import type { ContactProps } from "../contract";
 import { summarizeHours } from "../shared/hours";
 import { mapsEmbedUrl } from "../../lib/maps";
+import { StoreCards } from "../shared/store-cards";
 import { SHELL, SectionHeading, Shell, WhatsappBand } from "./chrome";
 
 export function Contact({ site, links, contactForm }: ContactProps) {
@@ -189,6 +190,16 @@ export function Contact({ site, links, contactForm }: ContactProps) {
           </div>
         </div>
       </section>
+
+      {(site.stores?.length ?? 0) > 1 ? (
+        <section className={`${SHELL} pb-14`}>
+          <SectionHeading
+            title="Nossas unidades"
+            description="Endereço e contato de cada loja da rede."
+          />
+          <StoreCards site={site} />
+        </section>
+      ) : null}
 
       {/* ---------------------------------------------- como podemos ajudar */}
       <section className="border-y border-[var(--site-border)] bg-[var(--site-background)] py-14">

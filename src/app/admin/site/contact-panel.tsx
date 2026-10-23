@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox, FormField, Input } from "@/components/ui/field";
@@ -47,9 +49,12 @@ const DEFAULT_CLOSE = "18:00";
 export function ContactPanel({
   initial,
   readOnly,
+  addressFromStore,
 }: {
   initial: ContactValues;
   readOnly?: boolean;
+  /** Nome da unidade padrão quando é dela o endereço que o site mostra. */
+  addressFromStore?: string | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -190,6 +195,17 @@ export function ContactPanel({
           <CardTitle>Endereço</CardTitle>
         </CardHeader>
         <CardContent>
+          {addressFromStore ? (
+            <Alert tone="info" className="mb-4">
+              O site mostra o endereço das{" "}
+              <Link href="/admin/unidades" className="font-medium underline">
+                Unidades
+              </Link>
+              : a principal é a unidade padrão ({addressFromStore}) e as demais aparecem
+              listadas na página de contato. O endereço abaixo só vale se nenhuma unidade tiver
+              endereço.
+            </Alert>
+          ) : null}
           <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
             <FormField label="CEP" htmlFor="addressZip" hint="Preenche rua, bairro e cidade">
               <Input

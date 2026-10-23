@@ -5,7 +5,7 @@ import { PhotoGallery } from "../shared/gallery";
 import { summarizeHours } from "../shared/hours";
 import { StickyCta } from "../shared/sticky-cta";
 import { ViewItem } from "../shared/tracking";
-import { mapsEmbedUrl } from "../../lib/maps";
+import { mapsEmbedUrl, vehiclePlace, vehicleStore } from "../../lib/maps";
 import { SHELL, SectionHeading, Shell, WhatsappButton } from "./chrome";
 import { VehicleGrid } from "./vehicle-card";
 
@@ -48,7 +48,10 @@ export function VehicleDetail({
     `Olá! Tenho interesse no ${vehicle.title} ${vehicle.yearLabel} anunciado no site da ${site.name}.`,
   );
   const hours = summarizeHours(site.contact.businessHours);
-  const mapa = mapsEmbedUrl(site.contact);
+  // carro de rede mostra a loja onde está, não a matriz
+  const local = vehiclePlace(site, vehicle);
+  const unidade = vehicleStore(site, vehicle);
+  const mapa = mapsEmbedUrl(local);
 
   return (
     <Shell site={site} links={links} active="stock">
@@ -251,7 +254,7 @@ export function VehicleDetail({
       </section>
 
       {/* ------------------------------------------------------------ loja */}
-      {site.contact.address.full || hours.length > 0 ? (
+      {local.address.full || hours.length > 0 ? (
         <section className="border-y border-[var(--site-border)] bg-[var(--site-background)] py-14">
           <div className={SHELL}>
             <SectionHeading
@@ -288,16 +291,16 @@ export function VehicleDetail({
                   className="text-lg font-bold uppercase tracking-tight text-[var(--site-text)]"
                   style={{ fontFamily: "var(--site-font-heading)" }}
                 >
-                  {site.name}
+                  {unidade ? `${site.name} · ${unidade.name}` : site.name}
                 </p>
-                {site.contact.address.full ? (
+                {local.address.full ? (
                   <p className="mt-3 text-[13px] leading-relaxed text-[var(--site-muted)]">
-                    {site.contact.address.full}
+                    {local.address.full}
                   </p>
                 ) : null}
-                {site.contact.phone ? (
+                {(unidade?.phone ?? site.contact.phone) ? (
                   <p className="mt-3 text-sm font-medium text-[var(--site-text)]">
-                    {site.contact.phone}
+                    {unidade?.phone ?? site.contact.phone}
                   </p>
                 ) : null}
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Check, MapPin } from "lucide-react";
 import type { VehicleDetailProps, VehicleView } from "../contract";
-import { mapsEmbedUrl } from "../../lib/maps";
+import { mapsEmbedUrl, vehiclePlace, vehicleStore } from "../../lib/maps";
 import { PhotoGallery } from "../shared/gallery";
 import { headlineHours, summarizeHours } from "../shared/hours";
 import { Tabs } from "../shared/tabs";
@@ -44,8 +44,11 @@ export function VehicleDetail({ site, links, vehicle, related }: VehicleDetailPr
   );
   const hours = summarizeHours(site.contact.businessHours);
   const hoje = headlineHours(site.contact.businessHours);
-  const mapa = mapsEmbedUrl(site.contact);
-  const cidade = [site.contact.address.city, site.contact.address.state]
+  // carro de rede mostra a loja onde está, não a matriz
+  const local = vehiclePlace(site, vehicle);
+  const unidade = vehicleStore(site, vehicle);
+  const mapa = mapsEmbedUrl(local);
+  const cidade = [local.address.city, local.address.state]
     .filter(Boolean)
     .join(" / ");
 
@@ -338,12 +341,12 @@ export function VehicleDetail({ site, links, vehicle, related }: VehicleDetailPr
                 className="text-[17px] font-semibold"
                 style={{ fontFamily: "var(--site-font-heading)" }}
               >
-                {site.name}
+                {unidade ? `${site.name} · ${unidade.name}` : site.name}
                 {cidade ? ` · ${cidade}` : ""}
               </p>
-              {site.contact.address.full ? (
+              {local.address.full ? (
                 <p className="mt-2 text-[12px] text-[var(--site-muted)]">
-                  {site.contact.address.full}
+                  {local.address.full}
                 </p>
               ) : null}
               <p className="mt-1 text-[12px] text-[var(--site-muted)]">

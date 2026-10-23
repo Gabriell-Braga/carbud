@@ -88,6 +88,24 @@ export type SiteContact = {
   social: { instagram?: string; facebook?: string; youtube?: string; tiktok?: string };
 };
 
+/**
+ * Unidade física da revenda, como o site mostra.
+ *
+ * Revenda com várias lojas cadastra endereço e contato em cada unidade; o
+ * site lista todas no contato e a ficha do carro diz em qual delas ele está.
+ * O endereço principal do site (`contact.address`) já vem da unidade padrão.
+ */
+export type SiteStore = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  phone: string | null;
+  whatsapp: string | null;
+  whatsappDigits: string | null;
+  email: string | null;
+  address: SiteContact["address"];
+};
+
 export type SiteBanner = {
   id: string;
   imageUrl: string | null;
@@ -134,6 +152,8 @@ export type SiteData = {
   faviconDarkUrl: string | null;
   theme: ThemeTokens;
   contact: SiteContact;
+  /** Unidades ativas. Opcional: painel antigo não manda; vazio = loja única. */
+  stores?: SiteStore[];
   aboutTitle: string | null;
   aboutText: string | null;
   banners: SiteBanner[];
@@ -183,6 +203,8 @@ export type VehicleView = {
   description: string | null;
   coverUrl: string | null;
   photos: VehiclePhotoView[];
+  /** Só na ficha: unidade onde o carro está (ver `SiteData.stores`). */
+  storeId?: string | null;
   /** Só na ficha: laudo que vale selo (aprovado e com menos de um ano). */
   inspection?: VehicleInspectionView | null;
   /** Só na ficha: quadros do giro externo, na ordem; vazio sem giro. */

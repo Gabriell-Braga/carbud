@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ContactProps } from "../contract";
 import { mapsEmbedUrl } from "../../lib/maps";
+import { StoreCards } from "../shared/store-cards";
 import { summarizeHours } from "../shared/hours";
 import { SHELL, SectionHeading, Shell, TalkBand } from "./chrome";
 import { WhatsappIcon } from "../shared/whatsapp-icon";
@@ -165,6 +166,16 @@ export function Contact({ site, links, contactForm }: ContactProps) {
           </div>
         </div>
       </section>
+
+      {(site.stores?.length ?? 0) > 1 ? (
+        <section className={`${SHELL} pb-14`}>
+          <SectionHeading
+            title="Nossas unidades"
+            description="Endereço e contato de cada loja da rede."
+          />
+          <StoreCards site={site} />
+        </section>
+      ) : null}
 
       {/* ------------------------------------------------ como podemos ajudar */}
       <section className="bg-[var(--site-background)] py-14">

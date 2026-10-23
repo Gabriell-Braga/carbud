@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import type { VehicleDetailProps, VehicleView } from "../contract";
 import { formatCurrency } from "../../lib/format";
-import { mapsEmbedUrl } from "../../lib/maps";
+import { mapsEmbedUrl, vehiclePlace, vehicleStore } from "../../lib/maps";
 import { PhotoGallery } from "../shared/gallery";
 import { summarizeHours } from "../shared/hours";
 import { SHELL, SectionHeading, Shell, TalkBand } from "./chrome";
@@ -43,7 +43,10 @@ export function VehicleDetail({
     `Olá! Tenho interesse no ${vehicle.title} ${vehicle.yearLabel} anunciado no site da ${site.name}.`,
   );
   const hours = summarizeHours(site.contact.businessHours);
-  const mapa = mapsEmbedUrl(site.contact);
+  // carro de rede mostra a loja onde está, não a matriz
+  const local = vehiclePlace(site, vehicle);
+  const unidade = vehicleStore(site, vehicle);
+  const mapa = mapsEmbedUrl(local);
   const entrada = Math.round((vehicle.priceCents * site.financing.downPaymentPercent) / 100);
   const prazo = site.financing.terms.includes(48) ? 48 : (site.financing.terms[0] ?? 48);
 
@@ -329,12 +332,14 @@ export function VehicleDetail({
             atendimento.
           </p>
 
-          <p className="mt-5 text-[13px] font-medium uppercase tracking-[0.1em]">{site.name}</p>
-          {site.contact.address.full ? (
-            <p className="mt-2 text-[12px] text-[var(--site-muted)]">{site.contact.address.full}</p>
+          <p className="mt-5 text-[13px] font-medium uppercase tracking-[0.1em]">
+            {unidade ? `${site.name} · ${unidade.name}` : site.name}
+          </p>
+          {local.address.full ? (
+            <p className="mt-2 text-[12px] text-[var(--site-muted)]">{local.address.full}</p>
           ) : null}
-          {site.contact.phone ? (
-            <p className="mt-2 text-[13px]">{site.contact.phone}</p>
+          {(unidade?.phone ?? site.contact.phone) ? (
+            <p className="mt-2 text-[13px]">{unidade?.phone ?? site.contact.phone}</p>
           ) : null}
           <p className="mt-2 text-[12px] text-[var(--site-muted)]">
             {hours.map((line) => `${line.label}: ${line.value}`).join(" • ")}

@@ -1,4 +1,7 @@
-import type { SiteData } from "../templates/contract";
+import type { SiteContact, SiteData, SiteStore, VehicleView } from "../templates/contract";
+
+/** O que basta para achar a loja no mapa: o endereço e, se houver, o link manual. */
+type Place = Pick<SiteContact, "address"> & { mapsUrl?: string | null };
 
 /**
  * Mapa incorporado a partir do endereco da loja.
@@ -11,7 +14,7 @@ import type { SiteData } from "../templates/contract";
  * O endereco vai como busca, e nao como coordenada, porque coordenada e o que
  * a revenda NAO tem: ela digita rua, numero e cidade no cadastro.
  */
-export function mapsEmbedUrl(contact: SiteData["contact"]): string | null {
+export function mapsEmbedUrl(contact: Place): string | null {
   const busca = [
     contact.address.street,
     contact.address.number,
@@ -35,10 +38,22 @@ export function mapsEmbedUrl(contact: SiteData["contact"]): string | null {
  * que tem ficha propria no Google e quer levar para ela, com foto e avaliacao,
  * em vez de uma busca por endereco.
  */
-export function mapsLinkUrl(contact: SiteData["contact"]): string | null {
+export function mapsLinkUrl(contact: Place): string | null {
   if (contact.mapsUrl) return contact.mapsUrl;
 
   const embed = mapsEmbedUrl(contact);
   if (!embed) return null;
   return embed.replace("&output=embed", "");
+}
+
+/** Unidade do carro, ou null quando ele não tem uma (ou a revenda é loja única). */
+export function vehicleStore(site: SiteData, vehicle: VehicleView): SiteStore | null {
+  if (!vehicle.storeId) return null;
+  return site.stores?.find((store) => store.id === vehicle.storeId) ?? null;
+}
+
+/** Onde a ficha diz que o carro está: na unidade dele, senão na loja. */
+export function vehiclePlace(site: SiteData, vehicle: VehicleView): Place {
+  const store = vehicleStore(site, vehicle);
+  return store?.address.full ? { address: store.address } : site.contact;
 }

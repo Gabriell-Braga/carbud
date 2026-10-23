@@ -1,3 +1,4 @@
+import { invalidateTenantCache } from "@/lib/tenant/service";
 import { logAuditFor } from "@/lib/audit";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { requireFeature } from "@/lib/api/feature-guard";
@@ -24,6 +25,8 @@ export const POST = withApi(async (request: Request) => {
     email: parsed.data.email || null,
   });
 
+  // o site lê as unidades (endereço, lista no contato): não pode esperar o TTL
+  await invalidateTenantCache(context.tenant);
   await logAuditFor(
     context,
     { action: "store.create", entity: "store", entityId: id, metadata: { name: parsed.data.name } },

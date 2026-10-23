@@ -14,6 +14,7 @@ import { listDomains } from "@/lib/services/domains";
 import { hostingReady } from "@/lib/integrations/vercel";
 import { isVaultConfigured } from "@/lib/security/vault";
 import { getTemplate } from "@carbud/site-kit/registry";
+import { getSiteData } from "@/lib/services/site";
 import { ContactPanel } from "./contact-panel";
 import { ContentPanel } from "./content-panel";
 import { IdentityPanel } from "./identity-panel";
@@ -50,6 +51,11 @@ export default async function SitePage({
     .where(eq(tenantSites.tenantId, context.tenant.id))
     .limit(1);
   const site = siteRows[0];
+
+  // com unidades, o endereço que vai ao ar é o da padrão (ver loadSiteData)
+  const publicStores = tab === "contato" ? ((await getSiteData(context.tenant.slug))?.stores ?? []) : [];
+  const mainStore = publicStores.find((store) => store.isDefault) ?? publicStores[0];
+  const addressFromStore = mainStore?.address.full ? mainStore.name : null;
 
   const banners =
     tab === "conteudo"
@@ -104,6 +110,7 @@ export default async function SitePage({
       {tab === "contato" ? (
         <ContactPanel
           readOnly={readOnly}
+          addressFromStore={addressFromStore}
           initial={{
             phone: site?.phone ?? "",
             whatsapp: site?.whatsapp ?? "",
