@@ -9,7 +9,8 @@ import { Lightbox } from "./lightbox";
 /**
  * Galeria compartilhada entre templates.
  * A interação é a mesma; a aparência vem das classes que o template passa.
- * Clicar na foto abre em tela cheia, com zoom (`Lightbox`).
+ * O botão do canto abre a foto em tela cheia, com zoom (`Lightbox`); a foto
+ * em si não, para o clique não abrir sem querer.
  */
 export function PhotoGallery({
   photos,
@@ -109,11 +110,9 @@ export function PhotoGallery({
           type="button"
           aria-label="Ampliar foto"
           onClick={() => setOpen(index)}
-          className="absolute inset-0 cursor-zoom-in"
+          className="absolute right-2 top-2 rounded-full bg-black/50 p-2 text-white backdrop-blur transition-colors hover:bg-black/70"
         >
-          <span className="absolute right-2 top-2 rounded-full bg-black/50 p-2 text-white backdrop-blur">
-            <Expand className="h-4 w-4" />
-          </span>
+          <Expand className="h-4 w-4" />
         </button>
 
         {photos.length > 1 ? (
