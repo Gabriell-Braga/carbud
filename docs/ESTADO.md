@@ -368,6 +368,18 @@ assinatura. Se a assinatura falhar depois do promocional, os R$ 5 são
 estornados. Os dados do cartão só atravessam o Worker até o Asaas: não são
 gravados, logados nem auditados.
 
+Checkout público (`/contratar?plano=<slug>&ref=<código de afiliado>`): fim do
+funil da página de planos do Webflow. Cria revenda, usuário `revenda_admin`
+com a senha escolhida e assinatura no cartão num envio só
+(`/api/public/checkout`, 5 tentativas por IP/hora) e já deixa a sessão aberta.
+Recusa do gateway apaga a revenda criada, para a pessoa tentar de novo com o
+mesmo e-mail. O `?plano=` casa com o `slug` do plano; sem casar, abre no plano
+em destaque. Aceite dos Termos de Uso (`/termos`, versão em `TERMS_VERSION`,
+gravada na auditoria) é obrigatório, e o envio passa pelo Cloudflare Turnstile
+(`TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`; sem a secret a verificação é
+pulada). O texto dos Termos é um rascunho: **falta revisão jurídica**, com
+razão social, CNPJ e endereço da C4MP e o foro.
+
 Pendências: testar ponta a ponta no sandbox (sem chave local até agora); em
 produção, pedir ao gerente do Asaas a **tokenização** — sem ela a assinatura
 valida o cartão com os dados de novo (funciona), mas trocar valor ou vencimento

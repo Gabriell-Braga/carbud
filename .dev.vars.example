@@ -73,3 +73,9 @@ OPS_SECRET="troque-por-outro-segredo-longo"
 
 # Portal Carbud: "Entrar com Google". Mesmo Client ID do OAuth configurado no portal (Vercel).
 # GOOGLE_CLIENT_ID="....apps.googleusercontent.com"
+
+# --- Captcha do checkout publico (Cloudflare Turnstile) -------------------
+# Sem a secret a verificacao e pulada (ambiente local). Em producao, cadastre
+# as duas: a site key vai para a pagina, a secret fica so no servidor.
+# TURNSTILE_SITE_KEY="0x4AAAA..."
+# TURNSTILE_SECRET_KEY="0x4AAAA..."
