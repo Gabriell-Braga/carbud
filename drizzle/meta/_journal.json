@@ -204,6 +204,13 @@
       "when": 1792459211538,
       "tag": "0028_gateway_environment",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1792700000000,
+      "tag": "0029_plan_rede_to_scale",
+      "breakpoints": true
     }
   ]
 }

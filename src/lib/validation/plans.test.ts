@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { couponSchema, planSchema, platformSettingsSchema } from "./plans";
+import { couponSchema, planSchema, planUpdateSchema, platformSettingsSchema } from "./plans";
 
 const basePlan = {
   name: "Performance",
@@ -99,5 +99,16 @@ describe("platformSettingsSchema", () => {
       defaultGraceDays: 5,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("planUpdateSchema com plano antigo", () => {
+  it("aceita quantidade em funcionalidade que hoje é sim/não", () => {
+    const parsed = planUpdateSchema.parse({ features: { whatsapp_integrado: 3, api_webhooks: 0 } });
+    expect(parsed.features).toMatchObject({ whatsapp_integrado: true, api_webhooks: false });
+  });
+
+  it("continua recusando nível que não existe", () => {
+    expect(planUpdateSchema.safeParse({ features: { suporte: "vip" } }).success).toBe(false);
   });
 });

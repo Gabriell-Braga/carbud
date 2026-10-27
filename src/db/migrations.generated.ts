@@ -317,5 +317,11 @@ export const MIGRATIONS: BundledMigration[] = [
       "ALTER TABLE `subscriptions` ADD `gateway_environment` text;",
       "ALTER TABLE `affiliate_event_processing` ADD `environment` text;"
     ]
+  },
+  {
+    "tag": "0029_plan_rede_to_scale",
+    "statements": [
+      "-- O plano \"Rede\" passa a se chamar \"Scale\", como na página de planos do site,\n-- e o slug acompanha porque o botão de contratar do site chega com ?plano=scale.\n-- Revendas apontam para o id, então nada muda para quem já está no plano.\nUPDATE `plans` SET `name` = 'Scale', `slug` = 'scale', `updated_at` = CAST(strftime('%s', 'now') AS INTEGER) * 1000\nWHERE `slug` = 'rede' AND NOT EXISTS (SELECT 1 FROM `plans` WHERE `slug` = 'scale');"
+    ]
   }
 ];

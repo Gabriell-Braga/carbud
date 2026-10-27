@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
-import { apiPatch, apiPost, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
+import { apiPatch, apiPost, errorMessageFrom, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
 import { CurrencyInput } from "@/components/ui/number-field";
 import { centsToCurrencyInput, parseCurrencyToCents } from "@/lib/format/number-input";
 import {
@@ -141,7 +141,8 @@ export function PlanEditor({
 
     if (!result.ok) {
       setErrors(fieldErrorsFrom(result.details));
-      toast.error(isNew ? "Não foi possível criar" : "Não foi possível salvar", result.error);
+      // "Dados inválidos" sozinho não diz qual campo; vários nem têm onde aparecer
+      toast.error(isNew ? "Não foi possível criar" : "Não foi possível salvar", errorMessageFrom(result));
       return;
     }
 

@@ -76,8 +76,8 @@ export const SEED_PLANS: NewPlan[] = [
     },
   },
   {
-    name: "Rede",
-    slug: "rede",
+    name: "Scale",
+    slug: "scale",
     description: "Para grupo com mais de uma loja e time comercial estruturado.",
     priceCents: 99900,
     cycle: "MONTHLY",

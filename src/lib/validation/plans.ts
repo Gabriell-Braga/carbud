@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BILLING_MODES, DISCOUNT_TYPES, PLAN_CYCLES } from "@/db/schema";
-import { FEATURES, LIMITS, type PlanFeatures, type PlanLimits } from "@/lib/plans/catalog";
+import { FEATURES, LIMITS, isFeatureOn, type PlanFeatures, type PlanLimits } from "@/lib/plans/catalog";
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -25,7 +25,17 @@ const limitsSchema = z.object(
 const featuresSchema = z.object(
   Object.fromEntries(
     FEATURES.map((feature) => {
-      if (feature.kind === "boolean") return [feature.key, z.boolean().optional()];
+      if (feature.kind === "boolean") {
+        // plano antigo guarda quantidade em item que hoje é sim/não (ver
+        // isFeatureOn); o editor reenvia o valor como veio e o salvar era recusado
+        return [
+          feature.key,
+          z.preprocess(
+            (value) => (value === null ? undefined : typeof value === "number" ? isFeatureOn(value) : value),
+            z.boolean().optional(),
+          ),
+        ];
+      }
       if (feature.kind === "number") {
         return [feature.key, z.number().int().min(0).max(100_000).nullable().optional()];
       }
