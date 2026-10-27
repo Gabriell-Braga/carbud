@@ -11,7 +11,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "1. Quem somos e o que é este documento",
     body: [
-      `Estes Termos de Uso regulam a contratação e o uso do ${APP_NAME}, plataforma de gestão para revendas de veículos mantida pela C4MP ("nós"). Quem contrata em nome de uma revenda ("você" ou "Contratante") declara ter poderes para isso.`,
+      `Estes Termos de Uso regulam a contratação e o uso do ${APP_NAME}, plataforma de gestão para revendas de veículos mantida pela C4MP — CAMP 4 DIGITAL LTDA, CNPJ 48.924.180/0001-24, com sede em Belo Horizonte/MG ("nós"). Quem contrata em nome de uma revenda ("você" ou "Contratante") declara ter poderes para isso.`,
       "Ao marcar a opção de aceite na contratação, você concorda com estes Termos. Se não concordar, não contrate.",
     ],
   },
@@ -92,7 +92,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "13. Lei e foro",
     body: [
-      "Estes Termos seguem a lei brasileira. Fica eleito o foro da comarca da sede da C4MP para resolver eventuais conflitos, salvo disposição legal em contrário.",
+      "Estes Termos seguem a lei brasileira. Fica eleito o foro da comarca de Belo Horizonte/MG para resolver eventuais conflitos, salvo disposição legal em contrário.",
     ],
   },
 ];

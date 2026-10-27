@@ -377,8 +377,8 @@ mesmo e-mail. O `?plano=` casa com o `slug` do plano; sem casar, abre no plano
 em destaque. Aceite dos Termos de Uso (`/termos`, versão em `TERMS_VERSION`,
 gravada na auditoria) é obrigatório, e o envio passa pelo Cloudflare Turnstile
 (`TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`; sem a secret a verificação é
-pulada). O texto dos Termos é um rascunho: **falta revisão jurídica**, com
-razão social, CNPJ e endereço da C4MP e o foro.
+pulada). Contratada: CAMP 4 DIGITAL LTDA (C4MP), CNPJ 48.924.180/0001-24,
+foro de Belo Horizonte/MG. O texto ainda **precisa de revisão jurídica**.
 
 Pendências: testar ponta a ponta no sandbox (sem chave local até agora); em
 produção, pedir ao gerente do Asaas a **tokenização** — sem ela a assinatura
