@@ -170,7 +170,13 @@ export const POST = withApi(async (request: Request) => {
   });
   await setSessionCookie(token);
 
-  return jsonOk({ planName: result.planName, nextDueDate: result.nextDueDate, redirectTo: "/admin" });
+  return jsonOk({
+    planName: result.planName,
+    nextDueDate: result.nextDueDate,
+    redirectTo: "/admin",
+    // vira o transaction_id do purchase no GA4: o pagamento cobrado agora
+    transactionId: ("promoPaymentId" in result ? result.promoPaymentId : null) ?? tenantId,
+  });
 });
 
 /** Slug a partir do nome da revenda; homônimas ganham sufixo. */

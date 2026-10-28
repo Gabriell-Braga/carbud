@@ -9,6 +9,8 @@ import { plans } from "@/db/schema";
 import { PROMO_FIRST_PAYMENT_CENTS, promoNextDueDate } from "@/lib/gateway/references";
 import { FEATURES, isFeatureOn } from "@/lib/plans/catalog";
 import { turnstileSiteKey } from "@/lib/security/turnstile";
+import { MARKETING_GTM_ID } from "@/lib/brand";
+import { GoogleTagManager } from "@carbud/site-kit/shared/gtm";
 import { CheckoutForm } from "./checkout-form";
 
 export const metadata: Metadata = { title: "Contratar", robots: { index: false, follow: false } };
@@ -21,7 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ plano?: string; ref?: string }>;
+  searchParams: Promise<{ plano?: string; affiliate?: string; ref?: string }>;
 }) {
   const params = await searchParams;
   const db = await getDb();
@@ -49,6 +51,7 @@ export default async function CheckoutPage({
 
   return (
     <main className="min-h-screen bg-bg">
+      <GoogleTagManager containerId={MARKETING_GTM_ID} />
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           {/* a página de planos mora na mesma origem, fora do mount path do app */}
@@ -72,7 +75,7 @@ export default async function CheckoutPage({
           <CheckoutForm
             plans={choices}
             initialPlanId={initial.id}
-            affiliateCode={params.ref?.toUpperCase() ?? ""}
+            affiliateCode={(params.affiliate ?? params.ref ?? "").trim().toUpperCase()}
             promoCents={PROMO_FIRST_PAYMENT_CENTS}
             firstFullChargeAt={promoNextDueDate().toISOString()}
             captchaSiteKey={turnstileSiteKey()}

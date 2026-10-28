@@ -36,3 +36,10 @@ export const USER_AGENT = APP_NAME;
  */
 export const WEBHOOK_HEADER_EVENT = "x-carbud-event";
 export const WEBHOOK_HEADER_SIGNATURE = "x-carbud-signature";
+
+/**
+ * GTM do marketing (o mesmo container da página de planos no Webflow). Só o
+ * checkout público carrega: é onde o funil de contratação termina, com os
+ * eventos de e-commerce do GA4 no dataLayer.
+ */
+export const MARKETING_GTM_ID = "GTM-NTSXCK4Z";

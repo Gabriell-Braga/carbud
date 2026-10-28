@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
@@ -16,6 +16,7 @@ import { maskCep, maskCnpj, maskCpf, maskPhone } from "@carbud/site-kit/masks";
 
 type PlanChoice = {
   id: string;
+  slug: string;
   name: string;
   description: string | null;
   priceCents: number;
@@ -33,7 +34,7 @@ const maskDocument = (value: string) =>
 export function CheckoutForm({
   plans,
   initialPlanId,
-  affiliateCode,
+  affiliateCode: initialAffiliateCode,
   promoCents,
   firstFullChargeAt,
   captchaSiteKey,
@@ -70,9 +71,22 @@ export function CheckoutForm({
       "expired-callback": () => setCaptchaToken(""),
     });
   }, [captchaSiteKey]);
+  const [affiliateCode, setAffiliateCode] = useState(initialAffiliateCode);
   const [done, setDone] = useState<{ planName: string; nextDueDate: string; redirectTo: string } | null>(null);
+  const paymentTracked = useRef(false);
 
   const plan = plans.find((item) => item.id === planId)!;
+
+  // o funil abre com o plano que veio da página de planos; trocar de plano reabre
+  useEffect(() => {
+    pushEcommerce("begin_checkout", plan, promoCents);
+  }, [plan, promoCents]);
+
+  function trackPaymentInfo() {
+    if (paymentTracked.current) return;
+    paymentTracked.current = true;
+    pushEcommerce("add_payment_info", plan, promoCents, { payment_type: "credit_card" });
+  }
   const firstFullCharge = formatDate(new Date(firstFullChargeAt));
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -82,7 +96,12 @@ export function CheckoutForm({
     setErrors({});
     setFailure(null);
 
-    const result = await apiPost<{ planName: string; nextDueDate: string; redirectTo: string }>(
+    const result = await apiPost<{
+      planName: string;
+      nextDueDate: string;
+      redirectTo: string;
+      transactionId: string;
+    }>(
       "/api/public/checkout",
       {
         planId,
@@ -103,7 +122,7 @@ export function CheckoutForm({
           addressNumber: billing.addressNumber,
           phone: account.phone,
         },
-        affiliateCode: affiliateCode || undefined,
+        affiliateCode: affiliateCode.trim() || undefined,
         acceptedTerms,
         captchaToken: captchaToken || undefined,
       },
@@ -123,6 +142,10 @@ export function CheckoutForm({
     }
 
     setCard({ holderName: "", number: "", expiry: "", ccv: "" });
+    pushEcommerce("purchase", plan, promoCents, {
+      transaction_id: result.data.transactionId,
+      affiliation: affiliateCode.trim() || undefined,
+    });
     setDone(result.data);
     window.scrollTo({ top: 0 });
   }
@@ -254,6 +277,7 @@ export function CheckoutForm({
                   id={`${id}-cc-number`}
                   autoComplete="cc-number"
                   inputMode="numeric"
+                  onFocus={trackPaymentInfo}
                   placeholder="0000 0000 0000 0000"
                   value={card.number}
                   onChange={(event) =>
@@ -340,6 +364,22 @@ export function CheckoutForm({
               </div>
             ) : null}
           </Step>
+
+          <div className="grid grid-cols-1 gap-x-4 px-1 sm:grid-cols-2">
+            <FormField
+              label="Código de quem indicou (opcional)"
+              htmlFor={`${id}-affiliate`}
+              hint="Não dá desconto."
+              error={errors.affiliateCode}
+              className="mb-0"
+            >
+              <Input
+                id={`${id}-affiliate`}
+                value={affiliateCode}
+                onChange={(event) => setAffiliateCode(event.target.value.toUpperCase())}
+              />
+            </FormField>
+          </div>
         </div>
 
         <div className="mt-5 space-y-4 px-1">
@@ -515,8 +555,40 @@ function Step({
   );
 }
 
+/**
+ * Evento de e-commerce padrão do GA4 no dataLayer, para o GTM da página.
+ * O valor é o que se cobra hoje (o primeiro mês promocional); a mensalidade
+ * cheia vai junto para quem quiser medir receita recorrente.
+ */
+function pushEcommerce(event: string, plan: PlanChoice, promoCents: number, extra: Record<string, unknown> = {}) {
+  const value = promoCents / 100;
+  window.dataLayer = window.dataLayer || [];
+  // o GA4 pede zerar o ecommerce anterior para um evento não herdar itens do outro
+  window.dataLayer.push({ ecommerce: null });
+  window.dataLayer.push({
+    event,
+    plan_monthly_value: plan.priceCents / 100,
+    ecommerce: {
+      currency: "BRL",
+      value,
+      ...extra,
+      items: [
+        {
+          item_id: plan.slug,
+          item_name: plan.name,
+          item_category: "Plano",
+          item_variant: "Primeiro mês promocional",
+          price: value,
+          quantity: 1,
+        },
+      ],
+    },
+  });
+}
+
 declare global {
   interface Window {
+    dataLayer?: unknown[];
     turnstile?: {
       render: (
         element: HTMLElement,
