@@ -59,13 +59,18 @@ export function CheckoutForm({
   const [failure, setFailure] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
-  const captchaRef = useRef<HTMLDivElement>(null);
+  // o bloco de confirmação aparece em dois lugares (celular e desktop), mas o widget é um só:
+  // vai para o espaço que estiver visível quando o script carregar
+  // ponytail: quem cruza o breakpoint depois de carregar fica sem captcha até recarregar
+  const captchaSlots = useRef<(HTMLDivElement | null)[]>([]);
   const captchaWidget = useRef<string | null>(null);
 
   const renderCaptcha = useCallback(() => {
-    if (!captchaSiteKey || !captchaRef.current || !window.turnstile || captchaWidget.current) return;
-    captchaWidget.current = window.turnstile.render(captchaRef.current, {
+    const slot = captchaSlots.current.find((el) => el?.offsetParent);
+    if (!captchaSiteKey || !slot || !window.turnstile || captchaWidget.current) return;
+    captchaWidget.current = window.turnstile.render(slot, {
       sitekey: captchaSiteKey,
+      size: "flexible",
       language: "pt-br",
       callback: setCaptchaToken,
       "expired-callback": () => setCaptchaToken(""),
@@ -173,11 +178,43 @@ export function CheckoutForm({
     );
   }
 
-  const submit = (
-    <Button type="submit" size="lg" loading={saving} className="w-full">
-      <Lock className="h-4 w-4" aria-hidden="true" />
-      Pagar {formatCurrency(promoCents)} e começar
-    </Button>
+  const confirm = (slot: number) => (
+    <>
+      <div>
+        <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-muted">
+          <Checkbox
+            className="mt-0.5"
+            checked={acceptedTerms}
+            onChange={(event) => setAcceptedTerms(event.target.checked)}
+            aria-invalid={Boolean(errors.acceptedTerms) || undefined}
+          />
+          <span>
+            Li e aceito os{" "}
+            <Link href="/termos" target="_blank" className="text-accent-text underline">
+              Termos de Uso
+            </Link>
+            , inclusive a cobrança mensal recorrente no cartão até o cancelamento.
+          </span>
+        </label>
+        {errors.acceptedTerms ? (
+          <p className="mt-1.5 text-xs text-danger" role="alert">
+            {errors.acceptedTerms}
+          </p>
+        ) : null}
+      </div>
+      {captchaSiteKey ? (
+        <div
+          ref={(el) => {
+            captchaSlots.current[slot] = el;
+          }}
+        />
+      ) : null}
+      {failure ? <Alert tone="danger">{failure}</Alert> : null}
+      <Button type="submit" size="lg" loading={saving} className="w-full">
+        <Lock className="h-4 w-4" aria-hidden="true" />
+        Pagar {formatCurrency(promoCents)} e começar
+      </Button>
+    </>
   );
 
   return (
@@ -382,44 +419,14 @@ export function CheckoutForm({
           </div>
         </div>
 
-        <div className="mt-5 space-y-4 px-1">
-          <div>
-            <label className="flex cursor-pointer items-start gap-2.5 text-[13px] text-muted">
-              <Checkbox
-                className="mt-0.5"
-                checked={acceptedTerms}
-                onChange={(event) => setAcceptedTerms(event.target.checked)}
-                aria-invalid={Boolean(errors.acceptedTerms) || undefined}
-              />
-              <span>
-                Li e aceito os{" "}
-                <Link href="/termos" target="_blank" className="text-accent-text underline">
-                  Termos de Uso
-                </Link>
-                , inclusive a cobrança mensal recorrente no cartão até o cancelamento.
-              </span>
-            </label>
-            {errors.acceptedTerms ? (
-              <p className="mt-1.5 text-xs text-danger" role="alert">
-                {errors.acceptedTerms}
-              </p>
-            ) : null}
-          </div>
-          {captchaSiteKey ? (
-            <>
-              <Script
-                src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-                onReady={renderCaptcha}
-              />
-              <div ref={captchaRef} />
-            </>
-          ) : null}
-        </div>
+        {captchaSiteKey ? (
+          <Script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+            onReady={renderCaptcha}
+          />
+        ) : null}
 
-        <div className="mt-6 space-y-4 lg:hidden">
-          {failure ? <Alert tone="danger">{failure}</Alert> : null}
-          {submit}
-        </div>
+        <div className="mt-6 space-y-4 px-1 lg:hidden">{confirm(0)}</div>
       </div>
 
       {/* resumo do pedido: no celular vem antes do formulário, que é o que se está comprando */}
@@ -502,10 +509,7 @@ export function CheckoutForm({
             </div>
           </div>
 
-          <div className="hidden space-y-4 lg:block">
-            {failure ? <Alert tone="danger">{failure}</Alert> : null}
-            {submit}
-          </div>
+          <div className="hidden space-y-4 lg:block">{confirm(1)}</div>
 
           <ul className="space-y-2 px-1 text-xs text-muted">
             <li className="flex items-center gap-2">
@@ -594,6 +598,7 @@ declare global {
         element: HTMLElement,
         options: {
           sitekey: string;
+          size?: "normal" | "flexible" | "compact";
           language?: string;
           callback: (token: string) => void;
           "expired-callback"?: () => void;
