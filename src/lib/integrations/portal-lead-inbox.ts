@@ -38,6 +38,11 @@ export type IncomingPortalLead = {
   /** Id do anúncio no portal, para achar o carro no nosso estoque. */
   adExternalId: string | null;
   /**
+   * OLX: id do anúncio NA OLX (`list_id`). Casa quando o `adId` não veio ou
+   * não bate, porque guardamos o `list_id` depois da moderação.
+   */
+  adListId?: string | null;
+  /**
    * Placa do carro do anúncio, sem traço. Serve quando o anúncio não saiu
    * da nossa fila de publicação (o Webmotors), e o id dele não casa com nada.
    */
@@ -270,7 +275,9 @@ function normalizeOlxLead(raw: RawBody): NormalizeResult {
   }
 
   const adId = text("adId");
-  const listId = text("listId");
+  // a URL da OLX termina no list_id (".../vi/123" ou "...-123")
+  const linkAd = text("linkAd");
+  const listId = text("listId") ?? linkAd?.match(/(\d{6,})\/?(?:[?#].*)?$/)?.[1] ?? null;
   const leadId = text("externalId");
   const source = text("source");
   const message = [source ? (OLX_SOURCES[source] ?? source) : null, text("message")]
@@ -290,7 +297,8 @@ function normalizeOlxLead(raw: RawBody): NormalizeResult {
       message: message || null,
       messageId: leadId ?? text("createdAt"),
       adExternalId: adId,
-      url: text("linkAd"),
+      adListId: listId,
+      url: linkAd,
     },
   };
 }

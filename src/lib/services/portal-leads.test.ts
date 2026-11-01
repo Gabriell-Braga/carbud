@@ -93,9 +93,19 @@ describe("normalizeInboundLead", () => {
         message: "WhatsApp: Olá, gostaria de saber mais",
         messageId: "123jdanjkdna-danjndaada",
         adExternalId: "a1234",
+        adListId: "12345689",
         url: "https://www.olx.com.br/vi/12345689",
       },
     });
+  });
+
+  it("tira o list_id da URL do anuncio quando a OLX nao manda listId", () => {
+    const result = normalizeInboundLead("olx", {
+      linkAd: "https://sp.olx.com.br/autos-e-pecas/carros/vw-up-take-1-0-1398765432",
+      phone: "11999998888",
+    });
+    expect(result.ok && result.lead.adListId).toBe("1398765432");
+    expect(result.ok && result.lead.adExternalId).toBeNull();
   });
 
   it("le o formato em ingles e o lead embrulhado, que e como varios integradores mandam", () => {

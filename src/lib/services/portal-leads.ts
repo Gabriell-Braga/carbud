@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, like, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   leadEvents,
@@ -117,7 +117,14 @@ export async function registerPortalLead(
   const db = await getDb();
   const portalName = getPortal(incoming.portal)?.name ?? incoming.portal;
 
-  const match = incoming.adExternalId
+  /*
+   * O anúncio é achado pelo id que mandamos (`adExternalId`) ou, na OLX, pelo
+   * `list_id` dela, guardado depois da moderação. Os dois porque a OLX manda
+   * `adId` vazio ou diferente quando o anúncio foi editado no site dela ou
+   * veio de outro integrador, e só o `listId` continua batendo.
+   */
+  const adIds = [incoming.adExternalId, incoming.adListId].filter((id): id is string => Boolean(id));
+  const byAd = adIds.length
     ? await db
         .select({
           vehicleId: vehiclePublications.vehicleId,
@@ -128,11 +135,38 @@ export async function registerPortalLead(
           and(
             eq(vehiclePublications.tenantId, tenantId),
             eq(vehiclePublications.portal, incoming.portal),
-            eq(vehiclePublications.externalId, incoming.adExternalId),
+            or(
+              ...(incoming.adExternalId
+                ? [sql`lower(${vehiclePublications.externalId}) = ${incoming.adExternalId.toLowerCase()}`]
+                : []),
+              ...(incoming.adListId
+                ? [
+                    sql`json_extract(${vehiclePublications.meta}, '$.listId') = ${incoming.adListId}`,
+                    like(vehiclePublications.externalUrl, `%${incoming.adListId}`),
+                  ]
+                : []),
+            ),
           ),
         )
         .limit(1)
     : [];
+  // OLX: o id que mandamos são os 19 primeiros hex do uuid do carro, então
+  // dá para achar o carro mesmo se a linha da publicação sumiu ou foi refeita
+  const olxId = incoming.portal === "olx" ? incoming.adExternalId?.toLowerCase() : null;
+  const byOlxId =
+    !byAd[0] && olxId && /^[0-9a-f]{19}$/.test(olxId)
+      ? await db
+          .select({ vehicleId: vehicles.id, externalUrl: sql<string | null>`null` })
+          .from(vehicles)
+          .where(
+            and(
+              eq(vehicles.tenantId, tenantId),
+              sql`substr(replace(${vehicles.id}, '-', ''), 1, 19) = ${olxId}`,
+            ),
+          )
+          .limit(1)
+      : [];
+  const match = byAd[0] ? byAd : byOlxId;
 
   if (strict && !match[0]) return "ignored";
 
