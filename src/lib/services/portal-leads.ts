@@ -190,6 +190,9 @@ export async function relinkPortalLeads(tenantId?: string) {
     .limit(2000);
 
   let linked = 0;
+  let withoutAd = 0;
+  // anúncios sem carro achado: a loja precisa ver quais são
+  const unmatched = new Set<string>();
   for (const row of rows) {
     const portal = row.utm?.source ?? row.externalId?.split(":")[0];
     if (!portal) continue;
@@ -198,17 +201,23 @@ export async function relinkPortalLeads(tenantId?: string) {
     // externalId sem protocolo da OLX: "olx:<adId>:<telefone>"
     const parts = row.externalId?.split(":") ?? [];
     const adExternalId = parts.length === 3 && parts[1] !== "lead" && parts[1] !== "sem-anuncio" ? parts[1] : null;
-    if (!adListId && !adExternalId) continue;
+    if (!adListId && !adExternalId) {
+      withoutAd += 1;
+      continue;
+    }
 
     const { vehicle } = await findAdVehicle(row.tenantId, { portal, adExternalId, adListId, plate: null });
-    if (!vehicle) continue;
+    if (!vehicle) {
+      unmatched.add(`${portal}:${adListId ?? adExternalId}`);
+      continue;
+    }
     await db
       .update(leads)
       .set({ vehicleId: vehicle.id, vehicleLabel: vehicleLabelOf(vehicle) })
       .where(eq(leads.id, row.id));
     linked += 1;
   }
-  return { checked: rows.length, linked };
+  return { checked: rows.length, linked, withoutAd, unmatched: [...unmatched] };
 }
 
 const vehicleLabelOf = (vehicle: { brand: string; model: string; version: string | null; yearModel: number }) =>
