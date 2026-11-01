@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion } from "@/components/ui/accordion";
 import { useConfirm } from "@/components/ui/confirm";
 import { FormField, Input, Select, Textarea } from "@/components/ui/field";
 import { CurrencyInput } from "@/components/ui/number-field";
@@ -127,14 +127,15 @@ export function FinanceCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Financeiro do veículo</CardTitle>
-        <CardDescription>
+    <Accordion
+      title="Financeiro do veículo"
+      defaultOpen={false}
+      summary={margin.profitCents == null ? `Custo ${formatCurrency(margin.costCents)}` : `Lucro ${formatCurrency(margin.profitCents)}`}
+    >
+        <p className="mb-4 text-sm text-muted">
           Compra, custos e venda. Só a loja vê; nada disso vai para o site ou para os portais.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
+        </p>
+      <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Summary label="Custo total" value={formatCurrency(margin.costCents)} hint={`compra + ${expenses.length} custo(s)`} />
           <Summary
@@ -344,8 +345,8 @@ export function FinanceCard({
             </form>
           )}
         </section>
-      </CardContent>
-    </Card>
+      </div>
+    </Accordion>
   );
 }
 

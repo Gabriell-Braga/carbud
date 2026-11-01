@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Accordion } from "@/components/ui/accordion";
@@ -54,6 +54,7 @@ export function VehicleForm({
   photos = [],
   appraisalId,
   stores = [],
+  children,
 }: {
   initial: VehicleFormValues;
   readOnly?: boolean;
@@ -62,7 +63,14 @@ export function VehicleForm({
   appraisalId?: string;
   /** Unidades ativas; vazio esconde o campo (revenda de uma loja só). */
   stores?: { id: string; name: string }[];
+  /**
+   * Blocos da ficha que salvam sozinhos (financeiro, vistoria, 360°). Ficam
+   * entre os campos e a barra de salvar, fora do <form>: cada um tem o seu
+   * formulário, e formulário dentro de formulário não existe em HTML.
+   */
+  children?: React.ReactNode;
 }) {
+  const formId = useId();
   const router = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
@@ -364,7 +372,8 @@ export function VehicleForm({
     values.color && !COLORS.includes(values.color) ? [values.color, ...COLORS] : COLORS;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
+    <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Accordion title="Identificação" summary="Marca, modelo e ano">
         {/* uma vez, no topo: repetir em cada campo viraria três avisos iguais */}
         {fipe.failure && !readOnly ? (
@@ -770,6 +779,9 @@ export function VehicleForm({
         resolveVehicleId={isEditing ? undefined : ensureDraft}
         onPhotosChange={setPhotoCount}
       />
+    </form>
+
+      {children}
 
       {/*
         Barra fixa no rodapé: o formulário é longo, e o botão de salvar no fim
@@ -802,12 +814,12 @@ export function VehicleForm({
                 não perdê-las.
               </p>
             ) : null}
-            <Button type="submit" loading={saving}>
+            <Button type="submit" form={formId} loading={saving}>
               {isEditing ? "Salvar alterações" : "Cadastrar veículo"}
             </Button>
           </div>
         </div>
       ) : null}
-    </form>
+    </div>
   );
 }

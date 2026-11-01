@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileText, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion } from "@/components/ui/accordion";
 import { useConfirm } from "@/components/ui/confirm";
 import { FormField, Input, Select } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
@@ -81,15 +81,15 @@ export function InspectionCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Vistoria</CardTitle>
-        <CardDescription>
+    <Accordion
+      title="Vistoria"
+      defaultOpen={false}
+      summary={initial ? (initial.valid ? "Vistoriado" : "Laudo vencido ou reprovado") : "Sem laudo"}
+    >
+        <p className="mb-4 text-sm text-muted">
           Com o laudo em PDF anexado, aprovado e com menos de um ano, o carro ganha o selo
           &quot;Vistoriado&quot; no site e no Portal Carbud, com link para o laudo.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
         {initial ? (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded border border-border p-3 text-[13px]">
             <FileText className="h-4 w-4 text-muted" />
@@ -140,8 +140,7 @@ export function InspectionCard({
             </div>
           </form>
         ) : null}
-      </CardContent>
-    </Card>
+    </Accordion>
   );
 }
 
@@ -206,17 +205,17 @@ export function Media360Card({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Visão 360°</CardTitle>
-        <CardDescription>
+    <Accordion
+      title="Visão 360°"
+      defaultOpen={false}
+      summary={initial.spin.length || initial.pano ? "Com 360°" : "Sem 360°"}
+    >
+        <p className="mb-4 text-sm text-muted">
           Giro externo: de {SPIN_MIN_FRAMES} a {SPIN_MAX_FRAMES} fotos tiradas em volta do carro, na
           mesma altura e distância, numeradas na ordem. Interior: uma foto panorâmica 360° (formato
           2:1, a que o celular gera no modo panorama 360). Qualquer um dos dois dá o selo
           &quot;360°&quot; no site e no portal.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded border border-border p-3">
             <p className="mb-2 text-[13px] font-medium">Giro externo</p>
@@ -285,7 +284,6 @@ export function Media360Card({
           </div>
         </div>
         {busy ? <p className="mt-3 text-xs text-muted">{busy}</p> : null}
-      </CardContent>
-    </Card>
+    </Accordion>
   );
 }

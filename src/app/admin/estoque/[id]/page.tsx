@@ -133,66 +133,67 @@ export default async function EditVehiclePage({ params }: Props) {
             fipePriceCents: vehicle.fipePriceCents,
             fipeReference: vehicle.fipeReference,
           }}
-        />
+        >
 
-        {financeData ? (
-          <FinanceCard
+          {financeData ? (
+            <FinanceCard
+              vehicleId={vehicle.id}
+              readOnly={!financeWrite || context.access !== "full"}
+              adPriceCents={vehicle.priceCents}
+              initial={{
+                purchasePriceCents: fin?.purchasePriceCents ?? 0,
+                purchaseDate: fin?.purchaseDate ?? "",
+                purchaseSource: fin?.purchaseSource ?? "",
+                salePriceCents: fin?.salePriceCents ?? 0,
+                saleDate: fin?.saleDate ?? "",
+                buyerName: fin?.buyerName ?? "",
+                buyerDocument: fin?.buyerDocument ?? "",
+                buyerPhone: fin?.buyerPhone ?? "",
+                bankReturnCents: fin?.bankReturnCents ?? 0,
+                notes: fin?.notes ?? "",
+              }}
+              expenses={financeData.expenses.map((item) => ({
+                id: item.id,
+                category: item.category,
+                description: item.description,
+                amountCents: item.amountCents,
+                date: item.date,
+              }))}
+            />
+          ) : null}
+
+          <InspectionCard
             vehicleId={vehicle.id}
-            readOnly={!financeWrite || context.access !== "full"}
-            adPriceCents={vehicle.priceCents}
+            readOnly={!canWrite}
+            initial={
+              vehicle.inspectionReportKey && vehicle.inspectionResult && vehicle.inspectionDate
+                ? {
+                    provider: vehicle.inspectionProvider ?? "",
+                    date: vehicle.inspectionDate,
+                    result: vehicle.inspectionResult,
+                    reportUrl: mediaUrl(vehicle.inspectionReportKey) ?? "",
+                    valid: isInspected(vehicle),
+                  }
+                : null
+            }
+          />
+
+          <Media360Card
+            vehicleId={vehicle.id}
+            readOnly={!canWrite}
             initial={{
-              purchasePriceCents: fin?.purchasePriceCents ?? 0,
-              purchaseDate: fin?.purchaseDate ?? "",
-              purchaseSource: fin?.purchaseSource ?? "",
-              salePriceCents: fin?.salePriceCents ?? 0,
-              saleDate: fin?.saleDate ?? "",
-              buyerName: fin?.buyerName ?? "",
-              buyerDocument: fin?.buyerDocument ?? "",
-              buyerPhone: fin?.buyerPhone ?? "",
-              bankReturnCents: fin?.bankReturnCents ?? 0,
-              notes: fin?.notes ?? "",
+              spin: media360.spin.map((key) => mediaUrl(key) ?? ""),
+              pano: mediaUrl(media360.pano),
             }}
-            expenses={financeData.expenses.map((item) => ({
-              id: item.id,
-              category: item.category,
-              description: item.description,
-              amountCents: item.amountCents,
-              date: item.date,
-            }))}
           />
-        ) : null}
 
-        <InspectionCard
-          vehicleId={vehicle.id}
-          readOnly={!canWrite}
-          initial={
-            vehicle.inspectionReportKey && vehicle.inspectionResult && vehicle.inspectionDate
-              ? {
-                  provider: vehicle.inspectionProvider ?? "",
-                  date: vehicle.inspectionDate,
-                  result: vehicle.inspectionResult,
-                  reportUrl: mediaUrl(vehicle.inspectionReportKey) ?? "",
-                  valid: isInspected(vehicle),
-                }
-              : null
-          }
-        />
-
-        <Media360Card
-          vehicleId={vehicle.id}
-          readOnly={!canWrite}
-          initial={{
-            spin: media360.spin.map((key) => mediaUrl(key) ?? ""),
-            pano: mediaUrl(media360.pano),
-          }}
-        />
-
-        {canWrite ? (
-          <DeleteVehicleButton
-            vehicleId={vehicle.id}
-            label={`${vehicle.brand} ${vehicle.model}`}
-          />
-        ) : null}
+          {canWrite ? (
+            <DeleteVehicleButton
+              vehicleId={vehicle.id}
+              label={`${vehicle.brand} ${vehicle.model}`}
+            />
+          ) : null}
+        </VehicleForm>
       </div>
     </>
   );

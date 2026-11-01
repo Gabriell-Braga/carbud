@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion } from "@/components/ui/accordion";
 import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/ui/toast";
 import { apiDelete } from "@/lib/client/api";
@@ -37,19 +37,14 @@ export function DeleteVehicleButton({ vehicleId, label }: { vehicleId: string; l
   }
 
   return (
-    <Card className="border-danger/40">
-      <CardHeader className="border-danger/25">
-        <CardTitle className="text-danger">Excluir anúncio</CardTitle>
-        <CardDescription>
+    <Accordion title="Excluir anúncio" defaultOpen={false} className="border-danger/40">
+        <p className="mb-4 text-sm text-muted">
           Remove o veículo e todas as fotos definitivamente. Para tirar do site sem perder o
           histórico, mude a situação para &quot;Vendido&quot;.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+        </p>
         <Button type="button" variant="danger" loading={deleting} onClick={handleDelete}>
           Excluir veículo
         </Button>
-      </CardContent>
-    </Card>
+    </Accordion>
   );
 }
