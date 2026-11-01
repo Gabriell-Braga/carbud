@@ -244,9 +244,9 @@ export function normalizeInboundLead(portal: string, body: unknown): NormalizeRe
   };
 }
 
-/** A URL do anúncio na OLX termina no `list_id` (".../vi/123" ou "...-123"). */
+/** A URL do anúncio na OLX termina no `list_id` (".../vi/123", ".../vi/123.htm" ou "...-123"). */
 export function olxListIdFromUrl(url: string | null | undefined): string | null {
-  return url?.match(/(\d{6,})\/?(?:[?#].*)?$/)?.[1] ?? null;
+  return url?.match(/(\d{6,})(?:\.html?)?\/?(?:[?#].*)?$/)?.[1] ?? null;
 }
 
 const OLX_SOURCES: Record<string, string> = {

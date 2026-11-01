@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeInboundLead } from "@/lib/integrations/portal-lead-inbox";
+import { normalizeInboundLead, olxListIdFromUrl } from "@/lib/integrations/portal-lead-inbox";
 import { mercadoLivreLeadKey, questionResource } from "./portal-leads";
 
 describe("questionResource", () => {
@@ -106,6 +106,7 @@ describe("normalizeInboundLead", () => {
     });
     expect(result.ok && result.lead.adListId).toBe("1398765432");
     expect(result.ok && result.lead.adExternalId).toBeNull();
+    expect(olxListIdFromUrl("https://www.olx.com.br/vi/1546706609.htm")).toBe("1546706609");
   });
 
   it("le o formato em ingles e o lead embrulhado, que e como varios integradores mandam", () => {

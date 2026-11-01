@@ -112,7 +112,8 @@ async function findAdVehicle(tenantId: string, incoming: AdRef) {
               ...(incoming.adListId
                 ? [
                     sql`json_extract(${vehiclePublications.meta}, '$.listId') = ${incoming.adListId}`,
-                    like(vehiclePublications.externalUrl, `%${incoming.adListId}`),
+                    // a URL guardada pode terminar em ".htm": o id vem no meio
+                    like(vehiclePublications.externalUrl, `%${incoming.adListId}%`),
                   ]
                 : []),
             ),
