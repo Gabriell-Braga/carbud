@@ -280,9 +280,10 @@ async function main() {
                 salePriceCents: money(venda.valorVendaVeiculo),
                 saleDate: day(venda.dataVenda),
                 bankReturnCents: money(venda.valorRetornoBancario),
-                buyerName: venda.cliente?.nome?.trim() || null,
-                buyerDocument: venda.cliente?.cpfCnpj?.trim() || null,
-                buyerPhone: venda.cliente?.telefone?.trim() || null,
+                buyerName: String(venda.cliente?.nome ?? "").trim().slice(0, 120) || null,
+                buyerDocument: String(venda.cliente?.cpfCnpj ?? "").trim().slice(0, 20) || null,
+                // a Dri-Car guarda telefone às vezes como número
+                buyerPhone: String(venda.cliente?.telefone ?? "").trim().slice(0, 30) || null,
               }
             : {}),
         };
