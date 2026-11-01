@@ -17,6 +17,7 @@ import { apiPatch, apiPost } from "@/lib/client/api";
 import { PUBLICATION_LABELS, type PublicationStatus } from "@/lib/integrations/portals";
 import type { AdTypesInfo, Quota } from "@/lib/services/portal-ad-types";
 import { formatDateTime } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 type Listing = {
   id: string;
@@ -251,9 +252,11 @@ export function ListingsPanel({
                       {listing.detail && listing.detail === sharedError?.detail ? (
                         <span className="text-[13px] text-muted">Ver o aviso acima</span>
                       ) : listing.detail ? (
-                        <p className="line-clamp-2 text-[13px] text-muted" title={listing.detail}>
-                          {listing.detail}
-                        </p>
+                        <Tooltip content={listing.detail} className="flex">
+                          <p className="line-clamp-2 text-[13px] text-muted">
+                            {listing.detail}
+                          </p>
+                        </Tooltip>
                       ) : (
                         <span className="text-faint">—</span>
                       )}

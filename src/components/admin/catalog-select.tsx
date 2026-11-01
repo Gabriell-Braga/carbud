@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { List } from "lucide-react";
 import { Input, Select } from "@/components/ui/field";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const OTHER = "__outro__";
 
@@ -53,15 +54,16 @@ export function CatalogSelect({
         />
         {/* mesmo peso visual do lápis que trouxe até aqui: um "lista" escrito
             solto ao lado do campo lê como sobra de rascunho */}
-        <button
-          type="button"
-          aria-label="Voltar para a lista"
-          title="Voltar para a lista"
-          onClick={() => setTyping(false)}
-          className="shrink-0 text-faint transition-colors hover:text-text"
-        >
-          <List className="h-6 w-6" />
-        </button>
+        <Tooltip content={"Voltar para a lista"}>
+          <button
+            type="button"
+            aria-label="Voltar para a lista"
+            onClick={() => setTyping(false)}
+            className="shrink-0 text-faint transition-colors hover:text-text"
+          >
+            <List className="h-6 w-6" />
+          </button>
+        </Tooltip>
       </div>
     );
   }

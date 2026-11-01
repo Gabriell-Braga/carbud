@@ -11,6 +11,7 @@ import { apiDelete, apiPatch, apiUpload } from "@/lib/client/api";
 import { ACCEPTED_INPUT, buildPhotoFormData, generateVariants } from "@/lib/client/images";
 import { mediaUrl } from "@/lib/paths";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type PhotoItem = {
   id: string;
@@ -261,44 +262,52 @@ export function PhotoManager({
 
                 <div className="flex items-center justify-between gap-1 border-t border-border bg-surface px-1.5 py-1">
                   <div className="flex gap-0.5">
-                    <button
-                      type="button"
-                      title="Mover para a esquerda"
-                      className={iconButton}
-                      disabled={disabled || busy || index === 0}
-                      onClick={() => move(index, -1)}
-                    >
-                      <ArrowLeft className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      title="Mover para a direita"
-                      className={iconButton}
-                      disabled={disabled || busy || index === items.length - 1}
-                      onClick={() => move(index, 1)}
-                    >
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
+                    <Tooltip content={"Mover para a esquerda"}>
+                      <button
+                        type="button"
+                        aria-label="Mover para a esquerda"
+                        className={iconButton}
+                        disabled={disabled || busy || index === 0}
+                        onClick={() => move(index, -1)}
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={"Mover para a direita"}>
+                      <button
+                        type="button"
+                        aria-label="Mover para a direita"
+                        className={iconButton}
+                        disabled={disabled || busy || index === items.length - 1}
+                        onClick={() => move(index, 1)}
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
                   </div>
                   <div className="flex gap-0.5">
-                    <button
-                      type="button"
-                      title="Definir como capa"
-                      className={cn(iconButton, photo.isCover && "text-accent")}
-                      disabled={disabled || busy || photo.isCover}
-                      onClick={() => handleCover(photo.id)}
-                    >
-                      <Star className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      title="Remover foto"
-                      className={cn(iconButton, "hover:text-danger")}
-                      disabled={disabled || busy}
-                      onClick={() => handleDelete(photo.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <Tooltip content={"Definir como capa"}>
+                      <button
+                        type="button"
+                        aria-label="Definir como capa"
+                        className={cn(iconButton, photo.isCover && "text-accent")}
+                        disabled={disabled || busy || photo.isCover}
+                        onClick={() => handleCover(photo.id)}
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip content={"Remover foto"}>
+                      <button
+                        type="button"
+                        aria-label="Remover foto"
+                        className={cn(iconButton, "hover:text-danger")}
+                        disabled={disabled || busy}
+                        onClick={() => handleDelete(photo.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
               </div>

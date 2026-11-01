@@ -38,6 +38,7 @@ import {
   type EmailVariable,
 } from "@/lib/email/templates";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 type Field = keyof EmailCopy;
 type View = "desktop" | "mobile" | "text";
@@ -305,16 +306,17 @@ function Editor({
     // sem overflow-hidden: ele prende a prévia "sticky" e corta o menu de variáveis
     <Card className="overflow-visible">
       <CardHeader className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          aria-label="Voltar aos modelos"
-          title="Voltar aos modelos"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <Tooltip content={"Voltar aos modelos"}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onBack}
+            aria-label="Voltar aos modelos"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Tooltip>
         <div className="min-w-0 flex-1">
           <CardTitle className="flex items-center gap-2">
             {info.name}
@@ -367,21 +369,21 @@ function Editor({
                     { key: "text", label: "Texto puro", icon: Type },
                   ] as const
                 ).map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    role="radio"
-                    aria-checked={view === option.key}
-                    aria-label={option.label}
-                    title={option.label}
-                    onClick={() => setView(option.key)}
-                    className={cn(
-                      "grid h-7 w-7 place-items-center rounded-full transition-colors",
-                      view === option.key ? "bg-surface-2 text-text" : "text-faint hover:text-text",
-                    )}
-                  >
-                    <option.icon className="h-3.5 w-3.5" />
-                  </button>
+                  <Tooltip key={option.key} content={option.label}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={view === option.key}
+                      aria-label={option.label}
+                      onClick={() => setView(option.key)}
+                      className={cn(
+                        "grid h-7 w-7 place-items-center rounded-full transition-colors",
+                        view === option.key ? "bg-surface-2 text-text" : "text-faint hover:text-text",
+                      )}
+                    >
+                      <option.icon className="h-3.5 w-3.5" />
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             </div>
@@ -411,16 +413,17 @@ function Editor({
 
       <CardFooter className="flex-wrap justify-between">
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={isDefault}
-            onClick={() => setDraft({ ...info.defaults })}
-            title="Preenche com o texto de fábrica. Só vale depois de salvar."
-          >
-            Voltar ao padrão
-          </Button>
+          <Tooltip content={"Preenche com o texto de fábrica. Só vale depois de salvar."}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isDefault}
+              onClick={() => setDraft({ ...info.defaults })}
+            >
+              Voltar ao padrão
+            </Button>
+          </Tooltip>
           {dirty ? (
             <Button
               type="button"
@@ -438,17 +441,18 @@ function Editor({
 
         <div className="flex items-center gap-2">
           {canSend ? (
-            <Button
-              type="button"
-              variant="secondary"
-              loading={sending}
-              disabled={hasErrors}
-              onClick={sendTest}
-              title={`Envia o rascunho para ${defaultTo}`}
-            >
-              <Send className="h-3.5 w-3.5" />
-              Enviar teste
-            </Button>
+            <Tooltip content={`Envia o rascunho para ${defaultTo}`}>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={sending}
+                disabled={hasErrors}
+                onClick={sendTest}
+              >
+                <Send className="h-3.5 w-3.5" />
+                Enviar teste
+              </Button>
+            </Tooltip>
           ) : null}
           <Button type="button" loading={saving} disabled={!dirty || hasErrors} onClick={save}>
             Salvar

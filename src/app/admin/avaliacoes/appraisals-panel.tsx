@@ -30,6 +30,7 @@ import {
 } from "@/lib/services/appraisals";
 import { PLATE_LENGTH, isValidPlate, normalizePlate } from "@/lib/format/plate";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type AppraisalRow = {
   id: string;
@@ -249,14 +250,16 @@ export function AppraisalsPanel({
                           convidaria a cadastrar carro que a revenda não comprou.
                         */}
                         {canCreateVehicle && row.status === "aceita" && !row.vehicleId ? (
-                          <Link
-                            href={`/admin/estoque/novo?avaliacao=${row.id}`}
-                            title="Cadastrar no estoque"
-                            className={buttonVariants({ variant: "ghost", size: "sm" })}
-                          >
-                            <ArrowRight className="h-3.5 w-3.5" />
-                            Estoque
-                          </Link>
+                          <Tooltip content={"Cadastrar no estoque"}>
+                            <Link
+                              href={`/admin/estoque/novo?avaliacao=${row.id}`}
+                              aria-label="Cadastrar no estoque"
+                              className={buttonVariants({ variant: "ghost", size: "sm" })}
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                              Estoque
+                            </Link>
+                          </Tooltip>
                         ) : null}
                         {canWrite ? (
                           <>

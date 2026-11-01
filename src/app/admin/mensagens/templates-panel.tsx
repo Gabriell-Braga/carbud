@@ -21,6 +21,7 @@ import {
   usedVariables,
   type TemplateContext,
 } from "@/lib/integrations/message-templates";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type TemplateRow = { id: string; name: string; body: string; active: boolean };
 
@@ -301,15 +302,15 @@ function TemplateEditor({
         <div className="mb-4 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-faint">inserir:</span>
           {TEMPLATE_VARIABLES.map((variable) => (
-            <button
-              key={variable.key}
-              type="button"
-              title={variable.label}
-              onClick={() => insertVariable(variable.key as string)}
-              className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent-text"
-            >
-              {variable.key}
-            </button>
+            <Tooltip key={variable.key} content={variable.label}>
+              <button
+                type="button"
+                onClick={() => insertVariable(variable.key as string)}
+                className="rounded-sm border border-border px-1.5 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent-text"
+              >
+                {variable.key}
+              </button>
+            </Tooltip>
           ))}
         </div>
 

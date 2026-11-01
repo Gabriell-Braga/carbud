@@ -16,6 +16,7 @@ import { apiDelete, apiPatch, apiPost } from "@/lib/client/api";
 import { dnsInstructionsFor, normalizeDomain, suggestedPair } from "@/lib/integrations/domains";
 import type { DnsRecord, DomainStatus } from "@/db/schema";
 import { formatDateTime } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export type DomainRow = {
   id: string;
@@ -290,24 +291,25 @@ function CopyValue({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        void navigator.clipboard.writeText(value).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      className="inline-flex max-w-full items-center gap-1.5 rounded-tag px-1.5 py-0.5 font-mono text-text transition-colors hover:bg-surface-2"
-      title="Copiar"
-    >
-      <span className="truncate">{value}</span>
-      {copied ? (
-        <Check className="h-3 w-3 shrink-0 text-positive" />
-      ) : (
-        <Copy className="h-3 w-3 shrink-0 text-faint" />
-      )}
-    </button>
+    <Tooltip content={copied ? "Copiado" : "Copiar"} className="min-w-0 max-w-full">
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard.writeText(value).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+        className="inline-flex max-w-full items-center gap-1.5 rounded-tag px-1.5 py-0.5 font-mono text-text transition-colors hover:bg-surface-2"
+      >
+        <span className="truncate">{value}</span>
+        {copied ? (
+          <Check className="h-3 w-3 shrink-0 text-positive" />
+        ) : (
+          <Copy className="h-3 w-3 shrink-0 text-faint" />
+        )}
+      </button>
+    </Tooltip>
   );
 }
 

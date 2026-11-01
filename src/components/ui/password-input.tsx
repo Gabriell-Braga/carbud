@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Eye, EyeOff } from "lucide-react";
 import { checkPassword } from "@/lib/auth/password-policy";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /**
  * Campo de senha com botão de exibir/ocultar.
@@ -34,22 +35,26 @@ export const PasswordInput = React.forwardRef<
         {...props}
       />
 
-      <button
-        type="button"
-        aria-label={visible ? "Ocultar senha" : "Exibir senha"}
-        aria-pressed={visible}
-        title={visible ? "Ocultar senha" : "Exibir senha"}
-        onClick={() => setVisible((value) => !value)}
-        disabled={props.disabled}
-        className={cn(
-          "absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-sm",
-          "text-faint transition-colors hover:bg-surface-3 hover:text-text",
-          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-          "disabled:pointer-events-none disabled:opacity-40",
-        )}
+      <Tooltip
+        content={visible ? "Ocultar senha" : "Exibir senha"}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2"
       >
-        {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-      </button>
+        <button
+          type="button"
+          aria-label={visible ? "Ocultar senha" : "Exibir senha"}
+          aria-pressed={visible}
+          onClick={() => setVisible((value) => !value)}
+          disabled={props.disabled}
+          className={cn(
+            "grid h-7 w-7 place-items-center rounded-sm",
+            "text-faint transition-colors hover:bg-surface-3 hover:text-text",
+            "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "disabled:pointer-events-none disabled:opacity-40",
+          )}
+        >
+          {visible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+      </Tooltip>
     </div>
   );
 });

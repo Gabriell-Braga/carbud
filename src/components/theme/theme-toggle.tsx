@@ -5,6 +5,7 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { apiPost } from "@/lib/client/api";
 import { THEME_LABELS, THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "@/components/ui/tooltip";
 
 const ICONS: Record<ThemePreference, typeof Sun> = {
   light: Sun,
@@ -77,23 +78,23 @@ export function ThemeToggle({ current }: { current: ThemePreference }) {
         const Icon = ICONS[option];
         const active = preference === option;
         return (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            title={THEME_LABELS[option]}
-            onClick={() => void handleSelect(option)}
-            className={cn(
-              "flex h-6 w-7 items-center justify-center rounded-sm transition-colors",
-              active
-                ? "bg-surface text-accent-text"
-                : "text-faint hover:text-muted",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            <span className="sr-only">{THEME_LABELS[option]}</span>
-          </button>
+          <Tooltip key={option} content={THEME_LABELS[option]}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => void handleSelect(option)}
+              className={cn(
+                "flex h-6 w-7 items-center justify-center rounded-sm transition-colors",
+                active
+                  ? "bg-surface text-accent-text"
+                  : "text-faint hover:text-muted",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span className="sr-only">{THEME_LABELS[option]}</span>
+            </button>
+          </Tooltip>
         );
       })}
     </div>

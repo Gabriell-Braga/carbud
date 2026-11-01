@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getPortal, PUBLICATION_LABELS } from "@/lib/integrations/portals";
 import type { StockPortalCell } from "@/lib/services/portals";
 import { ML_NAMES } from "@/lib/services/portal-ad-types";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const SHORT: Record<string, string> = {
@@ -29,7 +30,7 @@ function typeName(portal: string, id: string | null): string | null {
 
 /**
  * Um selo por portal conectado: cor pela situação, pacote ao lado e, no ar,
- * link direto para o anúncio. O motivo do erro vai no title, para não virar
+ * link direto para o anúncio. O motivo do erro vai na dica, para não virar
  * paredão de texto na lista.
  */
 export function PortalCells({ cells }: { cells: StockPortalCell[] }) {
@@ -50,21 +51,21 @@ export function PortalCells({ cells }: { cells: StockPortalCell[] }) {
         const external = href.startsWith("http");
 
         return (
-          <Link
-            key={cell.portal}
-            href={href}
-            title={title}
-            aria-label={title.replace(/\n/g, ". ")}
-            target={external ? "_blank" : undefined}
-            rel={external ? "noreferrer" : undefined}
-            className={cn(
-              "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity hover:opacity-80",
-              TONE[cell.status],
-            )}
-          >
-            {SHORT[cell.portal] ?? name}
-            {pkg ? <span className="font-normal opacity-80">· {pkg}</span> : null}
-          </Link>
+          <Tooltip key={cell.portal} content={title}>
+            <Link
+              href={href}
+              aria-label={title.replace(/\n/g, ". ")}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noreferrer" : undefined}
+              className={cn(
+                "inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium transition-opacity hover:opacity-80",
+                TONE[cell.status],
+              )}
+            >
+              {SHORT[cell.portal] ?? name}
+              {pkg ? <span className="font-normal opacity-80">· {pkg}</span> : null}
+            </Link>
+          </Tooltip>
         );
       })}
     </div>
