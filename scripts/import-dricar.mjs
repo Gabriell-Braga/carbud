@@ -9,6 +9,10 @@
  * foi enviado fica em `.dricar-import-state.json`, para os custos não entrarem
  * duas vezes.
  *
+ * Também traz os custos fixos da loja (aluguel, salário, contas). A Dri-Car
+ * espelhava cada custo de carro nessa mesma lista ("Despesa Placa: ..."); esses
+ * ficam de fora, porque já entram como custo do próprio carro.
+ *
  * Uso (sem --apply só mostra o que faria):
  *   DRICAR_API_KEY=... CARBUD_SESSION=<cookie pa_session> node scripts/import-dricar.mjs
  *   ... node scripts/import-dricar.mjs --apply [--limit 5] [--no-photos]
@@ -121,13 +125,15 @@ const options = (text) => {
 /* HTTP                                                                */
 /* ------------------------------------------------------------------ */
 
-async function dricar(type) {
+async function dricarRaw(type) {
   const response = await fetch(`${DRICAR_URL}?type=${type}&include_relations=true`, {
     headers: { "x-api-key": DRICAR_KEY },
   });
   if (!response.ok) throw new Error(`Dri-Car ${type}: HTTP ${response.status}`);
-  return (await response.json()).data ?? [];
+  return response.json();
 }
+
+const dricar = async (type) => (await dricarRaw(type)).data ?? [];
 
 async function carbud(method, path, body) {
   const isForm = body instanceof FormData;
@@ -301,8 +307,50 @@ async function main() {
     }
   }
 
+  await importStoreExpenses(stats);
+
   if (APPLY) saveState();
   console.log("\nResumo:", stats);
+}
+
+async function importStoreExpenses(stats) {
+  const [{ custos_fixos: fixos = [] }, despesas] = await Promise.all([
+    dricarRaw("financeiro"),
+    dricar("despesas"),
+  ]);
+  const ofVehicle = new Set(despesas.map((d) => d.custoFixoId).filter(Boolean));
+  state.storeExpenses ??= {};
+  stats.storeExpenses = 0;
+
+  for (const custo of fixos) {
+    if (state.storeExpenses[custo.id] || ofVehicle.has(custo.id)) continue;
+    if (String(custo.descricao ?? "").startsWith("Despesa Placa:")) continue;
+    const amountCents = money(custo.valor);
+    const date = day(custo.dataVencimento);
+    if (!amountCents || !date) continue;
+    const pending = custo.statusPagamento && custo.statusPagamento !== "Pago";
+    const description = [custo.descricao?.trim(), pending ? `(${custo.statusPagamento})` : null]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 200);
+    try {
+      if (APPLY) {
+        await carbud("POST", "/api/admin/finance/expenses", {
+          category: custo.categoria?.trim() || "Outros",
+          description: description || null,
+          amountCents,
+          date,
+        });
+        state.storeExpenses[custo.id] = true;
+        saveState();
+      }
+      stats.storeExpenses += 1;
+    } catch (error) {
+      stats.errors += 1;
+      console.error(`! custo fixo ${custo.descricao}: ${error.message}`);
+    }
+  }
+  console.log(`Custos fixos da loja: ${stats.storeExpenses} novos de ${fixos.length} na Dri-Car.`);
 }
 
 main().catch((error) => {

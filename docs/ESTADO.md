@@ -387,7 +387,7 @@ de assinatura no cartão depois fica bloqueado.
 
 ### 9.9 Financeiro do veículo, leilão e importação da Dri-Car (01/11/2026)
 
-Pedidos das lojas (via Dri-Car). Migration `0030_vehicle_finance`: rodar o
+Pedidos das lojas (via Dri-Car). Migrations `0030_vehicle_finance` e `0031_store_expenses`: rodar o
 migrate em produção depois do deploy.
 
 - **Financeiro** (`/admin/financeiro` e card na ficha do carro): compra,
@@ -407,7 +407,12 @@ migrate em produção depois do deploy.
   do sistema antigo e cria/atualiza os carros e o financeiro. Simula por
   padrão; grava com `--apply`. Não duplica (placa ou marca/modelo/ano/km) e
   guarda o que enviou em `.dricar-import-state.json`.
-- Fora: custos fixos da loja (aluguel, salário) e Mobiauto (aguardando API).
+- **Custos fixos da loja** (`store_expenses`, migration `0031`): aluguel,
+  salário, contas, lançados na tela Financeiro com data. O filtro de período
+  vale para eles; "lucro líquido" = lucro dos carros − custos fixos. O import
+  traz os da Dri-Car, menos os "Despesa Placa: ..." (espelho dos custos de
+  carro). Sem recorrência automática: cada mês é um lançamento.
+- Fora: Mobiauto (aguardando API).
 
 ### 9.7 Afiliados (fase 1 entregue, portal planejado)
 

@@ -67,3 +67,26 @@ export const vehicleExpenses = sqliteTable(
 );
 
 export type VehicleExpense = typeof vehicleExpenses.$inferSelect;
+
+/**
+ * Custos da loja que não são de um carro: aluguel, salário, luz, contador.
+ * Entram no lucro líquido do período na tela Financeiro.
+ */
+export const storeExpenses = sqliteTable(
+  "store_expenses",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    description: text("description"),
+    amountCents: integer("amount_cents").notNull(),
+    /** `AAAA-MM-DD` (vencimento ou pagamento) */
+    date: text("date").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("store_expenses_tenant_idx").on(table.tenantId, table.date)],
+);
+
+export type StoreExpense = typeof storeExpenses.$inferSelect;

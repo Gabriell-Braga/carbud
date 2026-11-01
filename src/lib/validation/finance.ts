@@ -48,6 +48,25 @@ export const vehicleExpenseSchema = z.object({
   date: z.string().regex(DATE, "Data inválida"),
 });
 
+/** Custos da loja (não de um carro). As da Dri-Car mais as comuns. */
+export const STORE_EXPENSE_CATEGORIES = [
+  "Aluguel",
+  "Salário",
+  "Água",
+  "Luz",
+  "Internet",
+  "Telefone",
+  "Contador",
+  "Impostos",
+  "Marketing",
+  "Sistemas",
+  "Manutenção",
+  "Outros",
+] as const;
+
+/** Mesmo formato de um custo de carro. */
+export const storeExpenseSchema = vehicleExpenseSchema;
+
 export const financeFiltersSchema = z.object({
   q: z.string().trim().max(120).optional(),
   situation: z.enum(["todos", "estoque", "vendidos"]).catch("todos"),

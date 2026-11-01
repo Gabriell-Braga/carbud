@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/field";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
-import { requireTenantPage } from "@/lib/auth/guards";
+import { allows, requireTenantPage } from "@/lib/auth/guards";
 import { formatPlate } from "@/lib/format/plate";
 import { withBasePath } from "@/lib/paths";
-import { listFinanceRows, summarizeFinance } from "@/lib/services/vehicle-finance";
+import { listFinanceRows, listStoreExpenses, summarizeFinance } from "@/lib/services/vehicle-finance";
 import { financeFiltersSchema } from "@/lib/validation/finance";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import { StoreExpenses } from "./store-expenses";
 
 export const metadata: Metadata = { title: "Financeiro" };
 export const dynamic = "force-dynamic";
@@ -44,8 +45,18 @@ export default async function FinancePage({
     to: params.to || undefined,
   });
 
-  const rows = await listFinanceRows(context.tenant.id, filters);
+  const [rows, storeExpenses, canWrite] = await Promise.all([
+    listFinanceRows(context.tenant.id, filters),
+    listStoreExpenses(context.tenant.id, filters),
+    allows(context, context.tenant.id, "finance:write"),
+  ]);
   const summary = summarizeFinance(rows);
+  const fixedCents = storeExpenses.reduce((sum, item) => sum + item.amountCents, 0);
+  const netCents = summary.profitCents - fixedCents;
+  const periodLabel =
+    filters.from || filters.to
+      ? `De ${filters.from ? day(filters.from) : "o início"} até ${filters.to ? day(filters.to) : "hoje"}`
+      : "Desde o início";
 
   const query = new URLSearchParams(
     Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -66,15 +77,21 @@ export default async function FinancePage({
         }
       />
 
-      <StatGrid>
+      <StatGrid className="xl:grid-cols-6">
         <StatCard label="Vendas com margem" value={formatNumber(summary.soldCount)} hint="com compra e venda lançadas" />
         <StatCard label="Receita" value={formatCurrency(summary.revenueCents)} />
-        <StatCard label="Custo" value={formatCurrency(summary.costCents)} />
         <StatCard
-          label="Lucro"
+          label="Lucro dos carros"
           value={formatCurrency(summary.profitCents)}
           hint={`margem ${pct(summary.marginPct)}`}
           tone={summary.profitCents >= 0 ? "success" : "danger"}
+        />
+        <StatCard label="Custos fixos" value={formatCurrency(fixedCents)} hint="aluguel, salários, contas" />
+        <StatCard
+          label="Lucro líquido"
+          value={formatCurrency(netCents)}
+          hint="lucro dos carros − custos fixos"
+          tone={netCents >= 0 ? "success" : "danger"}
         />
         <StatCard label="Investido no pátio" value={formatCurrency(summary.stockCostCents)} hint="compra + custos dos não vendidos" />
       </StatGrid>
@@ -102,7 +119,7 @@ export default async function FinancePage({
             </Select>
           </div>
           <div className="min-w-0">
-            <Label htmlFor="from">Vendido de</Label>
+            <Label htmlFor="from">Período: de</Label>
             <Input id="from" name="from" type="date" defaultValue={filters.from ?? ""} />
           </div>
           <div className="min-w-0">
@@ -187,6 +204,13 @@ export default async function FinancePage({
           </Table>
         )}
       </Card>
+
+      <StoreExpenses
+        items={storeExpenses}
+        totalCents={fixedCents}
+        periodLabel={periodLabel}
+        readOnly={!canWrite || context.access !== "full"}
+      />
     </>
   );
 }

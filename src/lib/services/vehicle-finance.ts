@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { vehicleExpenses, vehicleFinance, vehicles, type VehicleStatus } from "@/db/schema";
+import { storeExpenses, vehicleExpenses, vehicleFinance, vehicles, type VehicleStatus } from "@/db/schema";
 import type { FinanceFilters, VehicleFinanceInput } from "@/lib/validation/finance";
 import { computeMargin } from "./vehicle-finance-math";
 
@@ -209,4 +209,39 @@ export function summarizeFinance(rows: FinanceRow[]) {
     marginPct: revenueCents > 0 ? (profitCents / revenueCents) * 100 : null,
     stockCostCents,
   };
+}
+
+/** Custos da loja no período (datas inclusivas; sem período, tudo). */
+export async function listStoreExpenses(tenantId: string, period: { from?: string; to?: string }) {
+  const db = await getDb();
+  const conditions = [eq(storeExpenses.tenantId, tenantId)];
+  if (period.from) conditions.push(gte(storeExpenses.date, period.from));
+  if (period.to) conditions.push(lte(storeExpenses.date, period.to));
+  return db
+    .select()
+    .from(storeExpenses)
+    .where(and(...conditions))
+    .orderBy(desc(storeExpenses.date), desc(storeExpenses.createdAt))
+    .limit(2000);
+}
+
+export async function addStoreExpense(
+  tenantId: string,
+  input: { category: string; description?: string | null; amountCents: number; date: string },
+) {
+  const db = await getDb();
+  const created = await db
+    .insert(storeExpenses)
+    .values({ ...input, tenantId })
+    .returning();
+  return created[0];
+}
+
+export async function deleteStoreExpense(tenantId: string, id: string) {
+  const db = await getDb();
+  const removed = await db
+    .delete(storeExpenses)
+    .where(and(eq(storeExpenses.tenantId, tenantId), eq(storeExpenses.id, id)))
+    .returning({ id: storeExpenses.id });
+  return removed[0] ?? null;
 }
