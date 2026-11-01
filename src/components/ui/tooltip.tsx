@@ -66,7 +66,9 @@ export function Tooltip({
                 top: position.y,
               }}
               className={cn(
-                "pointer-events-none fixed z-[100] w-max max-w-64 -translate-x-1/2 whitespace-pre-line rounded-md bg-text px-2.5 py-1.5 text-xs leading-snug text-inverse shadow-lg",
+                // escuro nos dois temas (inverter a cor do texto deixava a dica branca
+                // no tema escuro); a borda separa do fundo quase preto do escuro
+                "pointer-events-none fixed z-[100] w-max max-w-64 -translate-x-1/2 whitespace-pre-line rounded-md border border-border-strong bg-brand-dark px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg",
                 !position.below && "-translate-y-full",
               )}
             >
