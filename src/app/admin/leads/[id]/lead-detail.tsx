@@ -37,6 +37,7 @@ type LeadData = {
   phone: string;
   email: string | null;
   message: string | null;
+  vehicleId: string | null;
   vehicleLabel: string | null;
   status: LeadStatus;
   stageId: string | null;
@@ -73,6 +74,7 @@ export function LeadDetail({
   hasFunnel,
   templates,
   sender,
+  vehicleOptions,
 }: {
   lead: LeadData;
   stages: { id: string; name: string; kind: string }[];
@@ -83,6 +85,7 @@ export function LeadDetail({
   hasFunnel: boolean;
   templates: Template[];
   sender: { name: string; tenantName: string };
+  vehicleOptions: { id: string; label: string }[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -90,6 +93,7 @@ export function LeadDetail({
   const [status, setStatus] = useState(lead.status);
   const [stageId, setStageId] = useState(lead.stageId ?? "");
   const [assignee, setAssignee] = useState(lead.assignedToUserId ?? "");
+  const [vehicleId, setVehicleId] = useState(lead.vehicleId ?? "");
   const [notes, setNotes] = useState(lead.internalNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
 
@@ -416,14 +420,49 @@ export function LeadDetail({
           </CardContent>
         </Card>
 
-        {lead.vehicleLabel ? (
+        {lead.vehicleLabel || canWrite ? (
           <Card>
             <CardHeader>
               <CardTitle>Veículo</CardTitle>
             </CardHeader>
             <CardContent>
               <Badge tone="info">{LEAD_SOURCE_LABELS[lead.source as LeadSource] ?? lead.source}</Badge>
-              <p className="mt-2 text-[13px] text-text">{lead.vehicleLabel}</p>
+              {canWrite ? (
+                <FormField
+                  label="Carro do interesse"
+                  htmlFor="lead-vehicle"
+                  hint={
+                    lead.source === "portal"
+                      ? "Vale também para os outros leads do mesmo anúncio, inclusive os próximos."
+                      : undefined
+                  }
+                  className="mt-3"
+                >
+                  <Select
+                    id="lead-vehicle"
+                    value={vehicleId}
+                    onChange={(event) => {
+                      const previous = vehicleId;
+                      const next = event.target.value;
+                      setVehicleId(next);
+                      void patch(
+                        { vehicleId: next || null },
+                        () => setVehicleId(previous),
+                        next ? "Veículo vinculado." : "Veículo desvinculado.",
+                      );
+                    }}
+                  >
+                    <option value="">Sem veículo</option>
+                    {vehicleOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+              ) : (
+                <p className="mt-2 text-[13px] text-text">{lead.vehicleLabel}</p>
+              )}
             </CardContent>
           </Card>
         ) : null}

@@ -7,6 +7,7 @@ import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { listLeadEvents, listStages } from "@/lib/services/crm";
 import { getLead } from "@/lib/services/leads";
 import { listTenantUsers } from "@/lib/services/users";
+import { listVehicleOptions } from "@/lib/services/vehicles";
 import { ensureTemplates } from "@/lib/services/message-templates";
 import { LeadDetail } from "./lead-detail";
 
@@ -31,11 +32,13 @@ export default async function LeadDetailPage({ params }: Props) {
   const hasTimeline = await tenantHasFeature(context.tenant.id, "historico_conversas");
   const hasFunnel = await tenantHasFeature(context.tenant.id, "funil_comercial");
 
-  const [events, stages, users, templates] = await Promise.all([
+  const canWrite = can(context.role, "leads:write");
+  const [events, stages, users, templates, vehicleOptions] = await Promise.all([
     hasTimeline ? listLeadEvents(context.tenant.id, id) : Promise.resolve([]),
     hasFunnel ? listStages(context.tenant.id) : Promise.resolve([]),
     listTenantUsers(context.tenant.id),
     ensureTemplates(context.tenant.id),
+    canWrite ? listVehicleOptions(context.tenant.id) : Promise.resolve([]),
   ]);
 
   return (
@@ -51,6 +54,7 @@ export default async function LeadDetailPage({ params }: Props) {
           phone: lead.phone,
           email: lead.email,
           message: lead.message,
+          vehicleId: lead.vehicleId,
           vehicleLabel: lead.vehicleLabel,
           status: lead.status,
           stageId: lead.stageId,
@@ -71,7 +75,8 @@ export default async function LeadDetailPage({ params }: Props) {
           userName: event.userName,
           createdAt: event.createdAt.toISOString(),
         }))}
-        canWrite={can(context.role, "leads:write")}
+        canWrite={canWrite}
+        vehicleOptions={vehicleOptions}
         templates={templates.map((template) => ({
           id: template.id,
           name: template.name,

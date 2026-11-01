@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, like, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   leadEvents,
@@ -84,6 +84,60 @@ export type RegisterOutcome = "created" | "appended" | "ignored";
 
 type AdRef = Pick<IncomingPortalLead, "portal" | "adExternalId" | "adListId" | "plate">;
 
+const vehicleColumns = {
+  id: vehicles.id,
+  brand: vehicles.brand,
+  model: vehicles.model,
+  version: vehicles.version,
+  yearModel: vehicles.yearModel,
+};
+
+/** O link do anúncio que `composeMessage` grava no fim da mensagem. */
+const adUrlFromMessage = (message: string | null) => message?.match(/Anúncio: (\S+)/)?.[1] ?? null;
+
+/**
+ * A loja escolheu o carro de um lead. Se ele veio de um anúncio da OLX, os
+ * outros leads sem carro do mesmo anúncio vão junto, e os próximos acham o
+ * carro por este (ver `findAdVehicle`). Devolve null se o carro não é da loja.
+ */
+export async function setLeadVehicle(
+  tenantId: string,
+  lead: { id: string; message: string | null },
+  vehicleId: string | null,
+) {
+  const db = await getDb();
+  const vehicle = vehicleId
+    ? (
+        await db
+          .select(vehicleColumns)
+          .from(vehicles)
+          .where(and(eq(vehicles.tenantId, tenantId), eq(vehicles.id, vehicleId)))
+          .limit(1)
+      )[0]
+    : null;
+  if (vehicleId && !vehicle) return null;
+
+  const values = { vehicleId: vehicle?.id ?? null, vehicleLabel: vehicle ? vehicleLabelOf(vehicle) : null };
+  await db.update(leads).set(values).where(and(eq(leads.tenantId, tenantId), eq(leads.id, lead.id)));
+
+  const listId = olxListIdFromUrl(adUrlFromMessage(lead.message));
+  const others =
+    vehicle && listId
+      ? await db
+          .update(leads)
+          .set(values)
+          .where(
+            and(
+              eq(leads.tenantId, tenantId),
+              isNull(leads.vehicleId),
+              like(leads.message, `%Anúncio: %${listId}%`),
+            ),
+          )
+          .returning({ id: leads.id })
+      : [];
+  return { ...values, sameAdLinked: others.length };
+}
+
 /** Acha o carro do anúncio de um lead de portal; tudo escopado na revenda. */
 async function findAdVehicle(tenantId: string, incoming: AdRef) {
   const db = await getDb();
@@ -137,20 +191,30 @@ async function findAdVehicle(tenantId: string, incoming: AdRef) {
           )
           .limit(1)
       : [];
-  const match = byAd[0] ? byAd : byOlxId;
+  // anúncio que não saiu do Carbud: vale o carro que a loja escolheu num lead
+  // anterior do mesmo anúncio (o link dele fica na mensagem)
+  const byEarlierLead =
+    !byAd[0] && !byOlxId[0] && incoming.adListId
+      ? await db
+          .select({ vehicleId: sql<string>`${leads.vehicleId}`, externalUrl: sql<string | null>`null` })
+          .from(leads)
+          .where(
+            and(
+              eq(leads.tenantId, tenantId),
+              isNotNull(leads.vehicleId),
+              like(leads.message, `%Anúncio: %${incoming.adListId}%`),
+            ),
+          )
+          .orderBy(desc(leads.createdAt))
+          .limit(1)
+      : [];
+  const match = byAd[0] ? byAd : byOlxId[0] ? byOlxId : byEarlierLead;
 
-  const vehicleColumns = {
-    id: vehicles.id,
-    brand: vehicles.brand,
-    model: vehicles.model,
-    version: vehicles.version,
-    yearModel: vehicles.yearModel,
-  };
   const vehicleRows = match[0]
     ? await db
         .select(vehicleColumns)
         .from(vehicles)
-        .where(eq(vehicles.id, match[0].vehicleId))
+        .where(and(eq(vehicles.tenantId, tenantId), eq(vehicles.id, match[0].vehicleId)))
         .limit(1)
     : incoming.plate
       ? // anúncio que não saiu da nossa fila: a placa é o que liga ao carro
@@ -196,7 +260,7 @@ export async function relinkPortalLeads(tenantId?: string) {
   for (const row of rows) {
     const portal = row.utm?.source ?? row.externalId?.split(":")[0];
     if (!portal) continue;
-    const url = row.message?.match(/Anúncio: (\S+)/)?.[1] ?? null;
+    const url = adUrlFromMessage(row.message);
     const adListId = portal === "olx" ? olxListIdFromUrl(url) : null;
     // externalId sem protocolo da OLX: "olx:<adId>:<telefone>"
     const parts = row.externalId?.split(":") ?? [];

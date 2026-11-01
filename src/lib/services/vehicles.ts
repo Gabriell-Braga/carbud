@@ -612,3 +612,28 @@ export async function listStockFacets(scope: TenantScope, onlyPublished = true) 
       : { min: 0, max: 0 },
   };
 }
+
+/** Carros da loja para escolher num seletor (lead, por exemplo), vendidos por último. */
+export async function listVehicleOptions(tenantId: string) {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      id: vehicles.id,
+      brand: vehicles.brand,
+      model: vehicles.model,
+      version: vehicles.version,
+      yearModel: vehicles.yearModel,
+      licensePlate: vehicles.licensePlate,
+      status: vehicles.status,
+    })
+    .from(vehicles)
+    .where(and(eq(vehicles.tenantId, tenantId), sql`${vehicles.draftExpiresAt} is null`))
+    .orderBy(sql`${vehicles.status} = 'sold'`, asc(vehicles.brand), asc(vehicles.model))
+    .limit(2000);
+  return rows.map((row) => ({
+    id: row.id,
+    label: [row.brand, row.model, row.version, row.yearModel, row.licensePlate, row.status === "sold" ? "(vendido)" : null]
+      .filter(Boolean)
+      .join(" "),
+  }));
+}

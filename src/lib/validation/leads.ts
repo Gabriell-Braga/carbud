@@ -89,6 +89,8 @@ export const leadUpdateSchema = z.object({
   storeId: z.string().uuid().nullable().optional(),
   assignedToUserId: z.string().uuid().nullable().optional(),
   internalNotes: z.string().trim().max(2000).optional(),
+  /** Carro do interesse; null desliga. Lead de portal sem carro é ligado aqui. */
+  vehicleId: z.string().uuid().nullable().optional(),
 });
 
 export const leadEventSchema = z.object({

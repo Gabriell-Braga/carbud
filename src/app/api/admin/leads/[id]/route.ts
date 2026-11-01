@@ -5,6 +5,7 @@ import { logAuditFor } from "@/lib/audit";
 import { requireApiTenant } from "@/lib/auth/guards";
 import { badRequest, jsonOk, notFound, withApi } from "@/lib/http";
 import { getLead } from "@/lib/services/leads";
+import { setLeadVehicle } from "@/lib/services/portal-leads";
 import { listStages, recordLeadEvent } from "@/lib/services/crm";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
 import { notifyLeadAssigned } from "@/lib/services/notifications";
@@ -21,7 +22,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
 
   const parsed = leadUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
-  const input = parsed.data;
+  const { vehicleId, ...input } = parsed.data;
 
   const existing = await getLead(context.tenant.id, id);
   if (!existing) throw notFound("Lead não encontrado");
@@ -45,16 +46,33 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   }
 
   const db = await getDb();
-  await db
-    .update(leads)
-    .set(input)
-    .where(and(eq(leads.tenantId, context.tenant.id), eq(leads.id, id)));
+  if (Object.keys(input).length > 0) {
+    await db
+      .update(leads)
+      .set(input)
+      .where(and(eq(leads.tenantId, context.tenant.id), eq(leads.id, id)));
+  }
+
+  let sameAdLinked = 0;
+  if (vehicleId !== undefined) {
+    const linked = await setLeadVehicle(context.tenant.id, existing, vehicleId);
+    if (!linked) throw badRequest("Veículo inválido");
+    sameAdLinked = linked.sameAdLinked;
+    await recordLeadEvent({
+      tenantId: context.tenant.id,
+      leadId: id,
+      type: "note",
+      body: linked.vehicleLabel ? `Veículo: ${linked.vehicleLabel}.` : "Veículo desvinculado.",
+      userId: context.user.id,
+      userName: context.user.name,
+    });
+  }
 
   await recordChanges(context, id, existing, input);
 
   await logAuditFor(
     context,
-    { action: "lead.update", entity: "lead", entityId: id, metadata: input },
+    { action: "lead.update", entity: "lead", entityId: id, metadata: { ...input, vehicleId } },
     request,
   );
 
@@ -81,7 +99,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
 
   await dispatchTenantEvent(context.tenant.id, "lead.updated", { id, ...input });
 
-  return jsonOk({ id });
+  return jsonOk({ id, sameAdLinked });
 });
 
 /**
