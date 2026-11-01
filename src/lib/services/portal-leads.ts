@@ -8,7 +8,7 @@ import {
   webhookEvents,
   type WebhookEvent,
 } from "@/db/schema";
-import type { IncomingPortalLead } from "@/lib/integrations/portal-lead-inbox";
+import { olxListIdFromUrl, type IncomingPortalLead } from "@/lib/integrations/portal-lead-inbox";
 import {
   buyerName,
   parseQuestion,
@@ -82,41 +82,11 @@ export function emptyIngestReport(): LeadIngestReport {
 
 export type RegisterOutcome = "created" | "appended" | "ignored";
 
-/**
- * Grava o contato do portal como lead — ou como mensagem nova, se a mesma
- * pessoa já falou sobre o mesmo carro.
- *
- * Um lead por pessoa por anúncio. Quem pergunta costuma perguntar de novo
- * ("tem troca?", "aceita financiamento?"), e cada pergunta virando uma ficha
- * daria à revenda três atendimentos do mesmo negócio.
- *
- * `strict` diz o que fazer quando o anúncio não é de um carro nosso: no
- * caminho 1 (nós varremos a conta inteira do portal) isso significa anúncio
- * que não saiu do painel, e o lead é ignorado; no caminho 2 é a loja quem
- * aponta para cá, então o lead entra mesmo sem casar com um carro — melhor um
- * lead sem veículo do que um lead perdido.
- */
-export async function registerPortalLead(
-  tenantId: string,
-  incoming: IncomingPortalLead,
-  {
-    strict = false,
-    resolveName,
-  }: {
-    strict?: boolean;
-    /**
-     * Busca o nome de quem procurou, e só quando o lead vai mesmo nascer.
-     *
-     * No Mercado Livre o nome é outra chamada à API, e ela seria desperdiçada
-     * nas duas situações mais comuns: pergunta num anúncio que não saiu do
-     * painel, e pergunta seguinte de alguém que já é lead.
-     */
-    resolveName?: () => Promise<string>;
-  } = {},
-): Promise<RegisterOutcome> {
-  const db = await getDb();
-  const portalName = getPortal(incoming.portal)?.name ?? incoming.portal;
+type AdRef = Pick<IncomingPortalLead, "portal" | "adExternalId" | "adListId" | "plate">;
 
+/** Acha o carro do anúncio de um lead de portal; tudo escopado na revenda. */
+async function findAdVehicle(tenantId: string, incoming: AdRef) {
+  const db = await getDb();
   /*
    * O anúncio é achado pelo id que mandamos (`adExternalId`) ou, na OLX, pelo
    * `list_id` dela, guardado depois da moderação. Os dois porque a OLX manda
@@ -168,8 +138,6 @@ export async function registerPortalLead(
       : [];
   const match = byAd[0] ? byAd : byOlxId;
 
-  if (strict && !match[0]) return "ignored";
-
   const vehicleColumns = {
     id: vehicles.id,
     brand: vehicles.brand,
@@ -197,11 +165,93 @@ export async function registerPortalLead(
           .limit(1)
       : [];
 
-  const vehicle = vehicleRows[0] ?? null;
-  const vehicleLabel = vehicle
-    ? [vehicle.brand, vehicle.model, vehicle.version, vehicle.yearModel].filter(Boolean).join(" ")
-    : null;
-  const url = incoming.url ?? match[0]?.externalUrl ?? null;
+  return { vehicle: vehicleRows[0] ?? null, externalUrl: match[0]?.externalUrl ?? null };
+}
+
+/**
+ * Liga ao carro os leads de portal que chegaram sem ele, com a mesma busca
+ * do lead novo. O `list_id` sai do link do anúncio guardado na mensagem.
+ *
+ * ponytail: lote fixo por chamada; chamar de novo até `linked` zerar.
+ */
+export async function relinkPortalLeads(tenantId?: string) {
+  const db = await getDb();
+  const rows = await db
+    .select({ id: leads.id, tenantId: leads.tenantId, message: leads.message, utm: leads.utm, externalId: leads.externalId })
+    .from(leads)
+    .where(
+      and(
+        eq(leads.source, "portal"),
+        isNull(leads.vehicleId),
+        ...(tenantId ? [eq(leads.tenantId, tenantId)] : []),
+      ),
+    )
+    .limit(2000);
+
+  let linked = 0;
+  for (const row of rows) {
+    const portal = row.utm?.source ?? row.externalId?.split(":")[0];
+    if (!portal) continue;
+    const url = row.message?.match(/Anúncio: (\S+)/)?.[1] ?? null;
+    const adListId = portal === "olx" ? olxListIdFromUrl(url) : null;
+    // externalId sem protocolo da OLX: "olx:<adId>:<telefone>"
+    const parts = row.externalId?.split(":") ?? [];
+    const adExternalId = parts.length === 3 && parts[1] !== "lead" && parts[1] !== "sem-anuncio" ? parts[1] : null;
+    if (!adListId && !adExternalId) continue;
+
+    const { vehicle } = await findAdVehicle(row.tenantId, { portal, adExternalId, adListId, plate: null });
+    if (!vehicle) continue;
+    await db
+      .update(leads)
+      .set({ vehicleId: vehicle.id, vehicleLabel: vehicleLabelOf(vehicle) })
+      .where(eq(leads.id, row.id));
+    linked += 1;
+  }
+  return { checked: rows.length, linked };
+}
+
+const vehicleLabelOf = (vehicle: { brand: string; model: string; version: string | null; yearModel: number }) =>
+  [vehicle.brand, vehicle.model, vehicle.version, vehicle.yearModel].filter(Boolean).join(" ");
+
+/**
+ * Grava o contato do portal como lead — ou como mensagem nova, se a mesma
+ * pessoa já falou sobre o mesmo carro.
+ *
+ * Um lead por pessoa por anúncio. Quem pergunta costuma perguntar de novo
+ * ("tem troca?", "aceita financiamento?"), e cada pergunta virando uma ficha
+ * daria à revenda três atendimentos do mesmo negócio.
+ *
+ * `strict` diz o que fazer quando o anúncio não é de um carro nosso: no
+ * caminho 1 (nós varremos a conta inteira do portal) isso significa anúncio
+ * que não saiu do painel, e o lead é ignorado; no caminho 2 é a loja quem
+ * aponta para cá, então o lead entra mesmo sem casar com um carro — melhor um
+ * lead sem veículo do que um lead perdido.
+ */
+export async function registerPortalLead(
+  tenantId: string,
+  incoming: IncomingPortalLead,
+  {
+    strict = false,
+    resolveName,
+  }: {
+    strict?: boolean;
+    /**
+     * Busca o nome de quem procurou, e só quando o lead vai mesmo nascer.
+     *
+     * No Mercado Livre o nome é outra chamada à API, e ela seria desperdiçada
+     * nas duas situações mais comuns: pergunta num anúncio que não saiu do
+     * painel, e pergunta seguinte de alguém que já é lead.
+     */
+    resolveName?: () => Promise<string>;
+  } = {},
+): Promise<RegisterOutcome> {
+  const db = await getDb();
+  const portalName = getPortal(incoming.portal)?.name ?? incoming.portal;
+
+  const { vehicle, externalUrl } = await findAdVehicle(tenantId, incoming);
+  if (strict && !vehicle) return "ignored";
+  const vehicleLabel = vehicle ? vehicleLabelOf(vehicle) : null;
+  const url = incoming.url ?? externalUrl ?? null;
 
   const existing = await db
     .select({ id: leads.id })

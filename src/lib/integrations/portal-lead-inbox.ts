@@ -244,6 +244,11 @@ export function normalizeInboundLead(portal: string, body: unknown): NormalizeRe
   };
 }
 
+/** A URL do anúncio na OLX termina no `list_id` (".../vi/123" ou "...-123"). */
+export function olxListIdFromUrl(url: string | null | undefined): string | null {
+  return url?.match(/(\d{6,})\/?(?:[?#].*)?$/)?.[1] ?? null;
+}
+
 const OLX_SOURCES: Record<string, string> = {
   whatsapp: "WhatsApp",
   telefone: "Telefone",
@@ -275,9 +280,8 @@ function normalizeOlxLead(raw: RawBody): NormalizeResult {
   }
 
   const adId = text("adId");
-  // a URL da OLX termina no list_id (".../vi/123" ou "...-123")
   const linkAd = text("linkAd");
-  const listId = text("listId") ?? linkAd?.match(/(\d{6,})\/?(?:[?#].*)?$/)?.[1] ?? null;
+  const listId = text("listId") ?? olxListIdFromUrl(linkAd);
   const leadId = text("externalId");
   const source = text("source");
   const message = [source ? (OLX_SOURCES[source] ?? source) : null, text("message")]
