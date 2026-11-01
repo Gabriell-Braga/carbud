@@ -89,6 +89,12 @@ export type PortalDefinition = {
   fields: PortalField[];
   /** O que a revenda precisa fazer, uma única vez, para conseguir o acesso. */
   howToConnect: string;
+  /**
+   * O mesmo, em passos numerados. As lojas travavam em criar a conta de
+   * integrador: o parágrafo resume, a lista é o que se segue com o portal
+   * aberto na outra aba.
+   */
+  steps: string[];
 };
 
 /** O que a tela recebe: a definição mais o que o ambiente decidiu. */
@@ -141,6 +147,14 @@ export const PORTALS: PortalDefinition[] = [
     ],
     howToConnect:
       'Leads: no Cockpit, em Usuários, crie um usuário "Integrador de API" e ative a Integração com CRM de terceiros na aba Integrações. Estoque: com um plano Webmotors ativo e o termo de adesão aceito, peça ao atendimento um usuário "Integração Revendedor" para gestor de estoque terceiro. Os carros publicados por aqui aparecem no Cockpit com a etiqueta WS.',
+    steps: [
+      "Entre no Cockpit do Webmotors com o usuário administrador da loja.",
+      'Em Usuários, crie um usuário novo com o perfil "Integrador de API". Use um e-mail só para isso (ex.: integracao@sualoja.com.br), não o de um vendedor.',
+      'Na aba Integrações do Cockpit, ative "Integração com CRM de terceiros". É isso que libera os leads.',
+      'Para publicar o estoque também: com um plano Webmotors ativo e o termo de adesão aceito, peça pelo chat do Cockpit um usuário "Integração Revendedor" para gestor de estoque terceiro. Sem ele, só os leads são integrados.',
+      'Aqui, clique em "Conectar conta" e preencha o CNPJ da loja, o e-mail e a senha do Integrador de API e, se já tiver, os do "Integração Revendedor".',
+      'Clique em "Sincronizar". Os carros publicados por aqui aparecem no Cockpit com a etiqueta WS.',
+    ],
   },
   {
     key: "olx",
@@ -159,6 +173,13 @@ export const PORTALS: PortalDefinition[] = [
     fields: [],
     howToConnect:
       "Clique em conectar e autorize com a conta da loja na OLX. A integração exige um plano profissional para Empresas (Essencial, Plus ou Premium Empresa); os de autônomo não liberam a API. Os leads passam a chegar no CRM sozinhos.",
+    steps: [
+      "Confira se a conta da loja na OLX tem plano profissional para Empresas (Essencial, Plus ou Premium Empresa). Plano de autônomo não libera a integração; nesse caso, fale com o comercial da OLX antes.",
+      "Neste mesmo navegador, entre na OLX com a conta da loja (não com a conta pessoal de alguém da equipe).",
+      'Aqui, clique em "Conectar conta" e autorize na tela da OLX.',
+      'Se aparecer "Receber leads deste portal" no card, copie o endereço e peça ao atendimento da OLX para cadastrá-lo como URL de leads da loja. Se não aparecer, já foi cadastrado sozinho.',
+      'Clique em "Sincronizar" para subir o estoque.',
+    ],
   },
   {
     key: "mercadolivre",
@@ -176,6 +197,12 @@ export const PORTALS: PortalDefinition[] = [
     fields: [],
     howToConnect:
       "Clique em conectar e autorize com a conta da loja no Mercado Livre. A autorização é única e pode ser revogada por aqui. As perguntas feitas nos anúncios entram no CRM como leads sozinhas.",
+    steps: [
+      "Neste mesmo navegador, entre no Mercado Livre com a conta da loja, a que vai anunciar.",
+      'Aqui, clique em "Conectar conta" e autorize o acesso na tela do Mercado Livre.',
+      'Em "Anúncios e tipos", escolha o tipo de anúncio padrão (do plano da conta).',
+      'Clique em "Sincronizar". As perguntas feitas nos anúncios entram no CRM como leads.',
+    ],
   },
   {
     key: "chavesnamao",
@@ -191,6 +218,13 @@ export const PORTALS: PortalDefinition[] = [
     ],
     howToConnect:
       "Copie o token de integração da conta da loja (Meus dados → Token de integração) e cole aqui. Os carros entram no ar enquanto houver vaga no plano contratado, e podem levar até 45 minutos para aparecer no portal.",
+    steps: [
+      "Entre no Chaves na Mão com a conta da loja.",
+      "Abra Meus dados e role até o fim da página: lá está o Token de integração. Copie.",
+      'Aqui, clique em "Conectar conta", cole o token e salve.',
+      'Clique em "Sincronizar". Os carros entram enquanto houver vaga no plano contratado e podem levar até 45 minutos para aparecer.',
+      'Para os leads, abra "Receber leads deste portal" no card, copie o endereço e envie ao atendimento do Chaves na Mão.',
+    ],
   },
   {
     key: "feed",
@@ -200,6 +234,12 @@ export const PORTALS: PortalDefinition[] = [
     fields: [],
     howToConnect:
       "Para portais sem API, entregue o endereço do feed de estoque. Eles buscam sozinhos e mantêm os anúncios em dia. O endereço está na tela de API e webhooks.",
+    steps: [
+      'Abra "Feed de estoque" neste card e copie o endereço.',
+      "No portal, procure a opção de importar estoque por XML (às vezes chamada de integração por feed ou carga automática) ou peça ao atendimento dele, e informe o endereço.",
+      'Para os leads, abra "Receber leads deste portal", copie o endereço e envie ao mesmo atendimento.',
+      "Pronto: o portal busca o estoque sozinho de tempos em tempos.",
+    ],
   },
 ];
 

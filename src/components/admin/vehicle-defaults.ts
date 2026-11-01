@@ -34,6 +34,7 @@ export function emptyVehicle(): VehicleFormValues {
     description: "",
     status: "draft",
     featured: false,
+    isAuction: false,
     storeId: "",
     fipeCode: null,
     fipePriceCents: null,

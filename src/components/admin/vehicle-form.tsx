@@ -297,6 +297,7 @@ export function VehicleForm({
       description: values.description,
       status: values.status,
       featured: values.featured,
+      isAuction: values.isAuction,
       // sem unidades na tela, não mexe no que está gravado
       ...(stores.length > 0 ? { storeId: values.storeId } : {}),
       fipeCode: values.fipeCode,
@@ -695,6 +696,15 @@ export function VehicleForm({
                 onChange={(event) => update("featured", event.target.checked)}
               />
               Destacar na home do site
+            </label>
+            <label className="flex items-center gap-2 text-[13px] text-text">
+              <Checkbox
+                disabled={readOnly}
+                checked={values.isAuction}
+                onChange={(event) => update("isAuction", event.target.checked)}
+              />
+              Veio de leilão
+              <span className="text-xs text-faint">(só a loja vê)</span>
             </label>
           </div>
         </div>

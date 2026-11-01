@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { VehicleStatusBadge } from "@/components/admin/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { VehicleForm } from "@/components/admin/vehicle-form";
-import { requireTenantPage } from "@/lib/auth/guards";
+import { allows, requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { getVehicle, isInspected, listMedia360 } from "@/lib/services/vehicles";
 import { mediaUrl } from "@/lib/paths";
@@ -17,6 +17,9 @@ import { tenantHasFeature } from "@/lib/api/feature-guard";
 import { tenantPublicPath } from "@/lib/tenant/resolveTenant";
 import { DeleteVehicleButton } from "./delete-button";
 import { InspectionCard, Media360Card } from "./inspection-360";
+import { PublishVehicleButton } from "../publish-button";
+import { FinanceCard } from "./finance-card";
+import { getVehicleFinance } from "@/lib/services/vehicle-finance";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +43,15 @@ export default async function EditVehiclePage({ params }: Props) {
 
   const { vehicle, photos } = found;
   const canWrite = can(context.role, "vehicles:write") && context.access === "full";
-  const [media360Map, siteUrl, multiStore] = await Promise.all([
+  const [media360Map, siteUrl, multiStore, financeRead, financeWrite] = await Promise.all([
     listMedia360([vehicle.id]),
     publicSiteUrl(context.tenant.id),
     tenantHasFeature(context.tenant.id, "gestao_multiunidade"),
+    allows(context, context.tenant.id, "finance:read"),
+    allows(context, context.tenant.id, "finance:write"),
   ]);
+  const financeData = financeRead ? await getVehicleFinance(context.tenant.id, vehicle.id) : null;
+  const fin = financeData?.finance;
   const stores = multiStore ? await listStores(context.tenant.id, true) : [];
   const media360 = media360Map.get(vehicle.id) ?? { spin: [], pano: null };
   // a prévia interna só quando a revenda ainda não tem domínio no ar
@@ -60,6 +67,9 @@ export default async function EditVehiclePage({ params }: Props) {
         description={vehicle.version ?? undefined}
         actions={
           <div className="flex flex-wrap gap-2">
+            {canWrite && vehicle.status === "draft" ? (
+              <PublishVehicleButton vehicleId={vehicle.id} size="md" />
+            ) : null}
             <Link href={`/admin/estoque/${vehicle.id}/venda`}>
               <Button variant="secondary">
                 <FileText className="h-3.5 w-3.5" />
@@ -84,6 +94,7 @@ export default async function EditVehiclePage({ params }: Props) {
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <VehicleStatusBadge status={vehicle.status} />
         {vehicle.featured ? <Badge tone="info">Destaque na home</Badge> : null}
+        {vehicle.isAuction ? <Badge tone="warning">Leilão</Badge> : null}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -116,12 +127,40 @@ export default async function EditVehiclePage({ params }: Props) {
             description: vehicle.description ?? "",
             status: vehicle.status,
             featured: vehicle.featured,
+            isAuction: vehicle.isAuction,
             storeId: vehicle.storeId ?? "",
             fipeCode: vehicle.fipeCode,
             fipePriceCents: vehicle.fipePriceCents,
             fipeReference: vehicle.fipeReference,
           }}
         />
+
+        {financeData ? (
+          <FinanceCard
+            vehicleId={vehicle.id}
+            readOnly={!financeWrite || context.access !== "full"}
+            adPriceCents={vehicle.priceCents}
+            initial={{
+              purchasePriceCents: fin?.purchasePriceCents ?? 0,
+              purchaseDate: fin?.purchaseDate ?? "",
+              purchaseSource: fin?.purchaseSource ?? "",
+              salePriceCents: fin?.salePriceCents ?? 0,
+              saleDate: fin?.saleDate ?? "",
+              buyerName: fin?.buyerName ?? "",
+              buyerDocument: fin?.buyerDocument ?? "",
+              buyerPhone: fin?.buyerPhone ?? "",
+              bankReturnCents: fin?.bankReturnCents ?? 0,
+              notes: fin?.notes ?? "",
+            }}
+            expenses={financeData.expenses.map((item) => ({
+              id: item.id,
+              category: item.category,
+              description: item.description,
+              amountCents: item.amountCents,
+              date: item.date,
+            }))}
+          />
+        ) : null}
 
         <InspectionCard
           vehicleId={vehicle.id}

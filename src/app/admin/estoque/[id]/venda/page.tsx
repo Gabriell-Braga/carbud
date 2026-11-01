@@ -4,7 +4,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leads, tenants } from "@/db/schema";
 import { PageHeader } from "@/components/layout/shell";
-import { requireTenantPage } from "@/lib/auth/guards";
+import { allows, requireTenantPage } from "@/lib/auth/guards";
+import { getVehicleFinance } from "@/lib/services/vehicle-finance";
 import { FUEL_LABELS, TRANSMISSION_LABELS } from "@/lib/catalog/labels";
 import { formatPlate } from "@/lib/format/plate";
 import { getSiteData } from "@/lib/services/site";
@@ -44,6 +45,10 @@ export default async function SaleDocumentPage({ params }: Props) {
   // o comprador provável é quem foi marcado como ganho neste carro; sem ele, o
   // contato mais recente — o vendedor confere e corrige no formulário
   const buyer = vehicleLeads.find((lead) => lead.status === "won") ?? vehicleLeads[0] ?? null;
+  // a venda lançada no financeiro do carro vence o palpite pelos leads
+  const sale = (await allows(context, context.tenant.id, "finance:read"))
+    ? (await getVehicleFinance(context.tenant.id, vehicle.id)).finance
+    : null;
 
   return (
     <>
@@ -71,12 +76,13 @@ export default async function SaleDocumentPage({ params }: Props) {
           fuel: vehicle.fuel ? FUEL_LABELS[vehicle.fuel] : "",
           transmission: vehicle.transmission ? TRANSMISSION_LABELS[vehicle.transmission] : "",
           mileageKm: vehicle.mileageKm,
-          priceCents: vehicle.priceCents,
+          priceCents: sale?.salePriceCents ?? vehicle.priceCents,
         }}
         buyer={{
-          name: buyer?.name ?? "",
-          phone: buyer?.phone ?? "",
+          name: sale?.buyerName ?? buyer?.name ?? "",
+          phone: sale?.buyerPhone ?? buyer?.phone ?? "",
           email: buyer?.email ?? "",
+          cpf: sale?.buyerDocument ?? "",
         }}
       />
     </>

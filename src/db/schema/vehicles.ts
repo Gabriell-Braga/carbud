@@ -96,6 +96,12 @@ export const vehicles = sqliteTable(
      */
     draftExpiresAt: integer("draft_expires_at", { mode: "timestamp_ms" }),
     featured: integer("featured", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Veio de leilão. Marca só para consulta interna da loja: nenhum
+     * serializador público lê esta coluna, e não deve ler — quem vende avisa o
+     * comprador na negociação, não no anúncio.
+     */
+    isAuction: integer("is_auction", { mode: "boolean" }).notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
     views: integer("views").notNull().default(0),
     coverPhotoKey: text("cover_photo_key"),

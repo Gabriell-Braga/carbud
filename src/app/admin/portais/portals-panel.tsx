@@ -3,7 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Inbox, Link2, Link2Off, ListChecks, Minus, Rss, Settings2 } from "lucide-react";
+import {
+  Check,
+  Inbox,
+  Link2,
+  Link2Off,
+  ListChecks,
+  ListOrdered,
+  Minus,
+  Rss,
+  Settings2,
+} from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -227,6 +237,18 @@ export function PortalsPanel({
                     )}
                   </div>
                 ) : null}
+
+                <details className="mt-3 rounded-inner border border-border bg-surface-2/40 px-3 py-2" open={!connected && portal.method !== "feed"}>
+                  <summary className="flex cursor-pointer items-center gap-2 text-[13px] text-text">
+                    <ListOrdered className="h-3.5 w-3.5 text-faint" />
+                    Passo a passo para conectar
+                  </summary>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs text-muted">
+                    {portal.steps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </details>
 
                 {portal.importsFeed ? (
                   <StockFeed origin={origin} slug={tenantSlug} portalName={portal.name} />

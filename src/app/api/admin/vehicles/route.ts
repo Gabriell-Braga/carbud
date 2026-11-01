@@ -1,3 +1,4 @@
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { vehicles } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
@@ -13,6 +14,35 @@ import { assertStoreOfTenant } from "@/lib/services/stores";
 import { vehicleSchema } from "@/lib/validation/vehicles";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * O estoque inteiro em forma enxuta, para quem sincroniza de fora (importação
+ * da Dri-Car, `scripts/import-dricar.mjs`) saber o que já existe e não
+ * duplicar. A tela não usa: ela pagina pelo service.
+ */
+export const GET = withApi(async () => {
+  const context = await requireApiTenant("vehicles:read");
+  const db = await getDb();
+  const rows = await db
+    .select({
+      id: vehicles.id,
+      brand: vehicles.brand,
+      model: vehicles.model,
+      version: vehicles.version,
+      yearManufacture: vehicles.yearManufacture,
+      yearModel: vehicles.yearModel,
+      mileageKm: vehicles.mileageKm,
+      priceCents: vehicles.priceCents,
+      licensePlate: vehicles.licensePlate,
+      status: vehicles.status,
+      photosCount: vehicles.photosCount,
+    })
+    .from(vehicles)
+    .where(and(eq(vehicles.tenantId, context.tenant.id), isNull(vehicles.draftExpiresAt)))
+    .orderBy(desc(vehicles.createdAt))
+    .limit(10_000);
+  return jsonOk({ vehicles: rows });
+});
 
 export const POST = withApi(async (request: Request) => {
   const context = await requireApiTenant("vehicles:write");
@@ -54,6 +84,7 @@ export const POST = withApi(async (request: Request) => {
       description: input.description,
       status: input.status,
       featured: input.featured,
+      isAuction: input.isAuction,
       storeId: input.storeId,
     })
     .returning({ id: vehicles.id, slug: vehicles.slug });

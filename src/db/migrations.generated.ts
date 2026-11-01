@@ -323,5 +323,16 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "-- O plano \"Rede\" passa a se chamar \"Scale\", como na página de planos do site,\n-- e o slug acompanha porque o botão de contratar do site chega com ?plano=scale.\n-- Revendas apontam para o id, então nada muda para quem já está no plano.\nUPDATE `plans` SET `name` = 'Scale', `slug` = 'scale', `updated_at` = CAST(strftime('%s', 'now') AS INTEGER) * 1000\nWHERE `slug` = 'rede' AND NOT EXISTS (SELECT 1 FROM `plans` WHERE `slug` = 'scale');"
     ]
+  },
+  {
+    "tag": "0030_vehicle_finance",
+    "statements": [
+      "ALTER TABLE `vehicles` ADD `is_auction` integer DEFAULT false NOT NULL;",
+      "CREATE TABLE `vehicle_finance` (\n\t`vehicle_id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`purchase_price_cents` integer,\n\t`purchase_date` text,\n\t`purchase_source` text,\n\t`sale_price_cents` integer,\n\t`sale_date` text,\n\t`buyer_name` text,\n\t`buyer_document` text,\n\t`buyer_phone` text,\n\t`bank_return_cents` integer,\n\t`notes` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`vehicle_id`) REFERENCES `vehicles`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `vehicle_finance_tenant_sale_idx` ON `vehicle_finance` (`tenant_id`,`sale_date`);",
+      "CREATE TABLE `vehicle_expenses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`vehicle_id` text NOT NULL,\n\t`category` text NOT NULL,\n\t`description` text,\n\t`amount_cents` integer NOT NULL,\n\t`date` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`vehicle_id`) REFERENCES `vehicles`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `vehicle_expenses_vehicle_idx` ON `vehicle_expenses` (`vehicle_id`,`date`);",
+      "CREATE INDEX `vehicle_expenses_tenant_idx` ON `vehicle_expenses` (`tenant_id`,`date`);"
+    ]
   }
 ];

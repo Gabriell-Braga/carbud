@@ -74,11 +74,11 @@ export function SaleDocument({
 }: {
   seller: Seller;
   vehicle: VehicleInfo;
-  buyer: { name: string; phone: string; email: string };
+  buyer: { name: string; phone: string; email: string; cpf?: string };
 }) {
   const [buyer, setBuyer] = useState({
     name: initialBuyer.name,
-    cpf: "",
+    cpf: initialBuyer.cpf ? maskCpf(initialBuyer.cpf) : "",
     rg: "",
     phone: initialBuyer.phone ? maskPhone(initialBuyer.phone) : "",
     email: initialBuyer.email,

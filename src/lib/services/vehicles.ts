@@ -29,6 +29,8 @@ export type VehicleListItem = {
   priceOnRequest: boolean;
   status: VehicleStatus;
   featured: boolean;
+  /** Só para o painel: nenhum serializador público lê. */
+  isAuction: boolean;
   /*
    * Cambio e combustivel entram na LISTA, nao so na ficha.
    *
@@ -71,6 +73,7 @@ const LIST_COLUMNS = {
   priceOnRequest: vehicles.priceOnRequest,
   status: vehicles.status,
   featured: vehicles.featured,
+  isAuction: vehicles.isAuction,
   transmission: vehicles.transmission,
   fuel: vehicles.fuel,
   // a lista mostra a placa: e como a loja distingue dois carros iguais
@@ -93,6 +96,8 @@ export type VehicleQuery = Partial<VehicleFilters> & {
   belowFipe?: boolean;
   inspected?: boolean;
   has360?: boolean;
+  /** Filtro interno do estoque; o site nunca passa. */
+  auction?: boolean;
   /** Destaque na frente na ordem padrão. O portal desliga: lá destaque é rodízio de 3 (`pickHighlights`). */
   featuredFirst?: boolean;
 };
@@ -120,6 +125,7 @@ function buildConditions(scope: TenantScope, filters: VehicleQuery) {
   if (filters.fuel) conditions.push(eq(vehicles.fuel, filters.fuel));
   if (filters.bodyType) conditions.push(eq(vehicles.bodyType, filters.bodyType));
   if (filters.featured !== undefined) conditions.push(eq(vehicles.featured, filters.featured));
+  if (filters.auction !== undefined) conditions.push(eq(vehicles.isAuction, filters.auction));
   if (filters.priceMin !== undefined) conditions.push(gte(vehicles.priceCents, filters.priceMin));
   if (filters.priceMax !== undefined) conditions.push(lte(vehicles.priceCents, filters.priceMax));
   if (filters.yearMin !== undefined) conditions.push(gte(vehicles.yearModel, filters.yearMin));

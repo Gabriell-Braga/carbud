@@ -13,6 +13,7 @@ import {
   Plug,
   Radio,
   Users,
+  Wallet,
 } from "lucide-react";
 import { AppShell, type NavSection } from "@/components/layout/shell";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
@@ -73,6 +74,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             icon: <Calculator className={ICON} />,
           },
         ]
+      : []),
+    ...(can(context.role, "finance:read")
+      ? [{ href: "/admin/financeiro", label: "Financeiro", icon: <Wallet className={ICON} /> }]
       : []),
   ];
 

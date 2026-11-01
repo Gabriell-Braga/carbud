@@ -211,6 +211,13 @@
       "when": 1792700000000,
       "tag": "0029_plan_rede_to_scale",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1793560918887,
+      "tag": "0030_vehicle_finance",
+      "breakpoints": true
     }
   ]
 }

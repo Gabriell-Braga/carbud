@@ -32,6 +32,8 @@ export const PERMISSIONS = [
   "appraisals:write",
   "stores:write",
   "reports:read",
+  "finance:read",
+  "finance:write",
   "api:manage",
 ] as const;
 
@@ -59,6 +61,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "appraisals:write",
     "stores:write",
     "reports:read",
+    "finance:read",
+    "finance:write",
     "api:manage",
   ],
   vendedor: [
@@ -141,6 +145,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "appraisals:write": "Avaliar veículos",
   "stores:write": "Gerenciar unidades",
   "reports:read": "Ver relatórios",
+  "finance:read": "Ver custos, compra e margem",
+  "finance:write": "Lançar custos, compra e venda",
   "api:manage": "Gerenciar API e webhooks",
 };
 

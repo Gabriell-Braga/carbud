@@ -61,6 +61,7 @@ const vehicleFields = {
   description: z.preprocess(emptyToNull, z.string().trim().max(5000).nullable().optional()),
   status: z.enum(VEHICLE_STATUS),
   featured: z.boolean(),
+  isAuction: z.boolean(),
   storeId: z.preprocess(emptyToNull, z.string().uuid().nullable().optional()),
   fipeCode: z.string().trim().max(20).nullable().optional(),
   fipePriceCents: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
@@ -73,6 +74,7 @@ export const vehicleSchema = z.object({
   options: vehicleFields.options.default([]),
   status: vehicleFields.status.default("draft"),
   featured: vehicleFields.featured.default(false),
+  isAuction: vehicleFields.isAuction.default(false),
 });
 
 export type VehicleInput = z.infer<typeof vehicleSchema>;

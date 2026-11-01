@@ -385,6 +385,30 @@ produção, pedir ao gerente do Asaas a **tokenização** — sem ela a assinatu
 valida o cartão com os dados de novo (funciona), mas trocar valor ou vencimento
 de assinatura no cartão depois fica bloqueado.
 
+### 9.9 Financeiro do veículo, leilão e importação da Dri-Car (01/11/2026)
+
+Pedidos das lojas (via Dri-Car). Migration `0030_vehicle_finance`: rodar o
+migrate em produção depois do deploy.
+
+- **Financeiro** (`/admin/financeiro` e card na ficha do carro): compra,
+  origem, custos lançados, venda, comprador e retorno do banco, com margem
+  (`receita = venda + retorno`, `custo = compra + custos`, mesma conta da
+  planilha da Dri-Car). Tabelas `vehicle_finance` e `vehicle_expenses`, fora
+  de `vehicles` de propósito: nenhum caminho público lê. Permissões
+  `finance:read`/`finance:write`, só do admin da revenda por padrão. A busca
+  acha comprador por nome ou CPF; a planilha sai em CSV para Excel (`;`,
+  vírgula decimal, BOM) e grava auditoria.
+- **Leilão**: `vehicles.is_auction`, marcado na ficha, selo e filtro no
+  estoque. Só interno.
+- **Colocar à venda**: botão na lista e na ficha para rascunho.
+- **Passo a passo** de conexão em cada card de portal (`steps` em
+  `portals.ts`).
+- **Importação da Dri-Car**: `scripts/import-dricar.mjs` lê a API de migração
+  do sistema antigo e cria/atualiza os carros e o financeiro. Simula por
+  padrão; grava com `--apply`. Não duplica (placa ou marca/modelo/ano/km) e
+  guarda o que enviou em `.dricar-import-state.json`.
+- Fora: custos fixos da loja (aluguel, salário) e Mobiauto (aguardando API).
+
 ### 9.7 Afiliados (fase 1 entregue, portal planejado)
 
 Painel Geral → Afiliados. Código `AF-` + 10 caracteres gerado no servidor,

@@ -21,6 +21,7 @@ import { getVehicleStats, listVehicles } from "@/lib/services/vehicles";
 import { stockPortalStatus } from "@/lib/services/portals";
 import { PortalCells } from "@/components/admin/portal-cells";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import { PublishVehicleButton } from "./publish-button";
 
 export const metadata: Metadata = { title: "Estoque" };
 export const dynamic = "force-dynamic";
@@ -28,7 +29,13 @@ export const dynamic = "force-dynamic";
 export default async function StockPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    sort?: string;
+    page?: string;
+    leilao?: string;
+  }>;
 }) {
   const context = await requireTenantPage("vehicles:read");
   const params = await searchParams;
@@ -42,6 +49,7 @@ export default async function StockPage({
     listVehicles(context.tenant.id, {
       search: params.q?.trim() || undefined,
       status,
+      auction: params.leilao === "sim" ? true : params.leilao === "nao" ? false : undefined,
       sort: (params.sort as "recentes") || "recentes",
       page: Number(params.page ?? 1) || 1,
       pageSize: 20,
@@ -105,6 +113,19 @@ export default async function StockPage({
                   {VEHICLE_STATUS_LABELS[value]}
                 </option>
               ))}
+            </Select>
+          </div>
+          <div className="min-w-0">
+            <Label htmlFor="leilao">Leilão</Label>
+            <Select
+              id="leilao"
+              name="leilao"
+              defaultValue={params.leilao ?? ""}
+              className="w-full sm:w-36"
+            >
+              <option value="">Todos</option>
+              <option value="sim">Só de leilão</option>
+              <option value="nao">Sem leilão</option>
             </Select>
           </div>
           <div className="min-w-0">
@@ -209,6 +230,7 @@ export default async function StockPage({
                               </p>
                             ) : null}
                             {vehicle.featured ? <Badge tone="info">Destaque</Badge> : null}
+                            {vehicle.isAuction ? <Badge tone="warning">Leilão</Badge> : null}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs md:hidden">
                             <span className="tnum font-medium text-text">{price}</span>
@@ -252,7 +274,12 @@ export default async function StockPage({
                         <PortalCells cells={portalStatus.byVehicle.get(vehicle.id) ?? []} />
                       </Td>
                     ) : null}
-                    <Td className="pl-0 text-right md:pl-4">
+                    <Td className="whitespace-nowrap pl-0 text-right md:pl-4">
+                      {canWrite && vehicle.status === "draft" ? (
+                        <span className="mr-2 hidden md:inline-flex">
+                          <PublishVehicleButton vehicleId={vehicle.id} />
+                        </span>
+                      ) : null}
                       {/* no celular a ação vira só a seta: o botão com texto
                           roubava a largura que o resumo precisa */}
                       <Link
@@ -281,7 +308,7 @@ export default async function StockPage({
         page={result.page}
         total={result.total}
         pageSize={result.pageSize}
-        params={{ q: params.q, status, sort: params.sort }}
+        params={{ q: params.q, status, sort: params.sort, leilao: params.leilao }}
       />
     </>
   );

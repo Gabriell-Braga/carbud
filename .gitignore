@@ -54,3 +54,6 @@ next-env.d.ts
 
 # artefatos baixados do Figma (referencia de design, nao codigo)
 .figma/
+
+# estado da importação da Dri-Car (scripts/import-dricar.mjs)
+.dricar-import-state.json
