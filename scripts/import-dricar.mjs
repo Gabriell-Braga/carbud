@@ -190,14 +190,21 @@ async function main() {
   const byPrint = new Map(existing.map((v) => [fingerprint(v), v]));
   console.log(`Dri-Car: ${cars.length} no catálogo, ${veiculos.length} no ERP. Carbud: ${existing.length} veículos.`);
 
-  // o carro do site é o que vira anúncio; vendido que nunca passou pelo Carbud fica de fora
-  const candidates = cars.filter((car) => car.status !== "sold" || state[car.id]);
+  /*
+   * Ativos primeiro: o carro do site é o que vira anúncio. Depois os vendidos,
+   * só para marcar como vendido o que já está no Carbud (importado antes e
+   * vendido desde então); vendido sem par aqui fica de fora. Carro do Carbud
+   * que já casou com um ativo não pode ser "vendido" por outro registro.
+   */
+  const candidates = [...cars].sort((a, b) => Number(a.status === "sold") - Number(b.status === "sold"));
+  const claimed = new Set();
   const stats = { created: 0, matched: 0, sold: 0, finance: 0, expenses: 0, photos: 0, errors: 0 };
   let processed = 0;
 
   for (const car of candidates) {
     if (processed >= LIMIT) break;
-    const veiculo = car.veiculo ?? (car.veiculoId ? veiculoById.get(car.veiculoId) : null);
+    // o da lista do ERP traz as despesas; o embutido no carro não
+    const veiculo = (car.veiculoId && veiculoById.get(car.veiculoId)) || car.veiculo || null;
     const venda = veiculo ? vendaByVeiculo.get(veiculo.id) : null;
     const y = years(car.year, veiculo?.anoFab, veiculo?.anoMod);
     const licensePlate = plate(veiculo?.placa);
@@ -218,13 +225,15 @@ async function main() {
     const label = `${draft.brand} ${draft.model} ${draft.yearManufacture}/${draft.yearModel}`;
 
     try {
-      const match =
+      const wantSold = car.status === "sold";
+      const found =
         (state[car.id] && existing.find((v) => v.id === state[car.id].vehicleId)) ||
         (draft.licensePlate && byPlate.get(draft.licensePlate)) ||
         byPrint.get(fingerprint(draft));
+      const match = found && wantSold && claimed.has(found.id) ? null : found;
+      if (match && !wantSold) claimed.add(match.id);
 
       let vehicleId = match?.id;
-      const wantSold = car.status === "sold";
 
       if (!match) {
         if (wantSold) continue;
