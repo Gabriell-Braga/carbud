@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { FileDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, FileDown } from "lucide-react";
 import {
   centsToMoney,
+  digitsOf,
   maskCep,
+  maskCnpj,
   maskCpf,
   maskMoney,
   maskPhone,
@@ -12,8 +15,12 @@ import {
 } from "@carbud/site-kit/masks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FormField, Input, Textarea } from "@/components/ui/field";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { Checkbox, FormField, Input, Select, Textarea } from "@/components/ui/field";
+import { useToast } from "@/components/ui/toast";
+import { apiPatch, apiPut } from "@/lib/client/api";
+import { lookupCep } from "@/lib/client/cep";
+import { moneyInWords } from "@/lib/format/money-words";
+import { cn, formatCurrency, formatNumber } from "@/lib/utils";
 
 type Seller = {
   name: string;
@@ -28,7 +35,9 @@ type Seller = {
 };
 
 type VehicleInfo = {
-  title: string;
+  id: string;
+  brand: string;
+  model: string;
   years: string;
   plate: string;
   color: string;
@@ -38,93 +47,363 @@ type VehicleInfo = {
   priceCents: number;
 };
 
-function defaultClauses(city: string) {
-  return [
-    "O VENDEDOR declara ser legítimo proprietário do veículo descrito, livre e desembaraçado de ônus, multas, tributos e débitos até a data e hora da entrega.",
-    "O COMPRADOR declara ter examinado o veículo e recebê-lo no estado de conservação e funcionamento em que se encontra.",
-    "O VENDEDOR oferece a garantia legal de 90 (noventa) dias para vícios do veículo, contados da entrega, nos termos do art. 26, II, do Código de Defesa do Consumidor.",
-    "Multas, tributos e demais encargos referentes a fatos ocorridos a partir da data e hora da entrega são de responsabilidade do COMPRADOR.",
-    "O COMPRADOR se obriga a transferir o veículo para o seu nome no prazo de 30 (trinta) dias, conforme o art. 123, § 1º, do Código de Trânsito Brasileiro, cabendo ao VENDEDOR a comunicação de venda prevista no art. 134 do mesmo Código.",
-    `As partes elegem o foro da comarca de ${city || "________________"} para dirimir quaisquer questões oriundas deste contrato.`,
-  ].join("\n\n");
+const PAYMENTS = [
+  { key: "cash", label: "Valor pago à vista", placeholder: "Ex.: R$ 10.000,00 via PIX" },
+  {
+    key: "tradeIn",
+    label: "Entrada em veículo",
+    placeholder: "Ex.: GM Montana 2012/2013, branca, placa ODN4G12, RENAVAM 487246209, avaliado em R$ 28.000,00",
+  },
+  { key: "financed", label: "Saldo financiado", placeholder: "Ex.: R$ 26.900,00 pelo Banco Itaú em 48x de R$ 948,34" },
+  { key: "card", label: "Valor pago através de cartão de crédito", placeholder: "Ex.: R$ 5.000,00 em 10x" },
+  { key: "promissory", label: "Valor pago através de nota promissória", placeholder: "Ex.: 3 notas de R$ 1.000,00, vencendo todo dia 10" },
+  { key: "notes", label: "Observações", placeholder: "Ex.: a transferência do veículo será paga pela loja" },
+] as const;
+type PaymentKey = (typeof PAYMENTS)[number]["key"];
+
+const INSURANCES = [
+  "Seguro proteção financeira",
+  "Seguro auto assist",
+  "Seguro auto RCF",
+  "Seguro mão na roda",
+  "Seguro acidentes pessoais premiado",
+  "Seguro auto casco",
+  "Seguro total",
+  "Outros",
+];
+
+/**
+ * As cláusulas são ligadas e desligadas no clique, não editadas como texto:
+ * foi o que a loja achou mais prático no contrato que já usava (Dri-Car). O
+ * texto livre fica para o campo de cláusulas adicionais.
+ */
+const CLAUSES = [
+  {
+    key: "object",
+    title: "Objeto",
+    on: true,
+    text: () => [
+      "O VENDEDOR vende e transfere ao COMPRADOR a propriedade do bem objeto do presente instrumento, pelo preço certo e ajustado entre as partes, acima indicado.",
+      "Parágrafo primeiro. O COMPRADOR declara neste ato que examinou criteriosamente o veículo acima indicado em todos os seus itens e componentes, verificando o motor, a lataria e o estado geral do mesmo, razão pela qual o adquire no estado em que se apresenta.",
+    ],
+  },
+  {
+    key: "liability",
+    title: "Responsabilidade a partir da assinatura",
+    on: true,
+    text: () => [
+      "O VENDEDOR estará isento de responder administrativa, civil ou penalmente por qualquer evento ocorrido a partir da data da assinatura do presente contrato, sendo que responde por todos aqueles anteriores.",
+    ],
+  },
+  {
+    key: "free",
+    title: "Entrega livre de ônus",
+    on: true,
+    text: () => [
+      "O VENDEDOR se obriga a entregar o referido bem livre de qualquer ônus, principalmente os que se referem aos débitos de multas, IPVA, licenciamento e seguro obrigatório, devidos até a data da venda, inclusive no que diz respeito às multas que ainda não tenham sido cadastradas ou notificadas.",
+    ],
+  },
+  {
+    key: "expenses",
+    title: "Despesas de transferência e financiamento por conta do comprador",
+    on: true,
+    text: () => [
+      "As despesas com a transferência da propriedade e com o financiamento são de responsabilidade exclusiva do COMPRADOR.",
+    ],
+  },
+  {
+    key: "storeTransfer",
+    title: "Transferência paga pela loja",
+    on: false,
+    text: () => [
+      "As despesas com a transferência da propriedade do veículo serão pagas pelo VENDEDOR; as do financiamento, se houver, são de responsabilidade do COMPRADOR.",
+    ],
+  },
+  {
+    key: "transferDeadline",
+    title: "Prazo de 30 dias para transferir",
+    on: true,
+    text: () => [
+      "O COMPRADOR se obriga a transferir o veículo para o seu nome no prazo de 30 (trinta) dias, conforme o art. 123, § 1º, do Código de Trânsito Brasileiro, cabendo ao VENDEDOR a comunicação de venda prevista no art. 134 do mesmo Código.",
+    ],
+  },
+  {
+    key: "info",
+    title: "Informações prestadas ao comprador",
+    on: true,
+    text: () => [
+      "O COMPRADOR foi previamente informado pelo VENDEDOR no que diz respeito ao valor dos tributos incidentes sobre a comercialização do veículo e à regularidade do veículo quanto a furto, multas e taxas anuais legalmente devidas, débitos de impostos, alienação fiduciária e quaisquer outros registros que limitem ou impeçam a circulação do veículo.",
+    ],
+  },
+  {
+    key: "warranty",
+    title: "Garantia legal (Código de Defesa do Consumidor)",
+    on: true,
+    text: () => [
+      "A garantia do veículo será feita conforme o Código de Defesa do Consumidor, pelo prazo legal de 90 (noventa) dias para vícios, contados da entrega (art. 26, II).",
+    ],
+  },
+  {
+    key: "storeMechanics",
+    title: "Garantia só com os mecânicos da loja",
+    on: false,
+    text: () => [
+      "A garantia só terá efeito quando o veículo for analisado por mecânicos desta empresa, perdendo-se a garantia em caso de qualquer serviço realizado por terceiros.",
+    ],
+  },
+  {
+    key: "noSpareKey",
+    title: "Veículo sem chave reserva",
+    on: false,
+    text: () => ["O veículo não possui chave reserva."],
+  },
+  {
+    key: "forum",
+    title: "Foro",
+    on: true,
+    text: (city: string) => [
+      `Fica eleito o foro da Comarca de ${city || "________________"} para dirimir quaisquer dúvidas ou litígios decorrentes deste contrato, com renúncia expressa de qualquer outro, por mais privilegiado que seja.`,
+    ],
+  },
+] as const;
+type ClauseKey = (typeof CLAUSES)[number]["key"];
+
+const MARITAL = ["Solteiro(a)", "Casado(a)", "União estável", "Divorciado(a)", "Viúvo(a)"];
+
+function todayIso() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
-function today() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+const maskDocument = (value: string) => (digitsOf(value).length > 11 ? maskCnpj(value) : maskCpf(value));
+
+function initialForm(vehicle: VehicleInfo, buyer: InitialBuyer, saleDate: string | null) {
+  return {
+    buyer: {
+      name: buyer.name,
+      document: buyer.cpf ? maskDocument(buyer.cpf) : "",
+      rg: "",
+      marital: MARITAL[0],
+      phone: buyer.phone ? maskPhone(buyer.phone) : "",
+      phone2: "",
+      email: buyer.email,
+      zip: "",
+      street: "",
+      number: "",
+      district: "",
+      city: "",
+    },
+    vehicle: {
+      plate: vehicle.plate,
+      renavam: "",
+      chassis: "",
+      mileage: vehicle.mileageKm ? formatNumber(vehicle.mileageKm) : "",
+      kind: "Automóvel",
+    },
+    price: centsToMoney(vehicle.priceCents),
+    saleDate: saleDate ?? todayIso(),
+    payments: {} as Partial<Record<PaymentKey, string>>,
+    insurances: [] as string[],
+    insuranceValue: "",
+    clauses: Object.fromEntries(CLAUSES.map((clause) => [clause.key, clause.on])) as Record<ClauseKey, boolean>,
+    extraClauses: "",
+    witnesses: true,
+  };
+}
+type Form = ReturnType<typeof initialForm>;
+type InitialBuyer = { name: string; phone: string; email: string; cpf?: string };
+
+/**
+ * Junta o contrato salvo ao formulário novo. Campo que surgiu depois do
+ * salvamento fica com o padrão; e o que o financeiro também guarda (comprador,
+ * valor, data) vem de lá, porque pode ter sido corrigido na ficha do carro.
+ */
+function restoreForm(base: Form, saved: Record<string, unknown> | null, hasSale: boolean): Form {
+  if (!saved) return base;
+  const parsed = saved as Partial<Form>;
+  const merged: Form = {
+    ...base,
+    ...parsed,
+    buyer: { ...base.buyer, ...parsed.buyer },
+    vehicle: { ...base.vehicle, ...parsed.vehicle },
+    clauses: { ...base.clauses, ...parsed.clauses },
+  };
+  if (!hasSale) return merged;
+  return {
+    ...merged,
+    price: base.price,
+    saleDate: base.saleDate,
+    buyer: {
+      ...merged.buyer,
+      name: base.buyer.name || merged.buyer.name,
+      document: base.buyer.document || merged.buyer.document,
+      phone: base.buyer.phone || merged.buyer.phone,
+    },
+  };
 }
 
 /**
- * Contrato de compra e venda, montado na tela e salvo em PDF pela impressão
- * do navegador.
+ * Venda do carro: preenche o contrato, grava a venda e gera o PDF.
  *
- * Por que impressão e não um gerador de PDF no servidor: o painel roda em
- * Cloudflare Workers, onde não há navegador headless, e as bibliotecas de PDF
- * desenham por coordenada — cada ajuste de layout vira conta de milímetro. O
- * HTML com `@page` sai em A4, com a fonte e o logo certos, e "Salvar como PDF"
- * existe em todo navegador.
+ * "Confirmar venda" grava o que o resto do painel usa — preço, data e
+ * comprador no financeiro, e o carro como vendido (sai do site e dos portais)
+ * — e abre a impressão. O formulário inteiro (RG, endereço, pagamento,
+ * cláusulas) vai junto, para reimprimir de qualquer computador.
  *
- * Nada é gravado: o documento é refeito a partir do carro sempre que preciso.
+ * PDF pela impressão do navegador, não gerado no servidor: o painel roda em
+ * Cloudflare Workers, sem navegador headless, e bibliotecas de PDF desenham
+ * por coordenada. O HTML com `@page` sai em A4 com a fonte e o logo certos.
  */
 export function SaleDocument({
   seller,
   vehicle,
   buyer: initialBuyer,
+  saleDate,
+  savedContract,
+  sold,
+  canWriteVehicle,
+  canWriteFinance,
 }: {
   seller: Seller;
   vehicle: VehicleInfo;
-  buyer: { name: string; phone: string; email: string; cpf?: string };
+  buyer: InitialBuyer;
+  saleDate: string | null;
+  savedContract: Record<string, unknown> | null;
+  sold: boolean;
+  canWriteVehicle: boolean;
+  canWriteFinance: boolean;
 }) {
-  const [buyer, setBuyer] = useState({
-    name: initialBuyer.name,
-    cpf: initialBuyer.cpf ? maskCpf(initialBuyer.cpf) : "",
-    rg: "",
-    phone: initialBuyer.phone ? maskPhone(initialBuyer.phone) : "",
-    email: initialBuyer.email,
-    address: "",
-    city: "",
-    zip: "",
-  });
-  const [deal, setDeal] = useState({
-    plate: vehicle.plate,
-    renavam: "",
-    chassis: "",
-    mileage: vehicle.mileageKm ? formatNumber(vehicle.mileageKm) : "",
-    price: centsToMoney(vehicle.priceCents),
-    payment: "À vista.",
-    deliveredAt: today(),
-    clauses: defaultClauses([seller.city, seller.state].filter(Boolean).join("/")),
-  });
+  const router = useRouter();
+  const toast = useToast();
+  const [form, setForm] = useState<Form>(() =>
+    restoreForm(initialForm(vehicle, initialBuyer, saleDate), savedContract, saleDate !== null),
+  );
+  const [saving, setSaving] = useState(false);
 
-  const setB = (key: keyof typeof buyer) => (event: React.ChangeEvent<HTMLInputElement>) =>
-    setBuyer((current) => ({ ...current, [key]: event.target.value }));
-  const setD =
-    (key: keyof typeof deal) =>
-    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDeal((current) => ({ ...current, [key]: event.target.value }));
+  const setBuyer = (key: keyof Form["buyer"], value: string) =>
+    setForm((current) => ({ ...current, buyer: { ...current.buyer, [key]: value } }));
+  const setVehicle = (key: keyof Form["vehicle"], value: string) =>
+    setForm((current) => ({ ...current, vehicle: { ...current.vehicle, [key]: value } }));
+  const togglePayment = (key: PaymentKey, on: boolean) =>
+    setForm((current) => {
+      const payments = { ...current.payments };
+      if (on) payments[key] = payments[key] ?? "";
+      else delete payments[key];
+      return { ...current, payments };
+    });
+  const toggleInsurance = (name: string, on: boolean) =>
+    setForm((current) => ({
+      ...current,
+      insurances: on ? [...current.insurances, name] : current.insurances.filter((item) => item !== name),
+    }));
 
-  function handlePrint() {
+  // quem paga a transferência: uma cláusula ou a outra, nunca as duas
+  const EXCLUSIVE: Partial<Record<ClauseKey, ClauseKey>> = { expenses: "storeTransfer", storeTransfer: "expenses" };
+  const toggleClause = (key: ClauseKey, on: boolean) =>
+    setForm((current) => {
+      const clauses = { ...current.clauses, [key]: on };
+      const other = EXCLUSIVE[key];
+      if (on && other) clauses[other] = false;
+      return { ...current, clauses };
+    });
+
+  async function fillAddress(zip: string) {
+    const found = await lookupCep(zip);
+    if (!found) return;
+    setForm((current) => ({
+      ...current,
+      buyer: {
+        ...current.buyer,
+        street: found.street || current.buyer.street,
+        district: found.district || current.buyer.district,
+        city: [found.city, found.state].filter(Boolean).join("/") || current.buyer.city,
+      },
+    }));
+  }
+
+  const priceCents = moneyToCents(form.price);
+  const financed = "financed" in form.payments;
+  const canSave = canWriteFinance || (canWriteVehicle && !sold);
+
+  function print() {
     // o título vira o nome sugerido do arquivo ao salvar como PDF
     const previous = document.title;
-    document.title = `Contrato - ${vehicle.title} - ${buyer.name || "comprador"}`;
+    document.title = `Contrato - ${vehicle.brand} ${vehicle.model} - ${form.buyer.name || "comprador"}`;
     window.addEventListener("afterprint", () => (document.title = previous), { once: true });
     window.print();
   }
 
-  const delivered = deal.deliveredAt ? new Date(deal.deliveredAt) : null;
+  async function confirmSale() {
+    if (!form.buyer.name.trim()) return toast.error("Informe o nome do comprador.");
+    if (priceCents <= 0) return toast.error("Informe o valor da venda.");
+    if (!form.saleDate) return toast.error("Informe a data da venda.");
+
+    setSaving(true);
+    if (canWriteFinance) {
+      const result = await apiPut(`/api/admin/vehicles/${vehicle.id}/finance`, {
+        salePriceCents: priceCents,
+        saleDate: form.saleDate,
+        buyerName: form.buyer.name.trim(),
+        buyerDocument: form.buyer.document,
+        buyerPhone: form.buyer.phone,
+        contract: form,
+      });
+      if (!result.ok) {
+        setSaving(false);
+        return toast.error(result.error);
+      }
+    }
+    if (canWriteVehicle && !sold) {
+      const result = await apiPatch(`/api/admin/vehicles/${vehicle.id}`, { status: "sold" });
+      if (!result.ok) {
+        setSaving(false);
+        return toast.error(result.error);
+      }
+    }
+    setSaving(false);
+    toast.success(sold ? "Venda atualizada." : "Venda registrada. O carro saiu do site e dos portais.");
+    router.refresh();
+    print();
+  }
+
   const place = [seller.city, seller.state].filter(Boolean).join("/");
-  const clauses = deal.clauses
+  const saleDay = form.saleDate ? new Date(`${form.saleDate}T12:00:00`) : new Date();
+  const enabledClauses: { title: string; paragraphs: readonly string[] }[] = CLAUSES.filter(
+    (clause) => form.clauses[clause.key],
+  ).map((clause) => ({
+    title: clause.title,
+    paragraphs: clause.text(place) as readonly string[],
+  }));
+  if (financed && form.insurances.length > 0) {
+    const value = moneyToCents(form.insuranceValue);
+    // antes do foro, que fecha as cláusulas
+    const forum = enabledClauses.findIndex((clause) => clause.title === "Foro");
+    enabledClauses.splice(forum === -1 ? enabledClauses.length : forum, 0, {
+      title: "Seguros vinculados ao financiamento",
+      paragraphs: [
+        `O contrato de financiamento deste veículo possui os seguintes seguros inclusos: ${form.insurances
+          .map((item) => item.toUpperCase())
+          .join(", ")}${value > 0 ? `, no valor total de ${formatCurrency(value)} (${moneyInWords(value)})` : ""}.`,
+        "Parágrafo único. Em caso de quitação do financiamento por parte do COMPRADOR, o mesmo se responsabiliza em quitar todas as despesas referentes ao processo de retirada do gravame.",
+      ],
+    });
+  }
+  const extra = form.extraClauses
     .split(/\n\s*\n/)
-    .map((clause) => clause.trim())
+    .map((text) => text.trim())
     .filter(Boolean);
+  const buyerAddress = [
+    [form.buyer.street, form.buyer.number].filter(Boolean).join(", "),
+    form.buyer.district,
+  ]
+    .filter(Boolean)
+    .join(" – ");
 
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
       {/*
        * Só o papel vai para a impressão. Esconder o resto por visibilidade (e
-       * não por display) dispensa mexer no shell do painel: o layout continua
-       * igual, e o documento é reposicionado no topo da página.
+       * não por display) dispensa mexer no shell do painel.
        */}
       <style>{`
         @page { size: A4; margin: 14mm 16mm; }
@@ -135,223 +414,364 @@ export function SaleDocument({
         }
       `}</style>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Comprador</CardTitle>
           </CardHeader>
           <CardContent>
-            <FormField label="Nome completo" htmlFor="b-name">
-              <Input id="b-name" value={buyer.name} onChange={setB("name")} />
+            <FormField label="Nome completo *" htmlFor="b-name">
+              <Input id="b-name" value={form.buyer.name} onChange={(e) => setBuyer("name", e.target.value)} />
             </FormField>
             <div className="grid grid-cols-2 gap-x-3">
-              <FormField label="CPF" htmlFor="b-cpf">
+              <FormField label="CPF / CNPJ" htmlFor="b-doc">
                 <Input
-                  id="b-cpf"
+                  id="b-doc"
                   inputMode="numeric"
-                  value={buyer.cpf}
-                  onChange={(event) => setBuyer((c) => ({ ...c, cpf: maskCpf(event.target.value) }))}
+                  value={form.buyer.document}
+                  onChange={(e) => setBuyer("document", maskDocument(e.target.value))}
                 />
               </FormField>
-              <FormField label="RG" htmlFor="b-rg">
-                <Input id="b-rg" value={buyer.rg} onChange={setB("rg")} />
+              <FormField label="RG / Inscrição" htmlFor="b-rg">
+                <Input id="b-rg" value={form.buyer.rg} onChange={(e) => setBuyer("rg", e.target.value)} />
+              </FormField>
+              <FormField label="Estado civil" htmlFor="b-marital">
+                <Select id="b-marital" value={form.buyer.marital} onChange={(e) => setBuyer("marital", e.target.value)}>
+                  {MARITAL.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="E-mail" htmlFor="b-email">
+                <Input id="b-email" type="email" value={form.buyer.email} onChange={(e) => setBuyer("email", e.target.value)} />
               </FormField>
               <FormField label="Telefone" htmlFor="b-phone">
                 <Input
                   id="b-phone"
                   inputMode="tel"
-                  value={buyer.phone}
-                  onChange={(event) =>
-                    setBuyer((c) => ({ ...c, phone: maskPhone(event.target.value) }))
-                  }
+                  value={form.buyer.phone}
+                  onChange={(e) => setBuyer("phone", maskPhone(e.target.value))}
                 />
               </FormField>
-              <FormField label="E-mail" htmlFor="b-email">
-                <Input id="b-email" type="email" value={buyer.email} onChange={setB("email")} />
-              </FormField>
-            </div>
-            <FormField label="Endereço" htmlFor="b-address">
-              <Input
-                id="b-address"
-                placeholder="Rua, número, bairro"
-                value={buyer.address}
-                onChange={setB("address")}
-              />
-            </FormField>
-            <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-x-3">
-              <FormField label="Cidade/UF" htmlFor="b-city">
-                <Input id="b-city" value={buyer.city} onChange={setB("city")} />
+              <FormField label="Telefone 2" htmlFor="b-phone2">
+                <Input
+                  id="b-phone2"
+                  inputMode="tel"
+                  value={form.buyer.phone2}
+                  onChange={(e) => setBuyer("phone2", maskPhone(e.target.value))}
+                />
               </FormField>
               <FormField label="CEP" htmlFor="b-zip">
                 <Input
                   id="b-zip"
                   inputMode="numeric"
-                  mask={maskCep}
-                  value={buyer.zip}
-                  onChange={setB("zip")}
+                  placeholder="Preenche o endereço"
+                  value={form.buyer.zip}
+                  onChange={(e) => {
+                    const zip = maskCep(e.target.value);
+                    setBuyer("zip", zip);
+                    if (digitsOf(zip).length === 8) void fillAddress(zip);
+                  }}
                 />
               </FormField>
+              <FormField label="Cidade/UF" htmlFor="b-city">
+                <Input id="b-city" value={form.buyer.city} onChange={(e) => setBuyer("city", e.target.value)} />
+              </FormField>
             </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-x-3">
+              <FormField label="Rua" htmlFor="b-street">
+                <Input id="b-street" value={form.buyer.street} onChange={(e) => setBuyer("street", e.target.value)} />
+              </FormField>
+              <FormField label="Nº / Compl." htmlFor="b-number">
+                <Input id="b-number" value={form.buyer.number} onChange={(e) => setBuyer("number", e.target.value)} />
+              </FormField>
+            </div>
+            <FormField label="Bairro" htmlFor="b-district" className="mb-0">
+              <Input id="b-district" value={form.buyer.district} onChange={(e) => setBuyer("district", e.target.value)} />
+            </FormField>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Veículo e pagamento</CardTitle>
+            <CardTitle>Veículo</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-x-3">
-              <FormField label="Placa" htmlFor="d-plate">
-                <Input id="d-plate" value={deal.plate} onChange={setD("plate")} />
+              <FormField label="Placa" htmlFor="v-plate">
+                <Input id="v-plate" value={form.vehicle.plate} onChange={(e) => setVehicle("plate", e.target.value.toUpperCase())} />
               </FormField>
-              <FormField label="Km na entrega" htmlFor="d-km">
-                <Input id="d-km" value={deal.mileage} onChange={setD("mileage")} />
+              <FormField label="Km na entrega" htmlFor="v-km">
+                <Input id="v-km" inputMode="numeric" value={form.vehicle.mileage} onChange={(e) => setVehicle("mileage", e.target.value)} />
               </FormField>
-              <FormField label="RENAVAM" htmlFor="d-renavam">
-                <Input id="d-renavam" inputMode="numeric" value={deal.renavam} onChange={setD("renavam")} />
+              <FormField label="RENAVAM" htmlFor="v-renavam">
+                <Input id="v-renavam" inputMode="numeric" value={form.vehicle.renavam} onChange={(e) => setVehicle("renavam", e.target.value)} />
               </FormField>
-              <FormField label="Chassi" htmlFor="d-chassis">
-                <Input id="d-chassis" value={deal.chassis} onChange={setD("chassis")} />
-              </FormField>
-              <FormField label="Valor (R$)" htmlFor="d-price">
-                <Input
-                  id="d-price"
-                  inputMode="numeric"
-                  value={deal.price}
-                  onChange={(event) => setDeal((c) => ({ ...c, price: maskMoney(event.target.value) }))}
-                />
-              </FormField>
-              <FormField label="Entrega" htmlFor="d-delivered">
-                <Input
-                  id="d-delivered"
-                  type="datetime-local"
-                  value={deal.deliveredAt}
-                  onChange={setD("deliveredAt")}
-                />
+              <FormField label="Chassi" htmlFor="v-chassis">
+                <Input id="v-chassis" value={form.vehicle.chassis} onChange={(e) => setVehicle("chassis", e.target.value.toUpperCase())} />
               </FormField>
             </div>
-            <FormField
-              label="Forma de pagamento"
-              htmlFor="d-payment"
-              hint="Ex.: entrada de R$ 20.000,00 via PIX e saldo financiado pelo banco X em 48x."
-            >
-              <Textarea id="d-payment" className="min-h-16" value={deal.payment} onChange={setD("payment")} />
-            </FormField>
-            <FormField
-              label="Cláusulas"
-              htmlFor="d-clauses"
-              hint="Uma por parágrafo, separadas por linha em branco. Revise com seu jurídico."
-            >
-              <Textarea id="d-clauses" className="min-h-48" value={deal.clauses} onChange={setD("clauses")} />
+            <FormField label="Tipo" htmlFor="v-kind" className="mb-0">
+              <Input id="v-kind" value={form.vehicle.kind} onChange={(e) => setVehicle("kind", e.target.value)} />
             </FormField>
           </CardContent>
         </Card>
 
-        <Button onClick={handlePrint}>
-          <FileDown className="h-4 w-4" />
-          Gerar PDF
-        </Button>
-        <p className="-mt-2 text-xs text-muted">
-          Na janela de impressão, escolha &quot;Salvar como PDF&quot; como destino.
-        </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Valor e pagamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-x-3">
+              <FormField label="Valor total (R$) *" htmlFor="d-price">
+                <Input
+                  id="d-price"
+                  inputMode="numeric"
+                  value={form.price}
+                  onChange={(e) => setForm((c) => ({ ...c, price: maskMoney(e.target.value) }))}
+                />
+              </FormField>
+              <FormField label="Data da venda *" htmlFor="d-date">
+                <Input
+                  id="d-date"
+                  type="date"
+                  value={form.saleDate}
+                  onChange={(e) => setForm((c) => ({ ...c, saleDate: e.target.value }))}
+                />
+              </FormField>
+            </div>
+            {priceCents > 0 ? <p className="-mt-2 mb-4 text-xs text-muted">({moneyInWords(priceCents)})</p> : null}
+
+            <p className="label-instrument mb-2 text-text">Condições de pagamento</p>
+            <div className="mb-4 flex flex-col gap-2">
+              {PAYMENTS.map((payment) => {
+                const on = payment.key in form.payments;
+                return (
+                  <div key={payment.key} className={cn("rounded-lg border border-border", on && "border-accent bg-accent/5")}>
+                    <label className="flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm">
+                      <Checkbox checked={on} onChange={(e) => togglePayment(payment.key, e.target.checked)} />
+                      {payment.label}
+                    </label>
+                    {on ? (
+                      <div className="px-3 pb-3">
+                        <Input
+                          aria-label={`Detalhes: ${payment.label}`}
+                          placeholder={payment.placeholder}
+                          value={form.payments[payment.key] ?? ""}
+                          onChange={(e) =>
+                            setForm((c) => ({ ...c, payments: { ...c.payments, [payment.key]: e.target.value } }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            {financed ? (
+              <>
+                <p className="label-instrument mb-2 text-text">Seguros vinculados ao financiamento</p>
+                <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {INSURANCES.map((name) => (
+                    <label
+                      key={name}
+                      className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={form.insurances.includes(name)}
+                        onChange={(e) => toggleInsurance(name, e.target.checked)}
+                      />
+                      {name}
+                    </label>
+                  ))}
+                </div>
+                <FormField label="Valor dos seguros (R$)" htmlFor="d-insurance" className="mb-0">
+                  <Input
+                    id="d-insurance"
+                    inputMode="numeric"
+                    value={form.insuranceValue}
+                    onChange={(e) => setForm((c) => ({ ...c, insuranceValue: maskMoney(e.target.value) }))}
+                  />
+                </FormField>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Cláusulas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-xs text-muted">Marque as que entram no contrato. Revise com seu jurídico.</p>
+            <div className="mb-4 flex flex-col gap-1.5">
+              {CLAUSES.map((clause) => (
+                <label key={clause.key} className="flex cursor-pointer items-start gap-2.5 py-1 text-sm">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={form.clauses[clause.key]}
+                    onChange={(e) => toggleClause(clause.key, e.target.checked)}
+                  />
+                  {clause.title}
+                </label>
+              ))}
+              <label className="flex cursor-pointer items-start gap-2.5 py-1 text-sm">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={form.witnesses}
+                  onChange={(e) => setForm((c) => ({ ...c, witnesses: e.target.checked }))}
+                />
+                Assinatura de duas testemunhas
+              </label>
+            </div>
+            <FormField
+              label="Cláusulas adicionais"
+              htmlFor="d-extra"
+              hint="Uma por parágrafo, separadas por linha em branco."
+              className="mb-0"
+            >
+              <Textarea
+                id="d-extra"
+                className="min-h-20"
+                value={form.extraClauses}
+                onChange={(e) => setForm((c) => ({ ...c, extraClauses: e.target.value }))}
+              />
+            </FormField>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-col gap-2">
+          {canSave ? (
+            <Button onClick={confirmSale} loading={saving}>
+              <CheckCircle2 className="h-4 w-4" />
+              {sold ? "Atualizar venda e gerar PDF" : "Confirmar venda e gerar PDF"}
+            </Button>
+          ) : null}
+          <Button variant={canSave ? "secondary" : "primary"} onClick={print}>
+            <FileDown className="h-4 w-4" />
+            Só gerar PDF
+          </Button>
+          <p className="text-xs text-muted">
+            {sold || !canSave
+              ? "Na janela de impressão, escolha \"Salvar como PDF\" como destino."
+              : "Confirmar marca o carro como vendido (sai do site e dos portais) e lança a venda no financeiro. Na impressão, escolha \"Salvar como PDF\"."}
+          </p>
+        </div>
       </div>
 
       {/* o papel: largura de A4 na tela, para a prévia bater com o impresso */}
-      <div className="min-w-0 overflow-x-auto">
+      {/* a prévia acompanha a rolagem do formulário; na impressão volta ao fluxo normal */}
+      <div className="min-w-0 overflow-x-auto xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:self-start xl:overflow-y-auto print:static print:max-h-none print:overflow-visible">
         <article
           id="sale-doc"
-          className="mx-auto w-full max-w-[210mm] rounded-lg border border-border bg-white p-[14mm] text-[10.5pt] leading-relaxed text-neutral-900 shadow-sm"
+          className="mx-auto w-full max-w-[210mm] rounded-lg border border-border bg-white p-[14mm] text-[10pt] leading-relaxed text-neutral-900 shadow-sm"
         >
-          <header className="flex items-center justify-between gap-6 border-b-2 border-neutral-900 pb-4">
-            <div className="flex min-w-0 items-center gap-4">
-              {seller.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={seller.logoUrl} alt={seller.name} className="h-14 w-auto max-w-[160px] object-contain" />
-              ) : null}
-              <div className="min-w-0">
-                <p className="text-[13pt] font-bold">{seller.legalName || seller.name}</p>
-                {seller.cnpj ? <p className="text-[9pt] text-neutral-600">CNPJ {seller.cnpj}</p> : null}
-                {seller.address ? <p className="text-[9pt] text-neutral-600">{seller.address}</p> : null}
-                <p className="text-[9pt] text-neutral-600">
-                  {[seller.phone, seller.email].filter(Boolean).join(" · ")}
-                </p>
-              </div>
-            </div>
+          <header className="flex items-center gap-4 border-b-2 border-neutral-900 pb-4">
+            {seller.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={seller.logoUrl} alt={seller.name} className="h-14 w-auto max-w-[160px] object-contain" />
+            ) : null}
+            <h1 className="min-w-0 flex-1 text-center text-[14pt] font-bold uppercase leading-tight tracking-wide">
+              Contrato particular de
+              <br />
+              compra e venda de veículo
+            </h1>
           </header>
 
-          <h1 className="mt-6 text-center text-[14pt] font-bold uppercase tracking-wide">
-            Contrato de compra e venda de veículo
-          </h1>
-
-          <Section title="Vendedor">
-            <Row label="Razão social" value={seller.legalName || seller.name} />
-            <Row label="CNPJ" value={seller.cnpj} />
+          <Section title="1. Dados do vendedor">
+            <Row label="Razão social" value={seller.legalName || seller.name} wide />
+            <Row label="CNPJ" value={seller.cnpj && maskCnpj(seller.cnpj)} />
+            <Row label="Telefone" value={seller.phone} />
             <Row label="Endereço" value={seller.address} wide />
           </Section>
 
-          <Section title="Comprador">
-            <Row label="Nome" value={buyer.name} wide />
-            <Row label="CPF" value={buyer.cpf} />
-            <Row label="RG" value={buyer.rg} />
-            <Row label="Telefone" value={buyer.phone} />
-            <Row label="E-mail" value={buyer.email} />
-            <Row
-              label="Endereço"
-              value={[buyer.address, buyer.city, buyer.zip && `CEP ${buyer.zip}`].filter(Boolean).join(" · ")}
-              wide
-            />
+          <Section title="2. Dados do comprador">
+            <Row label="Nome completo" value={form.buyer.name.toUpperCase()} wide />
+            <Row label={digitsOf(form.buyer.document).length > 11 ? "CNPJ" : "CPF"} value={form.buyer.document} />
+            <Row label="RG / Inscrição" value={form.buyer.rg} />
+            <Row label="Estado civil" value={form.buyer.marital} />
+            <Row label="Telefone" value={[form.buyer.phone, form.buyer.phone2].filter(Boolean).join(" / ")} />
+            <Row label="Endereço" value={buyerAddress} wide />
+            <Row label="Cidade / UF" value={form.buyer.city} />
+            <Row label="CEP" value={form.buyer.zip} />
+            {form.buyer.email ? <Row label="E-mail" value={form.buyer.email} wide /> : null}
           </Section>
 
-          <Section title="Veículo">
-            <Row label="Marca/modelo" value={vehicle.title} wide />
-            <Row label="Ano fab./modelo" value={vehicle.years} />
-            <Row label="Placa" value={deal.plate} />
-            <Row label="RENAVAM" value={deal.renavam} />
-            <Row label="Chassi" value={deal.chassis} />
-            <Row label="Cor" value={vehicle.color} />
-            <Row label="Combustível" value={vehicle.fuel} />
-            <Row label="Câmbio" value={vehicle.transmission} />
-            <Row label="Quilometragem" value={deal.mileage && `${deal.mileage} km`} />
+          <Section title="3. Identificação do veículo">
+            <Row label="Marca" value={vehicle.brand.toUpperCase()} />
+            <Row label="Modelo" value={vehicle.model.toUpperCase()} />
+            <Row label="Ano / modelo" value={vehicle.years} />
+            <Row label="Combustível" value={vehicle.fuel.toUpperCase()} />
+            <Row label="Cor" value={vehicle.color.toUpperCase()} />
+            <Row label="Quilometragem" value={form.vehicle.mileage && `${form.vehicle.mileage} km`} />
+            <Row label="Placa" value={form.vehicle.plate} />
+            <Row label="RENAVAM" value={form.vehicle.renavam} />
+            <Row label="Chassi" value={form.vehicle.chassis} />
+            <Row label="Tipo" value={form.vehicle.kind.toUpperCase()} />
           </Section>
 
-          <Section title="Preço e pagamento">
-            <Row label="Valor total" value={formatCurrency(moneyToCents(deal.price))} />
-            <Row
-              label="Entrega"
-              value={
-                delivered && !Number.isNaN(delivered.getTime())
-                  ? delivered.toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" })
-                  : ""
-              }
-            />
-            <Row label="Forma de pagamento" value={deal.payment} wide />
-          </Section>
+          <section className="mt-5 break-inside-avoid">
+            <SectionTitle>4. Valor e condições de pagamento</SectionTitle>
+            <p>
+              <span className="text-neutral-500">Valor total da venda:</span>{" "}
+              <strong>{formatCurrency(priceCents)}</strong>
+              {priceCents > 0 ? ` (${moneyInWords(priceCents)})` : null}
+            </p>
+            {PAYMENTS.filter((payment) => payment.key in form.payments).map((payment) => (
+              <p key={payment.key} className="mt-1 text-justify">
+                <span className="text-neutral-500">{payment.label}:</span>{" "}
+                {form.payments[payment.key] || <span className="inline-block w-64 border-b border-neutral-400">&nbsp;</span>}
+              </p>
+            ))}
+          </section>
 
-          <Section title="Cláusulas">
-            <ol className="col-span-2 list-decimal space-y-1.5 pl-5 text-justify">
-              {clauses.map((clause, index) => (
-                <li key={index}>{clause}</li>
-              ))}
-            </ol>
-          </Section>
+          <section className="mt-5">
+            <SectionTitle>5. Cláusulas contratuais</SectionTitle>
+            <p className="text-justify">
+              Pelo presente instrumento particular de contrato de compra e venda de veículo, firmado pelas partes
+              acima qualificadas, aqui denominadas simplesmente VENDEDOR e COMPRADOR, é justo e contratado o
+              seguinte:
+            </p>
+            {enabledClauses.map((clause, index) => (
+              <div key={clause.title} className="mt-2 text-justify">
+                {clause.paragraphs.map((paragraph, i) => (
+                  <p key={i} className={i > 0 ? "mt-1" : undefined}>
+                    {i === 0 ? (
+                      <strong>
+                        Cláusula {index + 1}ª – {clause.title}.{" "}
+                      </strong>
+                    ) : null}
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            ))}
+            {extra.map((text, index) => (
+              <p key={index} className="mt-2 text-justify">
+                <strong>Cláusula {enabledClauses.length + index + 1}ª.</strong> {text}
+              </p>
+            ))}
+          </section>
 
-          <p className="mt-6 break-inside-avoid">
-            E, por estarem de acordo, as partes assinam o presente em duas vias de igual teor.
+          <p className="mt-5 break-inside-avoid text-justify">
+            E por estarem assim acordados, firmam o presente instrumento em 02 (duas) vias de igual teor e forma,
+            obrigando-se as partes por si, seus herdeiros e sucessores.
           </p>
           <p className="mt-3 text-right">
             {place || "________________"},{" "}
-            {(delivered && !Number.isNaN(delivered.getTime()) ? delivered : new Date()).toLocaleDateString(
-              "pt-BR",
-              { day: "numeric", month: "long", year: "numeric" },
-            )}
-            .
+            {saleDay.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}.
           </p>
 
           <div className="mt-14 grid grid-cols-2 gap-x-10 gap-y-14 break-inside-avoid text-center text-[9pt]">
-            <Signature label="Vendedor" name={seller.legalName || seller.name} />
-            <Signature label="Comprador" name={buyer.name} />
-            <Signature label="Testemunha 1" name="Nome e CPF" />
-            <Signature label="Testemunha 2" name="Nome e CPF" />
+            <Signature label="Vendedor" name={(seller.legalName || seller.name).toUpperCase()} />
+            <Signature label="Comprador" name={form.buyer.name.toUpperCase()} />
+            {form.witnesses ? (
+              <>
+                <Signature label="Testemunha 1" name="Nome e CPF" />
+                <Signature label="Testemunha 2" name="Nome e CPF" />
+              </>
+            ) : null}
           </div>
         </article>
       </div>
@@ -359,12 +779,18 @@ export function SaleDocument({
   );
 }
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-2 border-b border-neutral-300 pb-1 text-[9pt] font-bold uppercase tracking-wider text-neutral-600">
+      {children}
+    </h2>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 break-inside-avoid">
-      <h2 className="mb-2 border-b border-neutral-300 pb-1 text-[9pt] font-bold uppercase tracking-wider text-neutral-600">
-        {title}
-      </h2>
+      <SectionTitle>{title}</SectionTitle>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1">{children}</dl>
     </section>
   );
@@ -385,7 +811,7 @@ function Row({ label, value, wide }: { label: string; value: string | null | und
 function Signature({ label, name }: { label: string; name: string }) {
   return (
     <div>
-      <div className="border-t border-neutral-900 pt-1.5 font-medium">{name || " "}</div>
+      <div className="border-t border-neutral-900 pt-1.5 font-medium">{name || " "}</div>
       <div className="text-neutral-500">{label}</div>
     </div>
   );

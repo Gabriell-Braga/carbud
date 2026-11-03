@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { leads, tenants } from "@/db/schema";
 import { PageHeader } from "@/components/layout/shell";
 import { allows, requireTenantPage } from "@/lib/auth/guards";
+import { can } from "@/lib/auth/rbac";
 import { getVehicleFinance } from "@/lib/services/vehicle-finance";
 import { FUEL_LABELS, TRANSMISSION_LABELS } from "@/lib/catalog/labels";
 import { formatPlate } from "@/lib/format/plate";
@@ -14,7 +15,7 @@ import { SaleDocument } from "./sale-document";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Contrato de venda" };
+export const metadata: Metadata = { title: "Vender veículo" };
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -46,14 +47,18 @@ export default async function SaleDocumentPage({ params }: Props) {
   // contato mais recente — o vendedor confere e corrige no formulário
   const buyer = vehicleLeads.find((lead) => lead.status === "won") ?? vehicleLeads[0] ?? null;
   // a venda lançada no financeiro do carro vence o palpite pelos leads
-  const sale = (await allows(context, context.tenant.id, "finance:read"))
-    ? (await getVehicleFinance(context.tenant.id, vehicle.id)).finance
-    : null;
+  const [financeRead, financeWrite] = await Promise.all([
+    allows(context, context.tenant.id, "finance:read"),
+    allows(context, context.tenant.id, "finance:write"),
+  ]);
+  const sale = financeRead ? (await getVehicleFinance(context.tenant.id, vehicle.id)).finance : null;
+  const full = context.access === "full";
+  const sold = vehicle.status === "sold";
 
   return (
     <>
       <PageHeader
-        title="Contrato de venda"
+        title={sold ? "Contrato de venda" : "Vender veículo"}
         description={`${vehicle.brand} ${vehicle.model} ${vehicle.version ?? ""}`.trim()}
       />
       <SaleDocument
@@ -68,8 +73,15 @@ export default async function SaleDocumentPage({ params }: Props) {
           phone: site?.contact.phone ?? site?.contact.whatsapp ?? null,
           email: site?.contact.email ?? null,
         }}
+        sold={sold}
+        canWriteVehicle={full && can(context.role, "vehicles:write")}
+        canWriteFinance={full && financeWrite}
+        saleDate={sale?.saleDate ?? null}
+        savedContract={sale?.contract ?? null}
         vehicle={{
-          title: [vehicle.brand, vehicle.model, vehicle.version].filter(Boolean).join(" "),
+          id: vehicle.id,
+          brand: vehicle.brand,
+          model: [vehicle.model, vehicle.version].filter(Boolean).join(" "),
           years: `${vehicle.yearManufacture}/${vehicle.yearModel}`,
           plate: vehicle.licensePlate ? formatPlate(vehicle.licensePlate) : "",
           color: vehicle.color ?? "",

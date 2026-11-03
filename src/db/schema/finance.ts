@@ -35,6 +35,12 @@ export const vehicleFinance = sqliteTable(
     /** Retorno do banco no financiamento; entra como receita na margem. */
     bankReturnCents: integer("bank_return_cents"),
     notes: text("notes"),
+    /**
+     * Formulário do contrato de venda (RG, endereço, pagamento, cláusulas
+     * marcadas), para reimprimir de qualquer computador sem redigitar. O
+     * formato é do componente da tela de venda; aqui é só guardado.
+     */
+    contract: text("contract", { mode: "json" }).$type<Record<string, unknown>>(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

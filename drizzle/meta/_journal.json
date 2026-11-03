@@ -225,6 +225,13 @@
       "when": 1793566078017,
       "tag": "0031_store_expenses",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1793739766332,
+      "tag": "0032_sale_contract",
+      "breakpoints": true
     }
   ]
 }

@@ -341,5 +341,11 @@ export const MIGRATIONS: BundledMigration[] = [
       "CREATE TABLE `store_expenses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`category` text NOT NULL,\n\t`description` text,\n\t`amount_cents` integer NOT NULL,\n\t`date` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `store_expenses_tenant_idx` ON `store_expenses` (`tenant_id`,`date`);"
     ]
+  },
+  {
+    "tag": "0032_sale_contract",
+    "statements": [
+      "ALTER TABLE `vehicle_finance` ADD `contract` text;"
+    ]
   }
 ];

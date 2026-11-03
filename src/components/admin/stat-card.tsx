@@ -31,14 +31,16 @@ export function StatCard({
     <div
       data-theme-transition
       className={cn(
-        "min-w-0 rounded border border-border bg-surface px-3.5 py-3 sm:px-4 sm:py-3.5",
+        "@container min-w-0 rounded border border-border bg-surface px-3.5 py-3 sm:px-4 sm:py-3.5",
         className,
       )}
     >
       <p className="label-instrument truncate text-muted">{label}</p>
       <p
         className={cn(
-          "odometer mt-1.5 text-[22px] leading-none sm:mt-2 sm:text-[26px]",
+          // o número encolhe com o card: "R$ 1.369.938,59" num card de 6
+          // colunas passava da borda
+          "odometer mt-1.5 whitespace-nowrap text-[clamp(14px,10.5cqw,22px)] leading-none sm:mt-2 sm:text-[clamp(14px,10.5cqw,26px)]",
           TONE[tone],
         )}
       >

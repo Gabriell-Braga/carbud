@@ -77,7 +77,7 @@ export default async function FinancePage({
         }
       />
 
-      <StatGrid className="xl:grid-cols-6">
+      <StatGrid className="xl:grid-cols-3">
         <StatCard label="Vendas com margem" value={formatNumber(summary.soldCount)} hint="com compra e venda lançadas" />
         <StatCard label="Receita" value={formatCurrency(summary.revenueCents)} />
         <StatCard

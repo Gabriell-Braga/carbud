@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText, HandCoins } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
@@ -71,10 +71,17 @@ export default async function EditVehiclePage({ params }: Props) {
               <PublishVehicleButton vehicleId={vehicle.id} size="md" />
             ) : null}
             <Link href={`/admin/estoque/${vehicle.id}/venda`}>
-              <Button variant="secondary">
-                <FileText className="h-3.5 w-3.5" />
-                Contrato de venda
-              </Button>
+              {vehicle.status === "sold" || !canWrite ? (
+                <Button variant="secondary">
+                  <FileText className="h-3.5 w-3.5" />
+                  Contrato de venda
+                </Button>
+              ) : (
+                <Button>
+                  <HandCoins className="h-3.5 w-3.5" />
+                  Vender
+                </Button>
+              )}
             </Link>
             {vehicle.status !== "draft" ? (
               <Link

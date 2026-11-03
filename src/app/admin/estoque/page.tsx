@@ -289,6 +289,16 @@ export default async function StockPage({
                       >
                         <ChevronRight className="h-4 w-4" aria-hidden="true" />
                       </Link>
+                      {/* vender ficava escondido dentro da ficha; a loja pediu no atalho da lista */}
+                      {canWrite && (vehicle.status === "available" || vehicle.status === "reserved") ? (
+                        <Link href={`/admin/estoque/${vehicle.id}/venda`} className="mr-2 hidden md:inline-flex">
+                          <Button size="sm">Vender</Button>
+                        </Link>
+                      ) : vehicle.status === "sold" ? (
+                        <Link href={`/admin/estoque/${vehicle.id}/venda`} className="mr-2 hidden md:inline-flex">
+                          <Button size="sm" variant="ghost">Contrato</Button>
+                        </Link>
+                      ) : null}
                       <Link href={`/admin/estoque/${vehicle.id}`} className="hidden md:inline-flex">
                         <Button size="sm" variant="secondary">
                           {canWrite ? "Editar" : "Ver"}

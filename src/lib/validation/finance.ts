@@ -23,6 +23,11 @@ export const vehicleFinanceSchema = z.object({
   buyerPhone: text(30),
   bankReturnCents: cents,
   notes: text(2000),
+  contract: z
+    .record(z.string(), z.unknown())
+    .refine((value) => JSON.stringify(value).length <= 20_000, "Contrato grande demais")
+    .nullable()
+    .optional(),
 });
 
 export type VehicleFinanceInput = z.infer<typeof vehicleFinanceSchema>;
