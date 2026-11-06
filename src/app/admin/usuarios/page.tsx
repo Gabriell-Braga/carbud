@@ -56,11 +56,13 @@ export default async function TeamPage() {
         }))}
       />
 
-      {canWrite || teams.length > 0 ? <TeamsCard teams={teams} canWrite={canWrite} /> : null}
-
-      {hasDistribution && canWrite ? (
-        <TeamSettings mode={routing.mode} hasStores={hasStores} />
-      ) : null}
+      {/* o espaço entre os cards vem do gap: margem num card só some quando o vizinho não aparece */}
+      <div className="flex flex-col gap-4">
+        {canWrite || teams.length > 0 ? <TeamsCard teams={teams} canWrite={canWrite} /> : null}
+        {hasDistribution && canWrite ? (
+          <TeamSettings mode={routing.mode} hasStores={hasStores} />
+        ) : null}
+      </div>
     </>
   );
 }

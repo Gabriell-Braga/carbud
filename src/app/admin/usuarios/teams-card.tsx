@@ -66,7 +66,7 @@ export function TeamsCard({ teams: initial, canWrite }: { teams: Team[]; canWrit
   }
 
   return (
-    <Card className="mt-4">
+    <Card>
       <CardHeader>
         <CardTitle>Equipes</CardTitle>
         <CardDescription>

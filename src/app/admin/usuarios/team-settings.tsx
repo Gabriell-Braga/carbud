@@ -39,7 +39,7 @@ export function TeamSettings({ mode, hasStores }: { mode: string; hasStores: boo
   }
 
   return (
-    <Card className="mb-4">
+    <Card>
       <CardHeader>
         <CardTitle>Distribuição de leads</CardTitle>
         <CardDescription>
