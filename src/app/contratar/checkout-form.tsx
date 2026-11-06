@@ -12,6 +12,12 @@ import { Checkbox, FormField, Input } from "@/components/ui/field";
 import { PasswordInput, PasswordRequirements } from "@/components/ui/password-input";
 import { apiPost, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
 import { cn, formatCurrency, formatDate, onlyDigits } from "@/lib/utils";
+import {
+  couponAppliesTo,
+  couponCentsOff,
+  firstPaymentCents,
+  type CheckoutCoupon,
+} from "@/lib/gateway/references";
 import { maskCep, maskCnpj, maskCpf, maskPhone } from "@carbud/site-kit/masks";
 
 type PlanChoice = {
@@ -35,14 +41,14 @@ export function CheckoutForm({
   plans,
   initialPlanId,
   affiliateCode: initialAffiliateCode,
-  promoCents,
+  coupon,
   firstFullChargeAt,
   captchaSiteKey,
 }: {
   plans: PlanChoice[];
   initialPlanId: string;
   affiliateCode: string;
-  promoCents: number;
+  coupon: CheckoutCoupon | null;
   firstFullChargeAt: string;
   captchaSiteKey: string | null;
 }) {
@@ -81,16 +87,23 @@ export function CheckoutForm({
   const paymentTracked = useRef(false);
 
   const plan = plans.find((item) => item.id === planId)!;
+  // cupom restrito a outro plano não vai no envio: o servidor recusaria a contratação
+  const appliedCoupon = coupon && couponAppliesTo(coupon, plan.id) ? coupon : null;
+  const todayCents = firstPaymentCents(plan.priceCents, appliedCoupon);
+  const monthlyCents = plan.priceCents - (appliedCoupon ? couponCentsOff(plan.priceCents, appliedCoupon) : 0);
+  const promo = todayCents < monthlyCents;
+  const couponCode = appliedCoupon?.code;
+  const couponTag = couponCode ? { coupon: couponCode } : {};
 
   // o funil abre com o plano que veio da página de planos; trocar de plano reabre
   useEffect(() => {
-    pushEcommerce("begin_checkout", plan, promoCents);
-  }, [plan, promoCents]);
+    pushEcommerce("begin_checkout", plan, todayCents, couponCode ? { coupon: couponCode } : {});
+  }, [plan, todayCents, couponCode]);
 
   function trackPaymentInfo() {
     if (paymentTracked.current) return;
     paymentTracked.current = true;
-    pushEcommerce("add_payment_info", plan, promoCents, { payment_type: "credit_card" });
+    pushEcommerce("add_payment_info", plan, todayCents, { payment_type: "credit_card", ...couponTag });
   }
   const firstFullCharge = formatDate(new Date(firstFullChargeAt));
 
@@ -128,6 +141,7 @@ export function CheckoutForm({
           phone: account.phone,
         },
         affiliateCode: affiliateCode.trim() || undefined,
+        couponCode,
         acceptedTerms,
         captchaToken: captchaToken || undefined,
       },
@@ -147,7 +161,8 @@ export function CheckoutForm({
     }
 
     setCard({ holderName: "", number: "", expiry: "", ccv: "" });
-    pushEcommerce("purchase", plan, promoCents, {
+    pushEcommerce("purchase", plan, todayCents, {
+      ...couponTag,
       transaction_id: result.data.transactionId,
       affiliation: affiliateCode.trim() || undefined,
     });
@@ -166,8 +181,8 @@ export function CheckoutForm({
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted">
           O plano {done.planName} da {account.storeName} está ativo. Cobramos{" "}
-          {formatCurrency(promoCents)} agora, e a próxima cobrança, de{" "}
-          {formatCurrency(plan.priceCents)}, é em {formatDate(new Date(done.nextDueDate))}.
+          {formatCurrency(todayCents)} agora, e a próxima cobrança, de{" "}
+          {formatCurrency(monthlyCents)}, é em {formatDate(new Date(done.nextDueDate))}.
         </p>
         <Button size="lg" className="mt-8 w-full" onClick={() => router.push(done.redirectTo)}>
           Ir para o painel
@@ -212,7 +227,7 @@ export function CheckoutForm({
       {failure ? <Alert tone="danger">{failure}</Alert> : null}
       <Button type="submit" size="lg" loading={saving} className="w-full">
         <Lock className="h-4 w-4" aria-hidden="true" />
-        Pagar {formatCurrency(promoCents)} e começar
+        Pagar {formatCurrency(todayCents)} e começar
       </Button>
     </>
   );
@@ -229,7 +244,8 @@ export function CheckoutForm({
           Sua revenda no ar em minutos
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Primeiro mês por {formatCurrency(promoCents)}. Sem fidelidade: cancele quando quiser.
+          {promo ? `Primeiro mês por ${formatCurrency(todayCents)}. ` : ""}Sem fidelidade: cancele quando
+          quiser.
         </p>
 
         <div className="mt-8 space-y-5">
@@ -497,15 +513,24 @@ export function CheckoutForm({
                 <div>
                   <p className="text-xs opacity-80">Total hoje</p>
                   <p className="font-display text-[32px] font-semibold leading-none tracking-tight">
-                    {formatCurrency(promoCents)}
+                    {formatCurrency(todayCents)}
                   </p>
                 </div>
-                <p className="text-right text-xs opacity-80">primeiro mês promocional</p>
+                <p className="text-right text-xs opacity-80">
+                  {promo ? "primeiro mês promocional" : "primeiro mês"}
+                </p>
               </div>
               <p className="mt-4 border-t border-accent-contrast/20 pt-3 text-[13px]">
-                A partir de {firstFullCharge}: <strong>{formatCurrency(plan.priceCents)}/mês</strong> no mesmo
+                A partir de {firstFullCharge}: <strong>{formatCurrency(monthlyCents)}/mês</strong> no mesmo
                 cartão, até você cancelar.
               </p>
+              {coupon ? (
+                <p className="mt-2 text-xs opacity-80">
+                  {appliedCoupon
+                    ? `Cupom ${coupon.code} aplicado.`
+                    : `O cupom ${coupon.code} não vale para este plano.`}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -561,11 +586,11 @@ function Step({
 
 /**
  * Evento de e-commerce padrão do GA4 no dataLayer, para o GTM da página.
- * O valor é o que se cobra hoje (o primeiro mês promocional); a mensalidade
- * cheia vai junto para quem quiser medir receita recorrente.
+ * O valor é o que se cobra hoje (o primeiro mês); a mensalidade cheia vai
+ * junto para quem quiser medir receita recorrente.
  */
-function pushEcommerce(event: string, plan: PlanChoice, promoCents: number, extra: Record<string, unknown> = {}) {
-  const value = promoCents / 100;
+function pushEcommerce(event: string, plan: PlanChoice, todayCents: number, extra: Record<string, unknown> = {}) {
+  const value = todayCents / 100;
   window.dataLayer = window.dataLayer || [];
   // o GA4 pede zerar o ecommerce anterior para um evento não herdar itens do outro
   window.dataLayer.push({ ecommerce: null });
@@ -581,7 +606,7 @@ function pushEcommerce(event: string, plan: PlanChoice, promoCents: number, extr
           item_id: plan.slug,
           item_name: plan.name,
           item_category: "Plano",
-          item_variant: "Primeiro mês promocional",
+          item_variant: "Primeiro mês",
           price: value,
           quantity: 1,
         },

@@ -108,6 +108,16 @@ describe("direito e ajustes", () => {
     expect(entitledCents({ paymentClass: "paid", baseCents: 10_000, refundedCents: refunded, bps })).toBe(667);
   });
 
+  it("CPA: valor fixo mesmo com estorno parcial, zero no estorno total ou desfeito", () => {
+    const cpa = { baseCents: 500, bps: 0, fixedCents: 20_000 };
+    expect(entitledCents({ ...cpa, paymentClass: "paid", refundedCents: 0 })).toBe(20_000);
+    expect(entitledCents({ ...cpa, paymentClass: "held", refundedCents: 0 })).toBe(20_000);
+    expect(entitledCents({ ...cpa, paymentClass: "paid", refundedCents: 200 })).toBe(20_000);
+    expect(entitledCents({ ...cpa, paymentClass: "refunded", refundedCents: 500 })).toBe(0);
+    expect(entitledCents({ ...cpa, paymentClass: "paid", refundedCents: 500 })).toBe(0);
+    expect(entitledCents({ ...cpa, paymentClass: "unpaid", refundedCents: 0 })).toBe(0);
+  });
+
   it("estorno integral zera; reversão recompõe só o que foi reduzido", () => {
     const steps = [1_000, 0, 1_000];
     const adjustments: number[] = [];

@@ -359,13 +359,21 @@ listar cobranças vai para lá. O webhook aceita os dois tokens, e o token que
 confere diz de qual ambiente veio o evento — trocar a chave não perde evento.
 
 Contratação no cartão (`/admin/assinatura`, pela própria revenda, nunca em
-impersonation): cobra R$ 5 na hora (`PROMO_FIRST_PAYMENT_CENTS`, cobrança
-avulsa com `externalReference = promo:<tenantId>`) e cria a assinatura no
-cartão com o primeiro vencimento cheio no mesmo dia do mês seguinte (29–31
-viram 28). O webhook reconhece o promocional pela referência: marca adimplente
-sem empurrar vencimento, e a comissão de afiliado conta os R$ 5 como receita da
-assinatura. Se a assinatura falhar depois do promocional, os R$ 5 são
-estornados. Os dados do cartão só atravessam o Worker até o Asaas: não são
+impersonation): cobra o primeiro mês na hora (cobrança avulsa com
+`externalReference = promo:<tenantId>`) e cria a assinatura no cartão com o
+primeiro vencimento cheio no mesmo dia do mês seguinte (29–31 viram 28). O
+valor do primeiro mês vem do **cupom** (`coupons.first_payment_cents`); sem
+cupom, é a mensalidade do plano. O cupom chega pelo **afiliado**: cada um pode
+ter um cupom (`affiliates.coupon_id`), e o link de indicação da ficha dele
+(`/contratar?ref=<código>`) aplica o cupom sozinho e mostra "Indicação de
+<nome>" no checkout. `?cupom=<código>` (também em `/admin/assinatura`) aplica
+um cupom à mão e vence o do afiliado; o Webflow não leva cupom. A promo "primeiro mês por R$ 5" é um cupom
+com desconto 0 e primeiro pagamento de R$ 5 (mínimo do Asaas no cartão). A
+conta é uma só para tela e servidor (`firstPaymentCents` em
+`src/lib/gateway/references.ts`). O webhook reconhece o primeiro pagamento
+pela referência: marca adimplente sem empurrar vencimento, e a comissão de
+afiliado o conta como receita da assinatura. Se a assinatura falhar depois
+dele, o pagamento é estornado. Os dados do cartão só atravessam o Worker até o Asaas: não são
 gravados, logados nem auditados.
 
 Checkout público (`/contratar?plano=<slug>&ref=<código de afiliado>`): fim do
@@ -421,6 +429,16 @@ percentual em pontos-base fixado no vínculo da revenda, comissão recorrente
 sobre cada pagamento confirmado, repasse só **registrado** (nada é
 transferido). Código e cupom são independentes.
 
+Tipos de comissão (migration `0033`), fixados no vínculo como o percentual:
+**percentual** recorrente; **CPA fixo** (valor em R$, uma vez); **CPA 1ª
+mensalidade** (uma vez, igual à mensalidade do plano contratado com o
+desconto recorrente do cupom, gravada no vínculo na contratação, antes da
+cobrança, porque o webhook chega antes da assinatura). O CPA nasce no
+primeiro pagamento confirmado depois da atribuição; um índice único parcial
+(`affiliate_commissions_cpa_unique`) impede o segundo crédito. Estorno parcial
+mantém o CPA; estorno total zera por ajuste. Se o primeiro pagamento for
+estornado, os seguintes não geram CPA de novo.
+
 Como funciona, para não reaprender:
 
 - Origem: `tenant_affiliations`, uma por revenda, gravada no cadastro ou na
@@ -443,7 +461,7 @@ Como funciona, para não reaprender:
 
 Pendências:
 
-- **Rodar o migrate em produção** (0027) e, no Painel Geral → Configurações,
+- No Painel Geral → Configurações,
   religar o webhook do Asaas para assinar os eventos novos de estorno
   (`PAYMENT_PARTIALLY_REFUNDED`, `PAYMENT_REFUND_IN_PROGRESS`,
   `PAYMENT_REFUND_DENIED`, `PAYMENT_RECEIVED_IN_CASH_UNDONE`,

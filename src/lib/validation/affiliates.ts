@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AFFILIATE_STATUS } from "@/db/schema";
+import { AFFILIATE_STATUS, COMMISSION_TYPES } from "@/db/schema";
 import { MAX_COMMISSION_BPS } from "@/lib/affiliates/rules";
 
 const optionalText = (max: number) =>
@@ -18,17 +18,33 @@ const commissionBps = z
   .min(0, "O percentual não pode ser negativo")
   .max(MAX_COMMISSION_BPS, "O percentual vai até 100%");
 
-export const affiliateCreateSchema = z.object({
+const affiliateFields = z.object({
   name: z.string().trim().min(2, "Informe o nome").max(120),
   email: z.string().trim().toLowerCase().email("E-mail inválido").optional().or(z.literal("")).transform((value) => value || null),
   phone: optionalText(20),
   notes: optionalText(1000),
   defaultCommissionBps: commissionBps,
+  commissionType: z.enum(COMMISSION_TYPES).optional(),
+  cpaCents: z.number().int().min(1, "Informe o valor do CPA").nullable().optional(),
+  couponId: z.string().min(1).nullable().optional(),
 });
 
-export const affiliateUpdateSchema = affiliateCreateSchema.partial().extend({
-  status: z.enum(AFFILIATE_STATUS).optional(),
-});
+/** CPA fixo sem valor viraria crédito de zero sem ninguém perceber. */
+function requireCpaValue(
+  value: { commissionType?: string; cpaCents?: number | null },
+  ctx: z.RefinementCtx,
+) {
+  if (value.commissionType === "cpa_fixed" && !value.cpaCents) {
+    ctx.addIssue({ code: "custom", path: ["cpaCents"], message: "Informe o valor do CPA" });
+  }
+}
+
+export const affiliateCreateSchema = affiliateFields.superRefine(requireCpaValue);
+
+export const affiliateUpdateSchema = affiliateFields
+  .partial()
+  .extend({ status: z.enum(AFFILIATE_STATUS).optional() })
+  .superRefine(requireCpaValue);
 
 /** Campo opcional do cadastro e da contratação. */
 export const affiliateCodeField = z.string().trim().max(20).optional().or(z.literal(""));

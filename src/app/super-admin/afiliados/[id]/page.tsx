@@ -11,7 +11,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { Input, Label } from "@/components/ui/field";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { requireSuperAdminPage } from "@/lib/auth/guards";
-import { formatBps } from "@/lib/affiliates/rules";
+import { formatBps, formatCommission } from "@/lib/affiliates/rules";
 import { brazilIsoDate } from "@/lib/gateway/brazil-date";
 import {
   affiliateStatement,
@@ -19,7 +19,10 @@ import {
   brazilMonthPeriod,
   getAffiliate,
   listAffiliateTenants,
+  listCouponOptions,
 } from "@/lib/services/affiliates";
+import { withBasePath } from "@/lib/paths";
+import { getOrigin } from "@/lib/seo/urls";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { EditAffiliateButton, PayoutForm, VoidPayoutButton } from "./affiliate-detail-actions";
 
@@ -56,11 +59,16 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
   const period = brazilMonthPeriod(month);
   const page = Math.max(1, Number(pagina) || 1);
 
-  const [totalsMap, referredTenants, statement] = await Promise.all([
+  const [totalsMap, referredTenants, statement, couponOptions, origin] = await Promise.all([
     affiliateTotals([id], period),
     listAffiliateTenants(id),
     affiliateStatement(id, page),
+    listCouponOptions(),
+    getOrigin(),
   ]);
+  // o link traz o cupom do afiliado sozinho: quem divulga não precisa montar nada
+  const shareLink = `${origin}${withBasePath(`/contratar?ref=${affiliate.code}`)}`;
+  const coupon = couponOptions.find((item) => item.id === affiliate.couponId);
   const totals = totalsMap.get(id)!;
   const monthTotals = totals.period;
 
@@ -83,7 +91,11 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
               notes: affiliate.notes,
               status: affiliate.status,
               defaultCommissionBps: affiliate.defaultCommissionBps,
+              commissionType: affiliate.commissionType,
+              cpaCents: affiliate.cpaCents,
+              couponId: affiliate.couponId,
             }}
+            coupons={couponOptions}
           />
         }
       />
@@ -95,9 +107,31 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
         <span className="font-mono text-[13px] text-text">{affiliate.code}</span>
         <CopyButton value={affiliate.code} label="Copiar código" />
         <span className="text-[13px] text-muted">
-          Comissão para novas indicações: {formatBps(affiliate.defaultCommissionBps)}
+          Comissão para novas indicações:{" "}
+          {formatCommission({
+            type: affiliate.commissionType,
+            bps: affiliate.defaultCommissionBps,
+            cpaCents: affiliate.cpaCents,
+          })}
         </span>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Link de indicação</CardTitle>
+          <CardDescription>
+            Quem contrata por este link fica vinculado a {affiliate.name} e vê o nome dele no
+            checkout.{" "}
+            {coupon
+              ? `O cupom ${coupon.code} entra sozinho${coupon.active ? "" : " (está inativo: o checkout cobra o valor normal)"}.`
+              : "Sem cupom: o primeiro mês sai pelo valor do plano. Escolha um cupom em Editar."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-3">
+          <code className="min-w-0 break-all text-[13px] text-text">{shareLink}</code>
+          <CopyButton value={shareLink} label="Copiar link" />
+        </CardContent>
+      </Card>
 
       <h2 className="label-instrument mb-2 text-muted">Acumulado</h2>
       <StatGrid className="mb-6 xl:grid-cols-4">
@@ -172,7 +206,7 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
                 <Th>Revenda</Th>
                 <Th>Origem</Th>
                 <Th numeric>Indicada em</Th>
-                <Th numeric>Percentual</Th>
+                <Th numeric>Comissão</Th>
                 <Th numeric>1º pagamento</Th>
                 <Th numeric>Comissão líquida</Th>
               </Tr>
@@ -193,7 +227,13 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
                   </Td>
                   <Td>{SOURCE_LABELS[row.source] ?? row.source}</Td>
                   <Td numeric>{formatDate(row.attributedAt)}</Td>
-                  <Td numeric>{formatBps(row.commissionBps)}</Td>
+                  <Td numeric>
+                    {formatCommission({
+                      type: row.commissionType,
+                      bps: row.commissionBps,
+                      cpaCents: row.cpaCents,
+                    })}
+                  </Td>
                   <Td numeric>{row.firstPaymentAt ? formatDate(row.firstPaymentAt) : "Sem pagamento"}</Td>
                   <Td numeric>{formatCurrency(Number(row.netCents))}</Td>
                 </Tr>
@@ -249,9 +289,11 @@ export default async function AffiliateDetailPage({ params, searchParams }: Prop
                     {entry.detail ? <div className="text-xs text-faint">{entry.detail}</div> : null}
                   </Td>
                   <Td numeric>
-                    {entry.baseCents !== null
-                      ? `${formatCurrency(entry.baseCents)} × ${formatBps(entry.commissionBps ?? 0)}`
-                      : ""}
+                    {entry.baseCents === null
+                      ? ""
+                      : entry.fixedCents !== null
+                        ? "CPA"
+                        : `${formatCurrency(entry.baseCents)} × ${formatBps(entry.commissionBps ?? 0)}`}
                   </Td>
                   <Td numeric className={entry.status === "voided" ? "line-through" : undefined}>
                     {formatCurrency(entry.amountCents)}

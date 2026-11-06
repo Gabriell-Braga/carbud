@@ -6,7 +6,9 @@ import { Logo } from "@/components/layout/logo";
 import { Alert } from "@/components/ui/alert";
 import { getDb } from "@/db";
 import { plans } from "@/db/schema";
-import { PROMO_FIRST_PAYMENT_CENTS, promoNextDueDate } from "@/lib/gateway/references";
+import { promoNextDueDate } from "@/lib/gateway/references";
+import { loadCoupon } from "@/lib/gateway/subscribe";
+import { affiliateForCheckout } from "@/lib/services/affiliates";
 import { FEATURES, isFeatureOn } from "@/lib/plans/catalog";
 import { turnstileSiteKey } from "@/lib/security/turnstile";
 import { MARKETING_GTM_ID } from "@/lib/brand";
@@ -19,14 +21,19 @@ export const dynamic = "force-dynamic";
 /**
  * Fim do funil da página de planos (Webflow): o botão "Contratar agora" chega
  * aqui com `?plano=<slug>` e a pessoa sai com a revenda criada e logada.
+ * O link de indicação do afiliado é `?ref=<código>`: traz o cupom dele junto.
+ * `?cupom=<código>` aplica um cupom à mão e vence o do afiliado.
  */
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ plano?: string; affiliate?: string; ref?: string }>;
+  searchParams: Promise<{ plano?: string; affiliate?: string; ref?: string; cupom?: string }>;
 }) {
   const params = await searchParams;
   const db = await getDb();
+  const referrer = await affiliateForCheckout(params.affiliate ?? params.ref);
+  const couponCode = params.cupom?.trim() || referrer?.couponCode || null;
+  const loaded = await loadCoupon(couponCode);
   const rows = await db
     .select()
     .from(plans)
@@ -71,12 +78,22 @@ export default async function CheckoutPage({
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-12">
+        {loaded && "error" in loaded ? (
+          <Alert tone="warning" className="mb-6">
+            {loaded.error}: {couponCode?.toUpperCase()}. A contratação segue pelo valor normal do plano.
+          </Alert>
+        ) : null}
+        {referrer ? (
+          <Alert tone="info" className="mb-6">
+            Indicação de <strong>{referrer.name}</strong>.
+          </Alert>
+        ) : null}
         {initial ? (
           <CheckoutForm
             plans={choices}
             initialPlanId={initial.id}
             affiliateCode={(params.affiliate ?? params.ref ?? "").trim().toUpperCase()}
-            promoCents={PROMO_FIRST_PAYMENT_CENTS}
+            coupon={loaded && "coupon" in loaded ? loaded.coupon : null}
             firstFullChargeAt={promoNextDueDate().toISOString()}
             captchaSiteKey={turnstileSiteKey()}
           />

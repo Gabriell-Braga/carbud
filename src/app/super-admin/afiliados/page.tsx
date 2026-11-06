@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { requireSuperAdminPage } from "@/lib/auth/guards";
-import { formatBps } from "@/lib/affiliates/rules";
-import { listAffiliatesWithTotals, listPendingProcessing } from "@/lib/services/affiliates";
+import { formatCommission } from "@/lib/affiliates/rules";
+import { listAffiliatesWithTotals, listCouponOptions, listPendingProcessing } from "@/lib/services/affiliates";
 import { formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 import { NewAffiliateButton, PendingActions } from "./affiliates-actions";
 
@@ -21,14 +21,18 @@ const STATE_LABELS: Record<string, string> = {
 
 export default async function AffiliatesPage() {
   await requireSuperAdminPage();
-  const [rows, pending] = await Promise.all([listAffiliatesWithTotals(), listPendingProcessing()]);
+  const [rows, pending, couponOptions] = await Promise.all([
+    listAffiliatesWithTotals(),
+    listPendingProcessing(),
+    listCouponOptions(),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Afiliados"
         description="Quem indica revendas, quanto ganha sobre cada pagamento confirmado e o que já foi repassado."
-        actions={<NewAffiliateButton />}
+        actions={<NewAffiliateButton coupons={couponOptions} />}
       />
 
       {pending.length > 0 ? (
@@ -126,7 +130,13 @@ export default async function AffiliatesPage() {
                       {affiliate.status === "active" ? "Ativo" : "Inativo"}
                     </Badge>
                   </Td>
-                  <Td numeric>{formatBps(affiliate.defaultCommissionBps)}</Td>
+                  <Td numeric>
+                    {formatCommission({
+                      type: affiliate.commissionType,
+                      bps: affiliate.defaultCommissionBps,
+                      cpaCents: affiliate.cpaCents,
+                    })}
+                  </Td>
                   <Td numeric>{formatNumber(totals.referred)}</Td>
                   <Td numeric>{formatNumber(totals.converted)}</Td>
                   <Td numeric>{formatCurrency(totals.netCents)}</Td>

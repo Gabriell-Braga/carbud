@@ -31,7 +31,12 @@ export const POST = withApi(async (request: Request) => {
       entity: "affiliate",
       entityId: affiliate.id,
       tenantId: null,
-      metadata: { code: affiliate.code, commissionBps: affiliate.defaultCommissionBps },
+      metadata: {
+        code: affiliate.code,
+        commissionBps: affiliate.defaultCommissionBps,
+        commissionType: affiliate.commissionType,
+        cpaCents: affiliate.cpaCents,
+      },
     },
     request,
   );

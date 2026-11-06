@@ -19,9 +19,14 @@ export type AffiliateDraft = {
   notes: string | null;
   status: "active" | "inactive";
   defaultCommissionBps: number | null;
+  commissionType: "percent" | "cpa_fixed" | "cpa_first_month";
+  cpaCents: number | null;
+  couponId: string | null;
 };
 
-export function NewAffiliateButton() {
+export type CouponOption = { id: string; code: string; active: boolean };
+
+export function NewAffiliateButton({ coupons }: { coupons: CouponOption[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -39,7 +44,11 @@ export function NewAffiliateButton() {
             notes: null,
             status: "active",
             defaultCommissionBps: null,
+            commissionType: "percent",
+            cpaCents: null,
+            couponId: null,
           }}
+          coupons={coupons}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -50,9 +59,11 @@ export function NewAffiliateButton() {
 /** Cadastro e edição. O código não aparece aqui: o servidor gera e ninguém troca. */
 export function AffiliateEditor({
   affiliate,
+  coupons,
   onClose,
 }: {
   affiliate: AffiliateDraft;
+  coupons: CouponOption[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -70,7 +81,9 @@ export function AffiliateEditor({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const bps = percentToBps(percent);
+    const isPercent = draft.commissionType === "percent";
+    // CPA não usa percentual: vai zero para o campo, que segue obrigatório no banco
+    const bps = isPercent ? percentToBps(percent) : 0;
     if (bps === null) {
       setErrors({ defaultCommissionBps: "Informe o percentual, com até duas casas decimais" });
       return;
@@ -84,6 +97,9 @@ export function AffiliateEditor({
       phone: draft.phone,
       notes: draft.notes,
       defaultCommissionBps: bps,
+      commissionType: draft.commissionType,
+      cpaCents: draft.commissionType === "cpa_fixed" ? draft.cpaCents : null,
+      couponId: draft.couponId,
       ...(isNew ? {} : { status: draft.status }),
     };
     const result = isNew
@@ -109,7 +125,11 @@ export function AffiliateEditor({
   }
 
   const percentChanged =
-    !isNew && percentToBps(percent) !== affiliate.defaultCommissionBps;
+    !isNew &&
+    (draft.commissionType !== affiliate.commissionType ||
+      (draft.commissionType === "percent" &&
+        percentToBps(percent) !== affiliate.defaultCommissionBps) ||
+      (draft.commissionType === "cpa_fixed" && draft.cpaCents !== affiliate.cpaCents));
 
   return (
     <Dialog
@@ -158,21 +178,59 @@ export function AffiliateEditor({
         </div>
 
         <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-          <FormField
-            label="Comissão (%)"
-            htmlFor="affiliate-percent"
-            hint="Sobre cada pagamento confirmado da revenda indicada."
-            error={errors.defaultCommissionBps}
-          >
-            <Input
-              id="affiliate-percent"
-              inputMode="decimal"
-              placeholder="Ex.: 10"
-              value={percent}
-              onChange={(event) => setPercent(event.target.value)}
-              required
-            />
+          <FormField label="Tipo de comissão" htmlFor="affiliate-type" error={errors.commissionType}>
+            <Select
+              id="affiliate-type"
+              value={draft.commissionType}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  commissionType: event.target.value as AffiliateDraft["commissionType"],
+                })
+              }
+            >
+              <option value="percent">Percentual recorrente</option>
+              <option value="cpa_fixed">CPA: valor fixo</option>
+              <option value="cpa_first_month">CPA: 1ª mensalidade</option>
+            </Select>
           </FormField>
+          {draft.commissionType === "percent" ? (
+            <FormField
+              label="Comissão (%)"
+              htmlFor="affiliate-percent"
+              hint="Sobre cada pagamento confirmado da revenda indicada."
+              error={errors.defaultCommissionBps}
+            >
+              <Input
+                id="affiliate-percent"
+                inputMode="decimal"
+                placeholder="Ex.: 10"
+                value={percent}
+                onChange={(event) => setPercent(event.target.value)}
+                required
+              />
+            </FormField>
+          ) : draft.commissionType === "cpa_fixed" ? (
+            <FormField
+              label="Valor do CPA (R$)"
+              htmlFor="affiliate-cpa"
+              hint="Pago uma vez, no primeiro pagamento da revenda indicada."
+              error={errors.cpaCents}
+            >
+              <CurrencyInput
+                id="affiliate-cpa"
+                valueCents={draft.cpaCents ?? 0}
+                onChangeCents={(cents) => setDraft({ ...draft, cpaCents: cents || null })}
+              />
+            </FormField>
+          ) : (
+            <p className="mb-4 self-center text-[13px] text-muted">
+              Pago uma vez, no primeiro pagamento, com o valor da mensalidade do plano contratado.
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           {!isNew ? (
             <FormField label="Situação" htmlFor="affiliate-status" error={errors.status}>
               <Select
@@ -191,10 +249,33 @@ export function AffiliateEditor({
 
         {percentChanged ? (
           <p className="mb-4 text-[13px] text-muted">
-            O novo percentual vale para revendas indicadas daqui em diante. As que já estão
-            vinculadas mantêm o percentual combinado na época.
+            A nova comissão vale para revendas indicadas daqui em diante. As que já estão
+            vinculadas mantêm a comissão combinada na época.
           </p>
         ) : null}
+
+        <FormField
+          label="Cupom do link de indicação"
+          htmlFor="affiliate-coupon"
+          hint="Aplicado sozinho em quem contrata pelo link do afiliado. Ex.: primeiro mês por R$ 5."
+          error={errors.couponId}
+        >
+          <Select
+            id="affiliate-coupon"
+            value={draft.couponId ?? ""}
+            onChange={(event) => setDraft({ ...draft, couponId: event.target.value || null })}
+          >
+            <option value="">Sem cupom</option>
+            {coupons
+              .filter((coupon) => coupon.active || coupon.id === draft.couponId)
+              .map((coupon) => (
+                <option key={coupon.id} value={coupon.id}>
+                  {coupon.code}
+                  {coupon.active ? "" : " (inativo)"}
+                </option>
+              ))}
+          </Select>
+        </FormField>
 
         <FormField label="Observações" htmlFor="affiliate-notes" error={errors.notes}>
           <Textarea

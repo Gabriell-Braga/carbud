@@ -170,9 +170,12 @@ export function entitledCents(input: {
   baseCents: number;
   refundedCents: number;
   bps: number;
+  /** CPA: valor fixo, mantido em estorno parcial e zerado só no estorno total. */
+  fixedCents?: number | null;
 }): number {
   if (input.paymentClass !== "paid" && input.paymentClass !== "held") return 0;
   const remaining = Math.max(0, input.baseCents - input.refundedCents);
+  if (input.fixedCents != null) return remaining > 0 ? input.fixedCents : 0;
   return commissionCents(remaining, input.bps);
 }
 
@@ -205,6 +208,23 @@ export function nextAdjustment(input: {
 
 export function formatBps(bps: number): string {
   return `${(bps / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+}
+
+/** Comissão combinada, como aparece na tela: "10%", "CPA R$ 200,00" ou "CPA: 1ª mensalidade". */
+export function formatCommission(rule: {
+  type: "percent" | "cpa_fixed" | "cpa_first_month";
+  bps: number;
+  cpaCents: number | null;
+}): string {
+  if (rule.type === "cpa_fixed") {
+    const reais = ((rule.cpaCents ?? 0) / 100).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+    return `CPA ${reais}`;
+  }
+  if (rule.type === "cpa_first_month") return "CPA: 1ª mensalidade";
+  return formatBps(rule.bps);
 }
 
 /**

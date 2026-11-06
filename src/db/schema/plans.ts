@@ -66,6 +66,11 @@ export const coupons = sqliteTable(
     discountType: text("discount_type").$type<DiscountType>().notNull().default("PERCENTAGE"),
     /** Percentual (0-100) ou centavos, conforme `discountType`. */
     discountValue: integer("discount_value").notNull(),
+    /**
+     * Primeiro pagamento no cartão por este valor (a promo "primeiro mês por
+     * R$ 5"). Null = primeiro mês pelo preço do plano.
+     */
+    firstPaymentCents: integer("first_payment_cents"),
     /** Por quantos ciclos vale; null = para sempre. */
     durationCycles: integer("duration_cycles"),
     maxRedemptions: integer("max_redemptions"),

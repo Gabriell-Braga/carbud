@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Logo } from "@/components/layout/logo";
 import { APP_NAME } from "@/lib/brand";
-import { PROMO_FIRST_PAYMENT_CENTS } from "@/lib/gateway/references";
-import { formatCurrency } from "@/lib/utils";
 import { TERMS_VERSION } from "@/lib/validation/checkout";
 
 export const metadata: Metadata = { title: "Termos de Uso" };
@@ -32,7 +30,7 @@ const SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "4. Planos, preço e cobrança",
     body: [
-      `Na contratação online, o primeiro mês custa ${formatCurrency(PROMO_FIRST_PAYMENT_CENTS)}, cobrados na hora no cartão de crédito. A partir do mesmo dia do mês seguinte, o valor do plano escolhido é cobrado automaticamente todo mês, no mesmo cartão, até o cancelamento.`,
+      "Na contratação online, o primeiro mês é cobrado na hora no cartão de crédito, pelo valor do plano ou pelo valor promocional do cupom usado, quando houver. A partir do mesmo dia do mês seguinte, o valor do plano escolhido é cobrado automaticamente todo mês, no mesmo cartão, até o cancelamento.",
       "Os pagamentos são processados pelo Asaas. Os dados do cartão são enviados diretamente a ele e não ficam guardados no nosso sistema.",
       "Os preços podem ser reajustados com aviso prévio de pelo menos 30 dias. Pagamento em atraso pode ter multa e juros, conforme informado na cobrança.",
     ],

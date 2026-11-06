@@ -12,9 +12,15 @@ import { useConfirm } from "@/components/ui/confirm";
 import { useToast } from "@/components/ui/toast";
 import { apiPost, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
 import { formatCurrency } from "@/lib/utils";
-import { AffiliateEditor, type AffiliateDraft } from "../affiliates-actions";
+import { AffiliateEditor, type AffiliateDraft, type CouponOption } from "../affiliates-actions";
 
-export function EditAffiliateButton({ affiliate }: { affiliate: AffiliateDraft }) {
+export function EditAffiliateButton({
+  affiliate,
+  coupons,
+}: {
+  affiliate: AffiliateDraft;
+  coupons: CouponOption[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -22,7 +28,9 @@ export function EditAffiliateButton({ affiliate }: { affiliate: AffiliateDraft }
         <Pencil className="h-3.5 w-3.5" />
         Editar
       </Button>
-      {open ? <AffiliateEditor affiliate={affiliate} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        <AffiliateEditor affiliate={affiliate} coupons={coupons} onClose={() => setOpen(false)} />
+      ) : null}
     </>
   );
 }

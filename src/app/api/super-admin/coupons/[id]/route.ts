@@ -1,6 +1,6 @@
 import { and, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { coupons } from "@/db/schema";
+import { affiliates, coupons } from "@/db/schema";
 import { logAuditFor } from "@/lib/audit";
 import { requireApiSuperAdmin } from "@/lib/auth/guards";
 import { badRequest, conflict, jsonOk, notFound, withApi } from "@/lib/http";
@@ -72,7 +72,11 @@ export const DELETE = withApi(async (request: Request, { params }: Params) => {
     return jsonOk({ deactivated: true });
   }
 
-  await db.delete(coupons).where(eq(coupons.id, id));
+  // afiliado que usava o cupom volta a indicar sem cupom (a FK barraria a exclusão)
+  await db.batch([
+    db.update(affiliates).set({ couponId: null }).where(eq(affiliates.couponId, id)),
+    db.delete(coupons).where(eq(coupons.id, id)),
+  ]);
   await logAuditFor(
     context,
     { action: "coupon.delete", entity: "coupon", entityId: id, metadata: { code: current[0].code } },

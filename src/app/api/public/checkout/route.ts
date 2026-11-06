@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Contratação vinda da página de planos (Webflow): cria a revenda e o acesso
- * de quem contratou, cobra o primeiro mês promocional no cartão e já entra no
+ * de quem contratou, cobra o primeiro mês no cartão e já entra no
  * painel. Pagamento recusado desfaz o cadastro, para a pessoa poder tentar de
  * novo com o mesmo e-mail e nenhuma revenda ficar no ar sem ter pago.
  */
@@ -105,6 +105,7 @@ export const POST = withApi(async (request: Request) => {
       tenantId,
       planId: plan.id,
       affiliateCode: input.affiliateCode || null,
+      couponCode: input.couponCode || null,
       actor: { userId, email: account.email },
       card: { creditCard: input.card, holderInfo: input.holder, remoteIp },
     });
@@ -141,6 +142,7 @@ export const POST = withApi(async (request: Request) => {
         planId: plan.id,
         mode: result.mode,
         via: "checkout",
+        couponCode: input.couponCode || null,
         environment: "environment" in result ? result.environment : null,
         promoPaymentId: "promoPaymentId" in result ? result.promoPaymentId : null,
       },

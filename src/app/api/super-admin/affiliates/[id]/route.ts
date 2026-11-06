@@ -51,6 +51,8 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
           name: before.name,
           status: before.status,
           defaultCommissionBps: before.defaultCommissionBps,
+          commissionType: before.commissionType,
+          cpaCents: before.cpaCents,
         },
       },
     },

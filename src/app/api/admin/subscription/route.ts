@@ -45,6 +45,7 @@ export const POST = withApi(async (request: Request) => {
     tenantId: context.tenant.id,
     planId: plan.id,
     affiliateCode: input.affiliateCode || null,
+    couponCode: input.couponCode || null,
     actor: { userId: actor?.userId ?? null, email: actor?.email ?? null },
     card: { creditCard: input.card, holderInfo: input.holder, remoteIp },
   });
@@ -61,6 +62,7 @@ export const POST = withApi(async (request: Request) => {
         planId: plan.id,
         mode: result.mode,
         via: "card_promo",
+        couponCode: input.couponCode || null,
         environment: "environment" in result ? result.environment : null,
         promoPaymentId: "promoPaymentId" in result ? result.promoPaymentId : null,
       },

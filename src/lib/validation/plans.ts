@@ -82,7 +82,14 @@ export const couponSchema = z
     description: z.string().trim().max(160).nullable().optional(),
     discountType: z.enum(DISCOUNT_TYPES),
     /** Percentual (0-100) ou centavos, conforme o tipo. */
-    discountValue: z.number().int().min(1),
+    discountValue: z.number().int().min(0),
+    /** Primeiro mês no cartão por este valor; o Asaas não cobra cartão abaixo de R$ 5. */
+    firstPaymentCents: z
+      .number()
+      .int()
+      .min(500, "O primeiro pagamento no cartão é de no mínimo R$ 5,00")
+      .nullable()
+      .optional(),
     durationCycles: z.number().int().min(1).max(120).nullable().optional(),
     maxRedemptions: z.number().int().min(1).max(100_000).nullable().optional(),
     planIds: z.array(z.string()).optional(),
@@ -90,6 +97,13 @@ export const couponSchema = z
     active: z.boolean(),
   })
   .superRefine((value, ctx) => {
+    if (value.discountValue === 0 && value.firstPaymentCents == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["discountValue"],
+        message: "Informe um desconto ou o valor do primeiro pagamento",
+      });
+    }
     // 120% de desconto passaria batido e viraria valor negativo no gateway
     if (value.discountType === "PERCENTAGE" && value.discountValue > 100) {
       ctx.addIssue({

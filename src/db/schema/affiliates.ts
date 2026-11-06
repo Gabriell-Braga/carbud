@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { createdAt, idColumn, updatedAt } from "./_shared";
+import { coupons } from "./plans";
 import { tenants } from "./tenants";
 
 /*
@@ -12,6 +14,14 @@ import { tenants } from "./tenants";
 
 export const AFFILIATE_STATUS = ["active", "inactive"] as const;
 export type AffiliateStatus = (typeof AFFILIATE_STATUS)[number];
+
+/**
+ * percent = percentual sobre cada pagamento (recorrente).
+ * cpa_fixed = valor fixo, uma vez, no primeiro pagamento da revenda indicada.
+ * cpa_first_month = uma vez, igual à mensalidade do plano contratado.
+ */
+export const COMMISSION_TYPES = ["percent", "cpa_fixed", "cpa_first_month"] as const;
+export type CommissionType = (typeof COMMISSION_TYPES)[number];
 
 export const affiliates = sqliteTable(
   "affiliates",
@@ -26,6 +36,11 @@ export const affiliates = sqliteTable(
     status: text("status").$type<AffiliateStatus>().notNull().default("active"),
     /** Pontos-base: 1000 = 10%. Vale para atribuições novas, não para as antigas. */
     defaultCommissionBps: integer("default_commission_bps").notNull(),
+    commissionType: text("commission_type").$type<CommissionType>().notNull().default("percent"),
+    /** CPA em centavos; só com commissionType = cpa_fixed. */
+    cpaCents: integer("cpa_cents"),
+    /** Cupom aplicado sozinho no link de indicação do afiliado (`/contratar?ref=`). */
+    couponId: text("coupon_id").references(() => coupons.id),
     createdByUserId: text("created_by_user_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -54,6 +69,11 @@ export const tenantAffiliations = sqliteTable(
       .references(() => affiliates.id),
     codeSnapshot: text("code_snapshot").notNull(),
     commissionBpsSnapshot: integer("commission_bps_snapshot").notNull(),
+    commissionTypeSnapshot: text("commission_type_snapshot")
+      .$type<CommissionType>()
+      .notNull()
+      .default("percent"),
+    cpaCentsSnapshot: integer("cpa_cents_snapshot"),
     attributedAt: integer("attributed_at", { mode: "timestamp_ms" }).notNull(),
     source: text("source").$type<AffiliationSource>().notNull(),
     createdByUserId: text("created_by_user_id"),
@@ -136,6 +156,8 @@ export const affiliateCommissions = sqliteTable(
     tenantId: text("tenant_id").notNull(),
     baseCents: integer("base_cents").notNull(),
     commissionBps: integer("commission_bps").notNull(),
+    /** CPA: valor fixo do crédito, que não depende da base. Null = percentual. */
+    fixedCents: integer("fixed_cents"),
     amountCents: integer("amount_cents").notNull(),
     competenceAt: integer("competence_at", { mode: "timestamp_ms" }).notNull(),
     /** held = contestação ou estorno em andamento: fora do disponível para repasse. */
@@ -147,6 +169,10 @@ export const affiliateCommissions = sqliteTable(
     uniqueIndex("affiliate_commissions_fact_unique").on(table.paymentFactId),
     index("affiliate_commissions_affiliate_idx").on(table.affiliateId, table.competenceAt),
     index("affiliate_commissions_tenant_idx").on(table.tenantId),
+    // CPA é pago uma vez por indicação: o índice barra o segundo crédito, inclusive em corrida
+    uniqueIndex("affiliate_commissions_cpa_unique")
+      .on(table.affiliationId)
+      .where(sql`fixed_cents IS NOT NULL`),
   ],
 );
 

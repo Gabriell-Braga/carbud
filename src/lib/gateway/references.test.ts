@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { brazilIsoDate } from "./brazil-date";
-import { parsePaymentReference, promoNextDueDate, promoReference } from "./references";
+import {
+  couponAppliesTo,
+  firstPaymentCents,
+  parsePaymentReference,
+  promoNextDueDate,
+  promoReference,
+  type CheckoutCoupon,
+} from "./references";
 
 describe("referência do pagamento promocional", () => {
   it("ida e volta identifica revenda e promoção", () => {
@@ -24,5 +31,35 @@ describe("vencimento depois do promocional", () => {
   it("conta o dia em Brasília, não em UTC", () => {
     // 22h de 31/10 em Brasília já é 01/11 em UTC
     expect(brazilIsoDate(promoNextDueDate(new Date("2026-11-01T01:00:00Z")))).toBe("2026-11-28");
+  });
+});
+
+describe("primeiro pagamento com cupom", () => {
+  const coupon: CheckoutCoupon = {
+    code: "X",
+    discountType: "PERCENTAGE",
+    discountValue: 0,
+    firstPaymentCents: 500,
+    planIds: null,
+  };
+
+  it("sem cupom cobra a mensalidade cheia", () => {
+    expect(firstPaymentCents(29_900, null)).toBe(29_900);
+  });
+
+  it("cupom promocional cobra o valor dele", () => {
+    expect(firstPaymentCents(29_900, coupon)).toBe(500);
+  });
+
+  it("cupom só de desconto cobra a mensalidade com desconto", () => {
+    const off = { ...coupon, firstPaymentCents: null, discountValue: 10 };
+    expect(firstPaymentCents(29_900, off)).toBe(26_910);
+    expect(firstPaymentCents(1_000, { ...off, discountType: "FIXED", discountValue: 5_000 })).toBe(0);
+  });
+
+  it("cupom restrito vale só para os planos dele", () => {
+    expect(couponAppliesTo({ ...coupon, planIds: ["a"] }, "a")).toBe(true);
+    expect(couponAppliesTo({ ...coupon, planIds: ["a"] }, "b")).toBe(false);
+    expect(couponAppliesTo({ ...coupon, planIds: [] }, "b")).toBe(true);
   });
 });

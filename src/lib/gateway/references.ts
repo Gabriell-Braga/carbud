@@ -1,14 +1,48 @@
 import { billingDate, brazilDateParts } from "./brazil-date";
 
 /**
- * Primeiro pagamento promocional da contratação no cartão.
+ * Primeiro pagamento da contratação no cartão.
  *
  * É uma cobrança avulsa (fora da assinatura), e o webhook precisa reconhecê-la
  * sem consultar o banco: ela chega em milissegundos, antes de a contratação
  * terminar de gravar qualquer coisa. Por isso a marca vai na própria
- * referência externa que o Asaas devolve.
+ * referência externa que o Asaas devolve. O prefixo "promo:" ficou do tempo em
+ * que todo primeiro mês era promocional; hoje marca o primeiro pagamento,
+ * promocional ou não.
  */
-export const PROMO_FIRST_PAYMENT_CENTS = 500;
+
+/** O que do cupom decide o primeiro pagamento e a mensalidade. */
+export type CheckoutCoupon = {
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  /** Percentual (0-100) ou centavos, conforme o tipo. */
+  discountValue: number;
+  /** Primeiro mês por este valor; null = primeiro mês pela mensalidade. */
+  firstPaymentCents: number | null;
+  planIds: string[] | null;
+};
+
+export function couponAppliesTo(coupon: CheckoutCoupon, planId: string): boolean {
+  return !coupon.planIds?.length || coupon.planIds.includes(planId);
+}
+
+/** Desconto recorrente do cupom sobre a mensalidade, em centavos. */
+export function couponCentsOff(priceCents: number, coupon: CheckoutCoupon): number {
+  const off =
+    coupon.discountType === "PERCENTAGE"
+      ? Math.round((priceCents * coupon.discountValue) / 100)
+      : coupon.discountValue;
+  return Math.min(off, priceCents);
+}
+
+/**
+ * Quanto se cobra na hora: o valor promocional do cupom, ou a mensalidade
+ * (com o desconto do cupom, se houver). Servidor e tela usam a mesma conta.
+ */
+export function firstPaymentCents(priceCents: number, coupon: CheckoutCoupon | null): number {
+  if (!coupon) return priceCents;
+  return coupon.firstPaymentCents ?? priceCents - couponCentsOff(priceCents, coupon);
+}
 
 const PROMO_PREFIX = "promo:";
 

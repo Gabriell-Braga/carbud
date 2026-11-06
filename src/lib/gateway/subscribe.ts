@@ -13,12 +13,20 @@ import {
 import { ApiError, badRequest, conflict } from "@/lib/http";
 import {
   attachAffiliation,
+  fixFirstMonthCpa,
   resolveAffiliateForAttribution,
   type AffiliateActor,
 } from "@/lib/services/affiliates";
 import { billingDate, brazilDateParts } from "./brazil-date";
 import { getPlatformSettings, invalidateEntitlements } from "@/lib/plans/service";
-import { PROMO_FIRST_PAYMENT_CENTS, promoNextDueDate, promoReference } from "./references";
+import {
+  couponAppliesTo,
+  couponCentsOff,
+  firstPaymentCents,
+  promoNextDueDate,
+  promoReference,
+  type CheckoutCoupon,
+} from "./references";
 import { invalidateTenantCache } from "@/lib/tenant/service";
 import { onlyDigits } from "@/lib/utils";
 import {
@@ -44,9 +52,9 @@ export type ContractInput = {
   affiliateCode?: string | null;
   actor?: AffiliateActor;
   /**
-   * Contratação no cartão com primeiro pagamento promocional: cobra
-   * PROMO_FIRST_PAYMENT_CENTS na hora e a assinatura começa a cobrar o valor
-   * cheio no mês seguinte, no mesmo cartão. Substitui o período de teste.
+   * Contratação no cartão: cobra o primeiro mês na hora (valor promocional do
+   * cupom ou a mensalidade) e a assinatura começa a cobrar no mês seguinte, no
+   * mesmo cartão. Substitui o período de teste.
    */
   card?: Omit<AsaasCardCharge, "token"> | null;
 };
@@ -109,6 +117,8 @@ export async function contractSubscription(input: ContractInput) {
   }
   if (plan.billingMode === "manual") {
     const affiliation = await recordAffiliation(input, affiliate);
+    // negociado não leva o desconto do cupom: a mensalidade é o preço
+    await fixFirstMonthCpa(input.tenantId, priceCents);
     await saveSubscription({
       tenantId: input.tenantId,
       planId: plan.id,
@@ -160,6 +170,7 @@ export async function contractSubscription(input: ContractInput) {
    * o webhook chegar antes desta função terminar, a comissão já acha o vínculo.
    */
   const affiliation = await recordAffiliation(input, affiliate);
+  await fixFirstMonthCpa(input.tenantId, priceCents - (discount?.centsOff ?? 0));
 
   // cliente de um ambiente não existe no outro: trocou o ambiente, cria de novo
   const reusable =
@@ -176,11 +187,12 @@ export async function contractSubscription(input: ContractInput) {
   let promoPaymentId: string | null = null;
 
   if (input.card) {
+    const coupon = discount?.coupon ?? null;
     // recusado, o Asaas devolve 400 com o motivo e nada mais acontece
     const payment = await createCardPayment(environment, {
       customerId: customer.id,
-      valueCents: PROMO_FIRST_PAYMENT_CENTS,
-      description: `${plan.name} · primeiro mês promocional`,
+      valueCents: firstPaymentCents(priceCents, coupon),
+      description: `${plan.name} · primeiro mês${coupon?.firstPaymentCents != null ? " promocional" : ""}`,
       externalReference: promoReference(row.tenant.id),
       card: input.card,
     });
@@ -203,7 +215,7 @@ export async function contractSubscription(input: ContractInput) {
       externalReference: row.tenant.id,
       finePercent: settings.finePercent,
       interestPercent: settings.interestPercent,
-      discount: discount ? { type: discount.type, value: discount.value } : null,
+      discount: discount?.centsOff ? { type: discount.type, value: discount.value } : null,
       card,
     });
   } catch (error) {
@@ -400,43 +412,54 @@ type ResolvedCoupon = {
   /** Percentual (0-100) ou reais, conforme o tipo — é o que o Asaas espera. */
   value: number;
   centsOff: number;
+  coupon: CheckoutCoupon;
 };
+
+/** Cupom que ainda pode ser usado, ou o motivo de não poder. Não olha o plano. */
+export async function loadCoupon(
+  code: string | null | undefined,
+): Promise<{ coupon: CheckoutCoupon } | { error: string } | null> {
+  const normalized = code?.trim().toUpperCase();
+  if (!normalized) return null;
+
+  const db = await getDb();
+  const rows = await db.select().from(coupons).where(eq(coupons.code, normalized)).limit(1);
+
+  const coupon = rows[0];
+  if (!coupon || !coupon.active) return { error: "Cupom inválido" };
+  if (coupon.expiresAt && coupon.expiresAt.getTime() < Date.now()) {
+    return { error: "Cupom expirado" };
+  }
+  if (coupon.maxRedemptions !== null && coupon.redemptions >= coupon.maxRedemptions) {
+    return { error: "Cupom esgotado" };
+  }
+  return {
+    coupon: {
+      code: coupon.code,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue,
+      firstPaymentCents: coupon.firstPaymentCents,
+      planIds: coupon.planIds,
+    },
+  };
+}
 
 async function resolveCoupon(
   code: string | null | undefined,
   plan: Plan,
 ): Promise<ResolvedCoupon | null> {
-  if (!code) return null;
-
-  const db = await getDb();
-  const rows = await db
-    .select()
-    .from(coupons)
-    .where(eq(coupons.code, code.trim().toUpperCase()))
-    .limit(1);
-
-  const coupon = rows[0];
-  if (!coupon || !coupon.active) throw badRequest("Cupom inválido");
-  if (coupon.expiresAt && coupon.expiresAt.getTime() < Date.now()) {
-    throw badRequest("Cupom expirado");
-  }
-  if (coupon.maxRedemptions !== null && coupon.redemptions >= coupon.maxRedemptions) {
-    throw badRequest("Cupom esgotado");
-  }
-  if (coupon.planIds?.length && !coupon.planIds.includes(plan.id)) {
-    throw badRequest("Cupom não vale para este plano");
-  }
-
-  const centsOff =
-    coupon.discountType === "PERCENTAGE"
-      ? Math.round((plan.priceCents * coupon.discountValue) / 100)
-      : coupon.discountValue;
+  const loaded = await loadCoupon(code);
+  if (!loaded) return null;
+  if ("error" in loaded) throw badRequest(loaded.error);
+  const { coupon } = loaded;
+  if (!couponAppliesTo(coupon, plan.id)) throw badRequest("Cupom não vale para este plano");
 
   return {
     code: coupon.code,
     type: coupon.discountType,
     value: coupon.discountType === "PERCENTAGE" ? coupon.discountValue : coupon.discountValue / 100,
-    centsOff,
+    centsOff: couponCentsOff(plan.priceCents, coupon),
+    coupon,
   };
 }
 

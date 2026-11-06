@@ -9,7 +9,7 @@ import { cardSignupSchema } from "./card-signup";
  * as regras da contratação pelo painel.
  */
 /** Muda junto com o texto de /termos; fica gravado na auditoria da contratação. */
-export const TERMS_VERSION = "2026-10-27";
+export const TERMS_VERSION = "2026-11-06";
 
 export const checkoutSchema = cardSignupSchema.extend({
   acceptedTerms: z.literal(true, { message: "Aceite os Termos de Uso para continuar" }),

@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getDb } from "@/db";
 import { plans, tenantSites, tenants } from "@/db/schema";
 import { requireTenantPage } from "@/lib/auth/guards";
-import { PROMO_FIRST_PAYMENT_CENTS, promoNextDueDate } from "@/lib/gateway/references";
+import { promoNextDueDate } from "@/lib/gateway/references";
+import { loadCoupon } from "@/lib/gateway/subscribe";
 import { getTenantAffiliation } from "@/lib/services/affiliates";
 import { getTenantSubscription } from "@/lib/services/subscriptions";
 import { formatCurrency, formatDate, onlyDigits } from "@/lib/utils";
@@ -24,8 +25,14 @@ const STATUS_LABELS: Record<string, string> = {
   manual: "Negociada",
 };
 
-export default async function SubscriptionPage() {
+export default async function SubscriptionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cupom?: string }>;
+}) {
   const context = await requireTenantPage("tenant:settings");
+  const { cupom } = await searchParams;
+  const loaded = await loadCoupon(cupom);
   const tenantId = context.tenant.id;
   const db = await getDb();
 
@@ -86,9 +93,15 @@ export default async function SubscriptionPage() {
           completar.
         </Alert>
       ) : (
+        <>
+        {loaded && "error" in loaded ? (
+          <Alert tone="warning" className="mb-4">
+            {loaded.error}: {cupom?.trim().toUpperCase()}. A contratação segue pelo valor normal do plano.
+          </Alert>
+        ) : null}
         <CardSignupForm
           plans={planRows}
-          promoCents={PROMO_FIRST_PAYMENT_CENTS}
+          coupon={loaded && "coupon" in loaded ? loaded.coupon : null}
           firstFullChargeAt={promoNextDueDate().toISOString()}
           hasAffiliation={Boolean(affiliation)}
           defaults={{
@@ -100,6 +113,7 @@ export default async function SubscriptionPage() {
             phone: row?.site?.whatsapp ?? row?.site?.phone ?? "",
           }}
         />
+        </>
       )}
     </>
   );

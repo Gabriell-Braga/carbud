@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   affiliateCommissionAdjustments,
@@ -7,6 +7,7 @@ import {
   affiliatePaymentFacts,
   affiliatePayouts,
   affiliates,
+  coupons,
   newId,
   subscriptions,
   tenantAffiliations,
@@ -14,6 +15,7 @@ import {
   type Affiliate,
   type AffiliatePaymentFact,
   type AffiliationSource,
+  type CommissionType,
 } from "@/db/schema";
 import {
   asaasCommissionBase,
@@ -44,6 +46,9 @@ export async function createAffiliate(
     phone?: string | null;
     notes?: string | null;
     defaultCommissionBps: number;
+    commissionType?: CommissionType;
+    cpaCents?: number | null;
+    couponId?: string | null;
   },
   actor: AffiliateActor,
 ): Promise<Affiliate> {
@@ -58,6 +63,37 @@ export async function createAffiliate(
     if (inserted[0]) return inserted[0];
   }
   throw new Error("Não foi possível gerar um código único de afiliado");
+}
+
+/**
+ * Afiliado do link de indicação (`/contratar?ref=`), com o cupom dele. Null
+ * quando o código não existe ou o afiliado está inativo: a página segue sem
+ * indicação em vez de travar quem chegou por um link velho.
+ */
+export async function affiliateForCheckout(
+  rawCode: string | null | undefined,
+): Promise<{ code: string; name: string; couponCode: string | null } | null> {
+  const code = normalizeAffiliateCode(rawCode);
+  if (!code) return null;
+  const db = await getDb();
+  const rows = await db
+    .select({ code: affiliates.code, name: affiliates.name, status: affiliates.status, couponCode: coupons.code })
+    .from(affiliates)
+    .leftJoin(coupons, eq(coupons.id, affiliates.couponId))
+    .where(eq(affiliates.code, code))
+    .limit(1);
+  const row = rows[0];
+  if (!row || row.status !== "active") return null;
+  return { code: row.code, name: row.name, couponCode: row.couponCode };
+}
+
+/** Cupons que o super-admin pode ligar a um afiliado. */
+export async function listCouponOptions() {
+  const db = await getDb();
+  return db
+    .select({ id: coupons.id, code: coupons.code, active: coupons.active })
+    .from(coupons)
+    .orderBy(asc(coupons.code));
 }
 
 export async function getAffiliate(id: string): Promise<Affiliate> {
@@ -103,6 +139,8 @@ export function affiliationValues(
     affiliateId: affiliate.id,
     codeSnapshot: affiliate.code,
     commissionBpsSnapshot: affiliate.defaultCommissionBps,
+    commissionTypeSnapshot: affiliate.commissionType,
+    cpaCentsSnapshot: affiliate.cpaCents,
     attributedAt: new Date(),
     source,
     createdByUserId: actor.userId,
@@ -379,6 +417,12 @@ async function evaluateFact(fact: AffiliatePaymentFact): Promise<EvaluationResul
     // sem retroativo: só pagamento a partir da atribuição
     if (!affiliation || affiliation.attributedAt.getTime() > fact.effectiveAt.getTime()) return {};
 
+    const cpa = await cpaFor(affiliation, fact.tenantId);
+    if (cpa && "review" in cpa) return { review: cpa.review };
+    if (cpa && "done" in cpa) return {};
+    const fixedCents = cpa ? cpa.cents : null;
+
+    // sem alvo: no CPA, o índice parcial por vínculo barra o crédito dos pagamentos seguintes
     await db
       .insert(affiliateCommissions)
       .values({
@@ -387,12 +431,14 @@ async function evaluateFact(fact: AffiliatePaymentFact): Promise<EvaluationResul
         affiliateId: affiliation.affiliateId,
         tenantId: fact.tenantId,
         baseCents: base,
-        commissionBps: affiliation.commissionBpsSnapshot,
-        amountCents: commissionCents(base, affiliation.commissionBpsSnapshot),
+        commissionBps: fixedCents === null ? affiliation.commissionBpsSnapshot : 0,
+        fixedCents,
+        amountCents:
+          fixedCents ?? commissionCents(base, affiliation.commissionBpsSnapshot),
         competenceAt: fact.effectiveAt,
         status: paymentClass === "held" ? "held" : "available",
       })
-      .onConflictDoNothing({ target: affiliateCommissions.paymentFactId });
+      .onConflictDoNothing();
 
     commission = (
       await db
@@ -401,6 +447,8 @@ async function evaluateFact(fact: AffiliatePaymentFact): Promise<EvaluationResul
         .where(eq(affiliateCommissions.paymentFactId, fact.id))
         .limit(1)
     )[0];
+    // CPA já creditado em outro pagamento desta revenda: este não gera nada
+    if (!commission) return {};
   }
 
   const adjustments = await db
@@ -418,6 +466,7 @@ async function evaluateFact(fact: AffiliatePaymentFact): Promise<EvaluationResul
       baseCents: commission.baseCents,
       refundedCents: fact.refundedCents,
       bps: commission.commissionBps,
+      fixedCents: commission.fixedCents,
     }),
   });
 
@@ -446,6 +495,58 @@ async function evaluateFact(fact: AffiliatePaymentFact): Promise<EvaluationResul
   }
 
   return {};
+}
+
+/**
+ * Fixa no vínculo o CPA "1ª mensalidade" com a mensalidade que está sendo
+ * contratada. Precisa acontecer antes da cobrança: o webhook do primeiro
+ * pagamento chega antes de a assinatura ser gravada. Só preenche vazio.
+ */
+export async function fixFirstMonthCpa(tenantId: string, monthlyCents: number) {
+  if (monthlyCents <= 0) return;
+  const db = await getDb();
+  await db
+    .update(tenantAffiliations)
+    .set({ cpaCentsSnapshot: monthlyCents })
+    .where(
+      and(
+        eq(tenantAffiliations.tenantId, tenantId),
+        eq(tenantAffiliations.commissionTypeSnapshot, "cpa_first_month"),
+        isNull(tenantAffiliations.cpaCentsSnapshot),
+      ),
+    );
+}
+
+/**
+ * Valor do CPA do vínculo; null quando a comissão é percentual. "1ª
+ * mensalidade" é o preço do plano contratado com o desconto recorrente, não o
+ * primeiro pagamento promocional.
+ */
+async function cpaFor(
+  affiliation: typeof tenantAffiliations.$inferSelect,
+  tenantId: string,
+): Promise<{ cents: number } | { review: string } | { done: true } | null> {
+  if (affiliation.commissionTypeSnapshot === "percent") return null;
+  const db = await getDb();
+  const paid = await db
+    .select({ id: affiliateCommissions.id })
+    .from(affiliateCommissions)
+    .where(eq(affiliateCommissions.affiliationId, affiliation.id))
+    .limit(1);
+  // CPA paga uma vez: pagamento seguinte da mesma revenda não gera crédito
+  if (paid[0]) return { done: true };
+  if (affiliation.cpaCentsSnapshot) return { cents: affiliation.cpaCentsSnapshot };
+  if (affiliation.commissionTypeSnapshot === "cpa_fixed") {
+    return { review: "CPA fixo sem valor no vínculo" };
+  }
+  // 1ª mensalidade sem valor fixado na contratação (vínculo feito por fora): usa a assinatura
+  const rows = await db
+    .select({ priceCents: subscriptions.priceCents, discountCents: subscriptions.discountCents })
+    .from(subscriptions)
+    .where(eq(subscriptions.tenantId, tenantId))
+    .limit(1);
+  const cents = rows[0] ? rows[0].priceCents - rows[0].discountCents : 0;
+  return cents > 0 ? { cents } : { review: "Revenda sem mensalidade para calcular o CPA" };
 }
 
 /**
@@ -882,6 +983,8 @@ export async function listAffiliateTenants(affiliateId: string) {
       attributedAt: tenantAffiliations.attributedAt,
       source: tenantAffiliations.source,
       commissionBps: tenantAffiliations.commissionBpsSnapshot,
+      commissionType: tenantAffiliations.commissionTypeSnapshot,
+      cpaCents: tenantAffiliations.cpaCentsSnapshot,
       firstPaymentAt: sql<number | null>`(SELECT min(c.competence_at) FROM affiliate_commissions c
         WHERE c.affiliation_id = ${tenantAffiliations.id})`,
       netCents: sql<number>`coalesce((SELECT sum(c.amount_cents) FROM affiliate_commissions c
@@ -904,6 +1007,7 @@ export type StatementEntry = {
   tenantName: string | null;
   baseCents: number | null;
   commissionBps: number | null;
+  fixedCents: number | null;
   status: string | null;
   detail: string | null;
 };
@@ -915,17 +1019,17 @@ export async function affiliateStatement(affiliateId: string, page: number, page
     SELECT * FROM (
       SELECT 'commission' AS kind, c.id, c.competence_at AS at, c.amount_cents AS amountCents,
         t.name AS tenantName, c.base_cents AS baseCents, c.commission_bps AS commissionBps,
-        c.status, NULL AS detail
+        c.fixed_cents AS fixedCents, c.status, NULL AS detail
       FROM affiliate_commissions c LEFT JOIN tenants t ON t.id = c.tenant_id
       WHERE c.affiliate_id = ${affiliateId}
       UNION ALL
-      SELECT 'adjustment', a.id, a.created_at, a.amount_cents, t.name, NULL, NULL, NULL, a.reason
+      SELECT 'adjustment', a.id, a.created_at, a.amount_cents, t.name, NULL, NULL, NULL, NULL, a.reason
       FROM affiliate_commission_adjustments a
       JOIN affiliate_commissions c ON c.id = a.commission_id
       LEFT JOIN tenants t ON t.id = c.tenant_id
       WHERE a.affiliate_id = ${affiliateId}
       UNION ALL
-      SELECT 'payout', p.id, p.paid_at, -p.amount_cents, NULL, NULL, NULL, p.status,
+      SELECT 'payout', p.id, p.paid_at, -p.amount_cents, NULL, NULL, NULL, NULL, p.status,
         p.reference || coalesce(' · anulado: ' || p.void_reason, '')
       FROM affiliate_payouts p
       WHERE p.affiliate_id = ${affiliateId}

@@ -185,7 +185,7 @@ async function applyEvent(
   const promo = parsePaymentReference(payload.payment?.externalReference).promo;
   const outcome =
     promo && mapped.registersPayment
-      ? { ...mapped, registersPayment: false, note: "Primeiro mês promocional pago no cartão." }
+      ? { ...mapped, registersPayment: false, note: "Primeiro mês pago no cartão." }
       : outcomeForPayment(mapped, await paymentAlreadyRegistered(eventId, payload.payment?.id));
   await applyOutcome(tenantId, eventType, outcome, request);
   return { applied: eventType };

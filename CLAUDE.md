@@ -62,7 +62,7 @@ Três camadas, num workspace npm:
 
 ### Banco
 
-Drizzle sobre D1/SQLite, schema em `src/db/schema/`. Migrations em `drizzle/` são aditivas: nunca edite uma já aplicada, crie outra. Workers não lê filesystem, então `scripts/bundle-migrations.mjs` embute os `.sql` em `src/db/migrations.generated.ts` e `/api/ops/migrate` aplica o que falta (controle em `_app_migrations`; tolera "already exists"). Após deploy com migration nova, rode o migrate em produção.
+Drizzle sobre D1/SQLite, schema em `src/db/schema/`. Migrations em `drizzle/` são aditivas: nunca edite uma já aplicada, crie outra. Workers não lê filesystem, então `scripts/bundle-migrations.mjs` embute os `.sql` em `src/db/migrations.generated.ts` e `/api/ops/migrate` aplica o que falta (controle em `_app_migrations`; tolera "already exists"). Em produção a migration roda sozinha no deploy (confirmado pelo dono do produto): não é passo manual nem pendência a anotar.
 
 ## Convenções
 

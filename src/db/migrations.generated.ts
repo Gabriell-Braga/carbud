@@ -347,5 +347,18 @@ export const MIGRATIONS: BundledMigration[] = [
     "statements": [
       "ALTER TABLE `vehicle_finance` ADD `contract` text;"
     ]
+  },
+  {
+    "tag": "0033_affiliate_cpa_coupon_first_payment",
+    "statements": [
+      "ALTER TABLE `coupons` ADD `first_payment_cents` integer;",
+      "ALTER TABLE `affiliate_commissions` ADD `fixed_cents` integer;",
+      "CREATE UNIQUE INDEX `affiliate_commissions_cpa_unique` ON `affiliate_commissions` (`affiliation_id`) WHERE fixed_cents IS NOT NULL;",
+      "ALTER TABLE `affiliates` ADD `commission_type` text DEFAULT 'percent' NOT NULL;",
+      "ALTER TABLE `affiliates` ADD `cpa_cents` integer;",
+      "ALTER TABLE `affiliates` ADD `coupon_id` text REFERENCES coupons(id);",
+      "ALTER TABLE `tenant_affiliations` ADD `commission_type_snapshot` text DEFAULT 'percent' NOT NULL;",
+      "ALTER TABLE `tenant_affiliations` ADD `cpa_cents_snapshot` integer;"
+    ]
   }
 ];

@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, Input, Textarea } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
-import { formatBps } from "@/lib/affiliates/rules";
 import { apiPatch, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
 import { formatDate } from "@/lib/utils";
 
@@ -16,7 +15,8 @@ export type AffiliationSummary = {
   affiliateId: string;
   affiliateName: string;
   code: string;
-  commissionBps: number;
+  /** Comissão fixada no vínculo, já formatada ("10%", "CPA R$ 200,00"). */
+  commission: string;
   attributedAt: string;
   source: string;
 };
@@ -43,8 +43,8 @@ export function AffiliationPanel({
         <div>
           <CardTitle>Afiliado de origem</CardTitle>
           <CardDescription>
-            Quem indicou esta revenda. A comissão é sobre cada pagamento confirmado, com o
-            percentual fixado no vínculo.
+            Quem indicou esta revenda. A comissão segue a regra fixada no vínculo: percentual
+            sobre cada pagamento confirmado ou CPA, pago uma vez no primeiro.
           </CardDescription>
         </div>
         <Button type="button" variant="secondary" className="shrink-0" onClick={() => setCorrecting(true)}>
@@ -70,7 +70,7 @@ export function AffiliationPanel({
               label="Indicada em"
               value={`${formatDate(new Date(affiliation.attributedAt))} ${SOURCE_LABELS[affiliation.source] ?? ""}`}
             />
-            <Field label="Percentual fixado" value={formatBps(affiliation.commissionBps)} />
+            <Field label="Comissão fixada" value={affiliation.commission} />
           </div>
         ) : (
           <p className="text-[13px] text-muted">Venda direta: nenhum afiliado registrado.</p>

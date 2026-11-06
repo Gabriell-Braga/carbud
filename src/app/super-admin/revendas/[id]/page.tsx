@@ -22,6 +22,7 @@ import { ImpersonateButton } from "./impersonate-button";
 import { Tabs } from "@/components/ui/tabs";
 import { TenantSettingsForm } from "./tenant-settings";
 import { TenantUsersPanel } from "./users-panel";
+import { formatCommission } from "@/lib/affiliates/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,11 @@ export default async function TenantDetailPage({ params, searchParams }: Props) 
         affiliateId: affiliationRow.affiliate.id,
         affiliateName: affiliationRow.affiliate.name,
         code: affiliationRow.affiliation.codeSnapshot,
-        commissionBps: affiliationRow.affiliation.commissionBpsSnapshot,
+        commission: formatCommission({
+          type: affiliationRow.affiliation.commissionTypeSnapshot,
+          bps: affiliationRow.affiliation.commissionBpsSnapshot,
+          cpaCents: affiliationRow.affiliation.cpaCentsSnapshot,
+        }),
         attributedAt: affiliationRow.affiliation.attributedAt.toISOString(),
         source: affiliationRow.affiliation.source,
       }

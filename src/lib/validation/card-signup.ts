@@ -44,6 +44,7 @@ export const cardSignupSchema = z.object({
     phone: digits(10, 11, "Telefone com DDD"),
   }),
   affiliateCode: affiliateCodeField,
+  couponCode: z.string().trim().max(40).optional().or(z.literal("")),
 });
 
 export type CardSignupInput = z.infer<typeof cardSignupSchema>;

@@ -23,6 +23,7 @@ export type CouponRow = {
   description: string | null;
   discountType: string;
   discountValue: number;
+  firstPaymentCents: number | null;
   durationCycles: number | null;
   maxRedemptions: number | null;
   redemptions: number;
@@ -38,6 +39,7 @@ function emptyCoupon(): CouponRow {
     description: "",
     discountType: "PERCENTAGE",
     discountValue: 10,
+    firstPaymentCents: null,
     durationCycles: null,
     maxRedemptions: null,
     redemptions: 0,
@@ -48,9 +50,17 @@ function emptyCoupon(): CouponRow {
 }
 
 function describeDiscount(coupon: CouponRow): string {
-  return coupon.discountType === "PERCENTAGE"
-    ? `${coupon.discountValue}%`
-    : formatCurrency(coupon.discountValue);
+  const discount =
+    coupon.discountValue === 0
+      ? null
+      : coupon.discountType === "PERCENTAGE"
+        ? `${coupon.discountValue}%`
+        : formatCurrency(coupon.discountValue);
+  const first =
+    coupon.firstPaymentCents === null
+      ? null
+      : `1º mês ${formatCurrency(coupon.firstPaymentCents)}`;
+  return [first, discount].filter(Boolean).join(" + ");
 }
 
 export function CouponsPanel({ coupons, plans }: { coupons: CouponRow[]; plans: PlanRow[] }) {
@@ -98,7 +108,9 @@ export function CouponsPanel({ coupons, plans }: { coupons: CouponRow[]; plans: 
             <CardTitle>Cupons</CardTitle>
             <CardDescription>
               O Asaas não tem cupom, então na contratação o desconto vira o campo de desconto da
-              assinatura. Mudar o cupom depois não altera quem já contratou.
+              assinatura. Mudar o cupom depois não altera quem já contratou. Para o cupom
+              entrar sozinho no link de indicação, escolha-o no cadastro do afiliado. Sem cupom, o
+              primeiro mês é cobrado pelo valor do plano.
             </CardDescription>
           </div>
           <Button type="button" onClick={() => setEditing(emptyCoupon())} className="shrink-0">
@@ -246,6 +258,7 @@ function CouponEditor({
       description: draft.description?.trim() || null,
       discountType: draft.discountType,
       discountValue,
+      firstPaymentCents: draft.firstPaymentCents,
       durationCycles: draft.durationCycles,
       maxRedemptions: draft.maxRedemptions,
       planIds: draft.planIds ?? [],
@@ -373,6 +386,19 @@ function CouponEditor({
             />
           </FormField>
         </div>
+
+        <FormField
+          label="Primeiro mês por (R$)"
+          htmlFor="coupon-first"
+          hint="Cobrado na hora, no cartão. Vazio = primeiro mês pelo valor do plano (com o desconto acima). Use desconto 0 para um cupom só de primeiro mês."
+          error={errors.firstPaymentCents}
+        >
+          <CurrencyInput
+            id="coupon-first"
+            valueCents={draft.firstPaymentCents ?? 0}
+            onChangeCents={(cents) => setDraft({ ...draft, firstPaymentCents: cents || null })}
+          />
+        </FormField>
 
         <FormField label="Descrição" htmlFor="coupon-description" error={errors.description}>
           <Textarea

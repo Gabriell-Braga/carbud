@@ -9,6 +9,12 @@ import { FormField, Input } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { apiPost, errorMessageFrom, fieldErrorsFrom, type FieldErrors } from "@/lib/client/api";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import {
+  couponAppliesTo,
+  couponCentsOff,
+  firstPaymentCents,
+  type CheckoutCoupon,
+} from "@/lib/gateway/references";
 import { maskCep, maskPhone } from "@carbud/site-kit/masks";
 
 type PlanChoice = {
@@ -34,13 +40,13 @@ type Holder = {
  */
 export function CardSignupForm({
   plans,
-  promoCents,
+  coupon,
   firstFullChargeAt,
   hasAffiliation,
   defaults,
 }: {
   plans: PlanChoice[];
-  promoCents: number;
+  coupon: CheckoutCoupon | null;
   firstFullChargeAt: string;
   hasAffiliation: boolean;
   defaults: Holder;
@@ -62,6 +68,10 @@ export function CardSignupForm({
   const [errors, setErrors] = useState<FieldErrors>({});
 
   const plan = plans.find((item) => item.id === planId)!;
+  // cupom restrito a outro plano não vai no envio: o servidor recusaria a contratação
+  const appliedCoupon = coupon && couponAppliesTo(coupon, plan.id) ? coupon : null;
+  const todayCents = firstPaymentCents(plan.priceCents, appliedCoupon);
+  const monthlyCents = plan.priceCents - (appliedCoupon ? couponCentsOff(plan.priceCents, appliedCoupon) : 0);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +86,7 @@ export function CardSignupForm({
         card: { holderName: card.holderName, number: card.number, expiryMonth: month, expiryYear: year, ccv: card.ccv },
         holder,
         affiliateCode: hasAffiliation ? undefined : affiliateCode.trim() || undefined,
+        couponCode: appliedCoupon?.code,
       },
     );
     setSaving(false);
@@ -94,7 +105,7 @@ export function CardSignupForm({
     setCard({ holderName: "", number: "", expiry: "", ccv: "" });
     toast.success(
       `${result.data.planName} contratado`,
-      `Cobramos ${formatCurrency(promoCents)} agora. A próxima cobrança é em ${formatDate(new Date(result.data.nextDueDate))}.`,
+      `Cobramos ${formatCurrency(todayCents)} agora. A próxima cobrança é em ${formatDate(new Date(result.data.nextDueDate))}.`,
     );
     router.refresh();
   }
@@ -105,9 +116,15 @@ export function CardSignupForm({
         <CardHeader>
           <CardTitle>Escolha o plano</CardTitle>
           <CardDescription>
-            Primeiro mês por {formatCurrency(promoCents)}. A partir de{" "}
+            O primeiro mês é cobrado na hora
+            {todayCents < monthlyCents ? `, por ${formatCurrency(todayCents)}` : ""}. A partir de{" "}
             {formatDate(new Date(firstFullChargeAt))}, o valor do plano é cobrado todo mês no
             mesmo cartão, até você cancelar.
+            {coupon
+              ? appliedCoupon
+                ? ` Cupom ${coupon.code} aplicado.`
+                : ` O cupom ${coupon.code} não vale para este plano.`
+              : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -253,12 +270,12 @@ export function CardSignupForm({
 
       <div className="flex flex-col items-end gap-2">
         <p className="text-right text-[13px] text-muted">
-          Hoje: <strong className="text-text">{formatCurrency(promoCents)}</strong>. A partir de{" "}
+          Hoje: <strong className="text-text">{formatCurrency(todayCents)}</strong>. A partir de{" "}
           {formatDate(new Date(firstFullChargeAt))}:{" "}
-          <strong className="text-text">{formatCurrency(plan.priceCents)}/mês</strong>.
+          <strong className="text-text">{formatCurrency(monthlyCents)}/mês</strong>.
         </p>
         <Button type="submit" loading={saving}>
-          Pagar {formatCurrency(promoCents)} e contratar
+          Pagar {formatCurrency(todayCents)} e contratar
         </Button>
       </div>
     </form>
