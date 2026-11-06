@@ -9,6 +9,7 @@ import { getLead } from "@/lib/services/leads";
 import { listTenantUsers } from "@/lib/services/users";
 import { listVehicleOptions } from "@/lib/services/vehicles";
 import { ensureTemplates } from "@/lib/services/message-templates";
+import { listLeadTasks } from "@/lib/services/lead-tasks";
 import { LeadDetail } from "./lead-detail";
 
 export const dynamic = "force-dynamic";
@@ -33,12 +34,13 @@ export default async function LeadDetailPage({ params }: Props) {
   const hasFunnel = await tenantHasFeature(context.tenant.id, "funil_comercial");
 
   const canWrite = can(context.role, "leads:write");
-  const [events, stages, users, templates, vehicleOptions] = await Promise.all([
+  const [events, stages, users, templates, vehicleOptions, tasks] = await Promise.all([
     hasTimeline ? listLeadEvents(context.tenant.id, id) : Promise.resolve([]),
     hasFunnel ? listStages(context.tenant.id) : Promise.resolve([]),
     listTenantUsers(context.tenant.id),
     ensureTemplates(context.tenant.id),
     canWrite ? listVehicleOptions(context.tenant.id) : Promise.resolve([]),
+    listLeadTasks(context.tenant.id, id),
   ]);
 
   return (
@@ -62,6 +64,9 @@ export default async function LeadDetailPage({ params }: Props) {
           internalNotes: lead.internalNotes,
           source: lead.source,
           utm: lead.utm ?? null,
+          lostReason: lead.lostReason ?? null,
+          negotiation: lead.negotiation ?? null,
+          marketingOptOut: Boolean(lead.marketingOptOutAt),
           createdAt: lead.createdAt.toISOString(),
         }}
         stages={stages.map((stage) => ({ id: stage.id, name: stage.name, kind: stage.kind }))}
@@ -76,6 +81,13 @@ export default async function LeadDetailPage({ params }: Props) {
           createdAt: event.createdAt.toISOString(),
         }))}
         canWrite={canWrite}
+        tasks={tasks.map((task) => ({
+          id: task.id,
+          kind: task.kind,
+          dueAt: task.dueAt.toISOString(),
+          note: task.note,
+          assignedToName: task.assignedToName,
+        }))}
         vehicleOptions={vehicleOptions}
         templates={templates.map((template) => ({
           id: template.id,

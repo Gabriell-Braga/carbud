@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LEAD_STATUS } from "@/db/schema";
+import { LEAD_STATUS, LOST_REASONS, PAYMENT_METHODS, TASK_KINDS } from "@/db/schema";
 import { onlyDigits } from "@/lib/utils";
 
 export const publicLeadSchema = z.object({
@@ -91,6 +91,49 @@ export const leadUpdateSchema = z.object({
   internalNotes: z.string().trim().max(2000).optional(),
   /** Carro do interesse; null desliga. Lead de portal sem carro é ligado aqui. */
   vehicleId: z.string().uuid().nullable().optional(),
+  lostReason: z.enum(LOST_REASONS).nullable().optional(),
+  /** Texto que acompanha o motivo; vai para a linha do tempo, não para o lead. */
+  lostNote: z.string().trim().max(1000).optional(),
+  negotiation: z
+    .object({
+      brand: z.string().trim().max(60).optional(),
+      model: z.string().trim().max(80).optional(),
+      version: z.string().trim().max(120).optional(),
+      paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+      valueCents: z.number().int().min(0).max(1_000_000_000).optional(),
+      downPaymentCents: z.number().int().min(0).max(1_000_000_000).optional(),
+      testDrive: z.boolean().optional(),
+      tradeIn: z
+        .object({
+          brand: z.string().trim().max(60).optional(),
+          model: z.string().trim().max(80).optional(),
+          year: z.number().int().min(1950).max(2100).optional(),
+          mileageKm: z.number().int().min(0).max(2_000_000).optional(),
+          valueCents: z.number().int().min(0).max(1_000_000_000).optional(),
+        })
+        .nullable()
+        .optional(),
+      notes: z.string().trim().max(4000).optional(),
+    })
+    .optional(),
+  /** Pediu para não receber campanha. */
+  marketingOptOut: z.boolean().optional(),
+});
+
+export const leadTaskSchema = z.object({
+  kind: z.enum(TASK_KINDS),
+  dueAt: z.coerce.date(),
+  note: z.string().trim().max(1000).nullable().optional(),
+  assignedToUserId: z.string().uuid().nullable().optional(),
+});
+
+export const leadTaskUpdateSchema = z.object({
+  status: z.enum(["done", "canceled"]).optional(),
+  dueAt: z.coerce.date().optional(),
+  note: z.string().trim().max(1000).nullable().optional(),
+  assignedToUserId: z.string().uuid().nullable().optional(),
+  /** Como foi: entra na linha do tempo junto com o "feito". */
+  outcome: z.string().trim().max(2000).nullable().optional(),
 });
 
 export const leadEventSchema = z.object({

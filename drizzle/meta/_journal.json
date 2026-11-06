@@ -239,6 +239,13 @@
       "when": 1793994540519,
       "tag": "0033_affiliate_cpa_coupon_first_payment",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1794003182216,
+      "tag": "0034_crm_agenda_campaigns",
+      "breakpoints": true
     }
   ]
 }

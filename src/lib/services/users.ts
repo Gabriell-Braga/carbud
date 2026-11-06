@@ -13,6 +13,7 @@ export type UserListItem = Pick<
   | "mustChangePassword"
   | "createdAt"
   | "storeId"
+  | "teamId"
   | "receivesLeads"
   | "permissionOverrides"
 >;
@@ -27,6 +28,7 @@ const LIST_COLUMNS = {
   mustChangePassword: users.mustChangePassword,
   createdAt: users.createdAt,
   storeId: users.storeId,
+  teamId: users.teamId,
   receivesLeads: users.receivesLeads,
   permissionOverrides: users.permissionOverrides,
 };

@@ -15,13 +15,22 @@ import { LeadStatusBadge } from "@/components/admin/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FormField, Select, Textarea } from "@/components/ui/field";
+import { Checkbox, FormField, Select, Textarea } from "@/components/ui/field";
+import { LostReasonDialog, type LostChoice } from "@/components/admin/lost-reason-dialog";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STATUS, type LeadSource, type LeadStatus } from "@/db/schema";
-import { LEAD_SOURCE_LABELS, LEAD_STATUS_LABELS } from "@/lib/catalog/labels";
+import {
+  LEAD_STATUS,
+  type LeadNegotiation,
+  type LeadSource,
+  type LeadStatus,
+  type LostReason,
+} from "@/db/schema";
+import { LEAD_SOURCE_LABELS, LEAD_STATUS_LABELS, LOST_REASON_LABELS } from "@/lib/catalog/labels";
 import { apiPatch, apiPost } from "@/lib/client/api";
 import { formatDateTime, formatPhone, onlyDigits } from "@/lib/utils";
 import { WhatsappSender, type Template } from "./whatsapp-sender";
+import { LeadTasks, type LeadTaskItem } from "./lead-tasks";
+import { NegotiationCard } from "./negotiation-card";
 
 type TimelineEvent = {
   id: string;
@@ -45,6 +54,9 @@ type LeadData = {
   internalNotes: string | null;
   source: string;
   utm: Record<string, string | undefined> | null;
+  lostReason: LostReason | null;
+  negotiation: LeadNegotiation | null;
+  marketingOptOut: boolean;
   createdAt: string;
 };
 
@@ -75,6 +87,7 @@ export function LeadDetail({
   templates,
   sender,
   vehicleOptions,
+  tasks,
 }: {
   lead: LeadData;
   stages: { id: string; name: string; kind: string }[];
@@ -86,6 +99,7 @@ export function LeadDetail({
   templates: Template[];
   sender: { name: string; tenantName: string };
   vehicleOptions: { id: string; label: string }[];
+  tasks: LeadTaskItem[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -96,6 +110,11 @@ export function LeadDetail({
   const [vehicleId, setVehicleId] = useState(lead.vehicleId ?? "");
   const [notes, setNotes] = useState(lead.internalNotes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [optOut, setOptOut] = useState(lead.marketingOptOut);
+  // mudança que leva a "perdido" espera o motivo antes de ir para a API
+  const [pendingLoss, setPendingLoss] = useState<Record<string, unknown> | null>(null);
+  const lostStageIds = new Set(stages.filter((stage) => stage.kind === "lost").map((s) => s.id));
+  const isLost = status === "lost" || lostStageIds.has(stageId);
 
   const [timeline, setTimeline] = useState(events);
   const [eventType, setEventType] = useState<(typeof CONTACT_TYPES)[number]>("call");
@@ -154,6 +173,10 @@ export function LeadDetail({
             onSent={() => router.refresh()}
           />
         ) : null}
+
+        <LeadTasks leadId={lead.id} tasks={tasks} assignees={assignees} canWrite={canWrite} />
+
+        <NegotiationCard leadId={lead.id} initial={lead.negotiation ?? {}} canWrite={canWrite} />
 
         {hasTimeline ? (
           <Card>
@@ -326,6 +349,28 @@ export function LeadDetail({
               <p className="label-instrument mb-1 text-muted">Chegou em</p>
               <p className="text-text">{formatDateTime(new Date(lead.createdAt))}</p>
             </div>
+            <label className="flex items-start gap-2">
+              <Checkbox
+                className="mt-0.5"
+                disabled={!canWrite}
+                checked={optOut}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setOptOut(next);
+                  void patch(
+                    { marketingOptOut: next },
+                    () => setOptOut(!next),
+                    next ? "Fora das campanhas" : "Volta a receber campanhas",
+                  );
+                }}
+              />
+              <span className="text-muted">
+                Não quer receber campanhas
+                <span className="block text-xs text-faint">
+                  Quem responde &quot;sair&quot; no WhatsApp é marcado sozinho.
+                </span>
+              </span>
+            </label>
             {lead.utm?.source ? (
               <div>
                 <p className="label-instrument mb-1 text-muted">Origem da campanha</p>
@@ -344,6 +389,11 @@ export function LeadDetail({
           <CardContent>
             <div className="mb-3">
               <LeadStatusBadge status={status} />
+              {isLost && lead.lostReason ? (
+                <p className="mt-2 text-xs text-muted">
+                  Motivo: {LOST_REASON_LABELS[lead.lostReason]}
+                </p>
+              ) : null}
             </div>
 
             <FormField label="Situação" htmlFor="lead-status">
@@ -354,6 +404,10 @@ export function LeadDetail({
                 onChange={(event) => {
                   const previous = status;
                   const next = event.target.value as LeadStatus;
+                  if (next === "lost" && !isLost) {
+                    setPendingLoss({ status: next });
+                    return;
+                  }
                   setStatus(next);
                   void patch({ status: next }, () => setStatus(previous), "Situação atualizada");
                 }}
@@ -375,6 +429,10 @@ export function LeadDetail({
                   onChange={(event) => {
                     const previous = stageId;
                     const next = event.target.value;
+                    if (lostStageIds.has(next) && !isLost) {
+                      setPendingLoss({ stageId: next });
+                      return;
+                    }
                     setStageId(next);
                     void patch(
                       { stageId: next || null },
@@ -467,6 +525,27 @@ export function LeadDetail({
           </Card>
         ) : null}
       </div>
+
+      <LostReasonDialog
+        open={pendingLoss !== null}
+        leadName={lead.name}
+        onCancel={() => setPendingLoss(null)}
+        onConfirm={async (choice: LostChoice) => {
+          if (!pendingLoss) return;
+          const change = pendingLoss;
+          setPendingLoss(null);
+          if (typeof change.status === "string") setStatus(change.status as LeadStatus);
+          if (typeof change.stageId === "string") setStageId(change.stageId);
+          await patch(
+            { ...change, ...choice },
+            () => {
+              setStatus(lead.status);
+              setStageId(lead.stageId ?? "");
+            },
+            "Marcado como perdido",
+          );
+        }}
+      />
     </div>
   );
 }

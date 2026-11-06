@@ -8,6 +8,26 @@ export type Role = (typeof ROLES)[number];
 export const USER_STATUS = ["active", "disabled"] as const;
 export type UserStatus = (typeof USER_STATUS)[number];
 
+/**
+ * Equipe de venda (motos, carros, seminovos...). A equipe é da pessoa, não do
+ * lead: o lead pertence à equipe de quem o atende, e trocar o responsável já
+ * leva junto — sem duas informações para manter de acordo.
+ */
+export const teams = sqliteTable(
+  "teams",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [index("teams_tenant_idx").on(table.tenantId)],
+);
+
+export type Team = typeof teams.$inferSelect;
+
 export const users = sqliteTable(
   "users",
   {
@@ -21,6 +41,7 @@ export const users = sqliteTable(
     role: text("role").$type<Role>().notNull(),
     status: text("status").$type<UserStatus>().notNull().default("active"),
     storeId: text("store_id"),
+    teamId: text("team_id"),
     /** Entra no rodízio de distribuição de leads. */
     receivesLeads: integer("receives_leads", { mode: "boolean" }).notNull().default(true),
     /**

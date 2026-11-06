@@ -5,7 +5,9 @@ import {
   Car,
   CreditCard,
   Handshake,
+  CalendarClock,
   KanbanSquare,
+  Megaphone,
   LayoutDashboard,
   MessagesSquare,
   MessageSquareQuote,
@@ -85,12 +87,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       ? [
           { href: "/admin/leads", label: "Leads", icon: <MessagesSquare className={ICON} /> },
           { href: "/admin/funil", label: "Funil", icon: <KanbanSquare className={ICON} /> },
+          { href: "/admin/agenda", label: "Agenda", icon: <CalendarClock className={ICON} /> },
           {
             href: "/admin/mensagens",
             label: "Mensagens",
             icon: <MessageSquareQuote className={ICON} />,
           },
         ]
+      : []),
+    ...(can(context.role, "campaigns:write")
+      ? [{ href: "/admin/campanhas", label: "Campanhas", icon: <Megaphone className={ICON} /> }]
       : []),
     ...(can(context.role, "financings:read")
       ? [

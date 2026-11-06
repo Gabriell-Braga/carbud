@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { tenantSites, tenants, users, type Lead } from "@/db/schema";
-import { newLeadEmail, leadAssignedEmail, sendInBackground } from "@/lib/email";
+import { newLeadEmail, leadAssignedEmail, lostDealEmail, sendInBackground } from "@/lib/email";
 import { getEmailCopy } from "@/lib/email/copy-store";
 import { withBasePath } from "@/lib/paths";
 import { getOrigin } from "@/lib/seo/urls";
@@ -182,6 +182,47 @@ export async function notifyLeadAssigned(input: {
       await getEmailCopy("leadAssigned"),
     ),
   });
+}
+
+/**
+ * Venda perdida por preço ou avaliação: avisa quem administra a revenda.
+ *
+ * Não depende do "avisar lead novo" estar ligado — é outro assunto, e é
+ * justamente o aviso que a gerência pediu para não perder. Quem marcou a
+ * perda não recebe cópia do próprio aviso.
+ */
+export async function notifyLostDeal(input: {
+  tenantId: string;
+  lead: Pick<Lead, "id" | "name" | "vehicleLabel">;
+  reason: string;
+  note: string | null;
+  seller: { id: string; name: string };
+}): Promise<void> {
+  const db = await getDb();
+  const managers = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(
+      and(
+        eq(users.tenantId, input.tenantId),
+        eq(users.status, "active"),
+        eq(users.role, "revenda_admin"),
+      ),
+    );
+  const to = managers.filter((manager) => manager.id !== input.seller.id).map((m) => m.email);
+  if (to.length === 0) return;
+
+  const origin = await getOrigin();
+  const content = lostDealEmail({
+    leadName: input.lead.name,
+    vehicleLabel: input.lead.vehicleLabel,
+    reason: input.reason,
+    note: input.note,
+    sellerName: input.seller.name,
+    tenantName: await tenantName(input.tenantId),
+    url: `${origin}${withBasePath(`/admin/leads/${input.lead.id}`)}`,
+  });
+  for (const address of to) await sendInBackground({ to: address, ...content });
 }
 
 /** Endereços da equipe, para a tela de avisos sugerir quem cadastrar. */

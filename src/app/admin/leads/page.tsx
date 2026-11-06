@@ -13,6 +13,7 @@ import { can } from "@/lib/auth/rbac";
 import { LEAD_STATUS_LABELS } from "@/lib/catalog/labels";
 import { getLeadStats, listLeads } from "@/lib/services/leads";
 import { listTenantUsers } from "@/lib/services/users";
+import { listTeams, teamMemberIds } from "@/lib/services/teams";
 import { formatNumber } from "@/lib/utils";
 import { LeadRow } from "./lead-row";
 
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string; equipe?: string }>;
 }) {
   const context = await requireTenantPage("leads:read");
   const params = await searchParams;
@@ -31,11 +32,15 @@ export default async function LeadsPage({
     ? (params.status as LeadStatus)
     : undefined;
 
+  const teams = await listTeams(context.tenant.id);
+  const team = teams.find((item) => item.id === params.equipe);
+
   const [stats, result, teamMembers] = await Promise.all([
     getLeadStats(context.tenant.id),
     listLeads(context.tenant.id, {
       search: params.q?.trim() || undefined,
       status,
+      teamMemberIds: team ? await teamMemberIds(context.tenant.id, team.id) : undefined,
       page: Number(params.page ?? 1) || 1,
     }),
     listTenantUsers(context.tenant.id),
@@ -88,6 +93,19 @@ export default async function LeadsPage({
               ))}
             </Select>
           </div>
+          {teams.length > 0 ? (
+            <div className="min-w-0">
+              <Label htmlFor="equipe">Equipe</Label>
+              <Select id="equipe" name="equipe" defaultValue={team?.id ?? ""} className="w-full sm:w-44">
+                <option value="">Todas</option>
+                {teams.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
           <Button type="submit" variant="secondary">
             Filtrar
           </Button>
@@ -146,7 +164,7 @@ export default async function LeadsPage({
         page={result.page}
         total={result.total}
         pageSize={result.pageSize}
-        params={{ q: params.q, status }}
+        params={{ q: params.q, status, equipe: team?.id }}
       />
     </>
   );

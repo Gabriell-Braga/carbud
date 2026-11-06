@@ -8,7 +8,8 @@ import { getLead } from "@/lib/services/leads";
 import { setLeadVehicle } from "@/lib/services/portal-leads";
 import { listStages, recordLeadEvent } from "@/lib/services/crm";
 import { dispatchTenantEvent } from "@/lib/services/api-access";
-import { notifyLeadAssigned } from "@/lib/services/notifications";
+import { notifyLeadAssigned, notifyLostDeal } from "@/lib/services/notifications";
+import { ESCALATED_LOST_REASONS, LOST_REASON_LABELS } from "@/lib/catalog/labels";
 import { trackLeadWon } from "@/lib/tracking/sale";
 import { leadUpdateSchema } from "@/lib/validation/leads";
 
@@ -22,7 +23,7 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
 
   const parsed = leadUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw badRequest("Dados inválidos", parsed.error.issues);
-  const { vehicleId, ...input } = parsed.data;
+  const { vehicleId, lostNote, marketingOptOut, ...input } = parsed.data;
 
   const existing = await getLead(context.tenant.id, id);
   if (!existing) throw notFound("Lead não encontrado");
@@ -38,19 +39,69 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
   }
 
   // etapa precisa ser do funil desta revenda, senão o lead sumiria do quadro
-  if (input.stageId) {
-    const stages = await listStages(context.tenant.id);
-    if (!stages.some((stage) => stage.id === input.stageId)) {
-      throw badRequest("Etapa inválida");
-    }
+  const stages = input.stageId || existing.stageId ? await listStages(context.tenant.id) : [];
+  if (input.stageId && !stages.some((stage) => stage.id === input.stageId)) {
+    throw badRequest("Etapa inválida");
+  }
+
+  /*
+   * Perder exige motivo. Sem ele o relatório de perdas vira "outro" em tudo e
+   * a gerência não sabe onde mexer. Vale pela situação e pela etapa do funil,
+   * porque arrastar o card para "Perdido" é o mesmo ato.
+   */
+  const lostStage = (stageId: string | null | undefined) =>
+    stages.find((stage) => stage.id === stageId)?.kind === "lost";
+  const wasLost = existing.status === "lost" || lostStage(existing.stageId);
+  const becomesLost =
+    !wasLost && (input.status === "lost" || (input.stageId !== undefined && lostStage(input.stageId)));
+  if (becomesLost && !input.lostReason) {
+    throw badRequest("Informe o motivo da perda");
   }
 
   const db = await getDb();
-  if (Object.keys(input).length > 0) {
+  const changes = {
+    ...input,
+    ...(marketingOptOut !== undefined
+      ? { marketingOptOutAt: marketingOptOut ? new Date() : null }
+      : {}),
+  };
+  if (Object.keys(changes).length > 0) {
     await db
       .update(leads)
-      .set(input)
+      .set(changes)
       .where(and(eq(leads.tenantId, context.tenant.id), eq(leads.id, id)));
+  }
+
+  if (becomesLost && input.lostReason) {
+    const reason = LOST_REASON_LABELS[input.lostReason];
+    await recordLeadEvent({
+      tenantId: context.tenant.id,
+      leadId: id,
+      type: "status_change",
+      body: `Perdido: ${reason}.${lostNote ? `\n${lostNote}` : ""}`,
+      userId: context.user.id,
+      userName: context.user.name,
+    });
+    if (ESCALATED_LOST_REASONS.includes(input.lostReason)) {
+      await notifyLostDeal({
+        tenantId: context.tenant.id,
+        lead: existing,
+        reason,
+        note: lostNote || null,
+        seller: { id: context.user.id, name: context.user.name },
+      });
+    }
+  }
+
+  if (input.negotiation) {
+    await recordLeadEvent({
+      tenantId: context.tenant.id,
+      leadId: id,
+      type: "proposal",
+      body: "Ficha de negociação atualizada.",
+      userId: context.user.id,
+      userName: context.user.name,
+    });
   }
 
   let sameAdLinked = 0;

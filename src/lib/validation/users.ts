@@ -21,6 +21,7 @@ export const updateUserSchema = z.object({
   role: z.enum(ROLES).optional(),
   status: z.enum(USER_STATUS).optional(),
   storeId: z.string().uuid().nullable().optional(),
+  teamId: z.string().uuid().nullable().optional(),
   receivesLeads: z.boolean().optional(),
   permissionOverrides: z
     .object({
@@ -29,6 +30,10 @@ export const updateUserSchema = z.object({
     })
     .nullable()
     .optional(),
+});
+
+export const teamSchema = z.object({
+  name: z.string().trim().min(2, "Informe o nome da equipe").max(40),
 });
 
 export const resetPasswordSchema = z.object({

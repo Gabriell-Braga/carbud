@@ -10,6 +10,8 @@ import { EmptyState, Table, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { requireTenantPage } from "@/lib/auth/guards";
 import { can } from "@/lib/auth/rbac";
 import { listLeads } from "@/lib/services/leads";
+import { agendaCounts } from "@/lib/services/lead-tasks";
+import { Alert } from "@/components/ui/alert";
 import { getVehicleStats } from "@/lib/services/vehicles";
 import { publicSiteUrl } from "@/lib/services/domains";
 import { tenantAbsoluteUrl } from "@/lib/seo/urls";
@@ -21,10 +23,14 @@ export const dynamic = "force-dynamic";
 export default async function AdminHome() {
   const context = await requireTenantPage();
 
-  const [stats, leads] = await Promise.all([
+  const [stats, leads, agenda] = await Promise.all([
     can(context.role, "vehicles:read") ? getVehicleStats(context.tenant.id) : null,
     can(context.role, "leads:read")
       ? listLeads(context.tenant.id, { pageSize: 5 })
+      : null,
+    // vendedor vê a própria agenda; quem gerencia, a da loja
+    can(context.role, "leads:read")
+      ? agendaCounts(context.tenant.id, context.role === "vendedor" ? context.user.id : null)
       : null,
   ]);
 
@@ -64,6 +70,17 @@ export default async function AdminHome() {
           </>
         }
       />
+
+      {agenda && agenda.overdue + agenda.today > 0 ? (
+        <Alert tone={agenda.overdue > 0 ? "warning" : "info"} className="mb-4">
+          Agenda: {agenda.overdue > 0 ? `${agenda.overdue} atrasado(s)` : null}
+          {agenda.overdue > 0 && agenda.today > 0 ? " e " : null}
+          {agenda.today > 0 ? `${agenda.today} para hoje` : null}.{" "}
+          <Link href="/admin/agenda" className="font-medium underline">
+            Abrir agenda
+          </Link>
+        </Alert>
+      ) : null}
 
       {stats ? (
         <StatGrid>

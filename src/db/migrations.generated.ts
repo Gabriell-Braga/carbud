@@ -360,5 +360,26 @@ export const MIGRATIONS: BundledMigration[] = [
       "ALTER TABLE `tenant_affiliations` ADD `commission_type_snapshot` text DEFAULT 'percent' NOT NULL;",
       "ALTER TABLE `tenant_affiliations` ADD `cpa_cents_snapshot` integer;"
     ]
+  },
+  {
+    "tag": "0034_crm_agenda_campaigns",
+    "statements": [
+      "CREATE TABLE `teams` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `teams_tenant_idx` ON `teams` (`tenant_id`);",
+      "CREATE TABLE `campaign_recipients` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`campaign_id` text NOT NULL,\n\t`lead_id` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`error` text,\n\t`sent_at` integer,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`campaign_id`) REFERENCES `campaigns`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `campaign_recipients_unique` ON `campaign_recipients` (`campaign_id`,`lead_id`);",
+      "CREATE INDEX `campaign_recipients_status_idx` ON `campaign_recipients` (`campaign_id`,`status`);",
+      "CREATE TABLE `campaigns` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`purpose` text NOT NULL,\n\t`audience` text NOT NULL,\n\t`template_name` text NOT NULL,\n\t`template_language` text DEFAULT 'pt_BR' NOT NULL,\n\t`parameters` text NOT NULL,\n\t`template_body` text,\n\t`header_image_url` text,\n\t`status` text DEFAULT 'draft' NOT NULL,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`sent` integer DEFAULT 0 NOT NULL,\n\t`failed` integer DEFAULT 0 NOT NULL,\n\t`created_by_user_id` text,\n\t`created_by_name` text,\n\t`started_at` integer,\n\t`finished_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE INDEX `campaigns_tenant_idx` ON `campaigns` (`tenant_id`,`created_at`);",
+      "CREATE TABLE `lead_tasks` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`tenant_id` text NOT NULL,\n\t`lead_id` text NOT NULL,\n\t`assigned_to_user_id` text,\n\t`kind` text DEFAULT 'call' NOT NULL,\n\t`due_at` integer NOT NULL,\n\t`note` text,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`done_at` integer,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`assigned_to_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE INDEX `lead_tasks_tenant_due_idx` ON `lead_tasks` (`tenant_id`,`status`,`due_at`);",
+      "CREATE INDEX `lead_tasks_lead_idx` ON `lead_tasks` (`lead_id`,`status`);",
+      "CREATE TABLE `meta_lead_connections` (\n\t`tenant_id` text PRIMARY KEY NOT NULL,\n\t`page_id` text NOT NULL,\n\t`page_name` text,\n\t`credentials` text NOT NULL,\n\t`last_error` text,\n\t`last_lead_at` integer,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `meta_lead_page_unique` ON `meta_lead_connections` (`page_id`);",
+      "ALTER TABLE `users` ADD `team_id` text;",
+      "ALTER TABLE `leads` ADD `lost_reason` text;",
+      "ALTER TABLE `leads` ADD `negotiation` text;",
+      "ALTER TABLE `leads` ADD `marketing_opt_out_at` integer;"
+    ]
   }
 ];

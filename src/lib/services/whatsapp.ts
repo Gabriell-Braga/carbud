@@ -9,6 +9,7 @@ import {
   type WhatsappCredentials,
 } from "@/lib/integrations/whatsapp-client";
 import {
+  isOptOutMessage,
   isWindowOpen,
   phoneVariants,
   type InboundMessage,
@@ -267,6 +268,13 @@ export async function receiveInbound(
     userName: message.senderName,
     metadata: { from: message.from },
   });
+
+  if (isOptOutMessage(message.text)) {
+    await db
+      .update(leads)
+      .set({ marketingOptOutAt: new Date() })
+      .where(and(eq(leads.tenantId, tenantId), eq(leads.id, leadId)));
+  }
 
   await db
     .update(whatsappConnections)

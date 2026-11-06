@@ -35,6 +35,7 @@ export const PERMISSIONS = [
   "finance:read",
   "finance:write",
   "api:manage",
+  "campaigns:write",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -64,6 +65,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "finance:read",
     "finance:write",
     "api:manage",
+    "campaigns:write",
   ],
   vendedor: [
     "vehicles:read",
@@ -134,6 +136,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "vehicles:write": "Editar estoque",
   "leads:read": "Ver leads",
   "leads:write": "Atender leads",
+  "campaigns:write": "Disparar campanhas de WhatsApp",
   "site:read": "Ver configurações do site",
   "site:write": "Editar o site",
   "users:read": "Ver usuários",

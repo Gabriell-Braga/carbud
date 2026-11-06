@@ -1,4 +1,4 @@
-import { and, count, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leads, users, type LeadStatus } from "@/db/schema";
 
@@ -6,6 +6,8 @@ export type LeadFilters = {
   search?: string;
   status?: LeadStatus;
   assignedToUserId?: string;
+  /** Leads de quem está na equipe (a equipe é da pessoa, não do lead). */
+  teamMemberIds?: string[];
   page?: number;
   pageSize?: number;
 };
@@ -19,6 +21,11 @@ export async function listLeads(tenantId: string, filters: LeadFilters = {}) {
   const conditions = [eq(leads.tenantId, tenantId)];
   if (filters.status) conditions.push(eq(leads.status, filters.status));
   if (filters.assignedToUserId) conditions.push(eq(leads.assignedToUserId, filters.assignedToUserId));
+  if (filters.teamMemberIds) {
+    // equipe vazia não pode virar "sem filtro": devolve nada
+    if (filters.teamMemberIds.length === 0) return { items: [], total: 0, page, pageSize };
+    conditions.push(inArray(leads.assignedToUserId, filters.teamMemberIds));
+  }
   if (filters.search) {
     const term = `%${filters.search.toLowerCase()}%`;
     conditions.push(

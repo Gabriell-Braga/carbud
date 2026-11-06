@@ -33,6 +33,7 @@ export type TeamMember = {
   mustChangePassword: boolean;
   lastLoginAt: string | null;
   storeId: string | null;
+  teamId: string | null;
   receivesLeads: boolean;
   permissionOverrides: { granted?: string[]; revoked?: string[] } | null;
 };
@@ -56,6 +57,7 @@ export function TeamPanel({
   assignableRoles,
   canWrite,
   stores,
+  teams,
   showDistribution,
   showPermissions,
 }: {
@@ -64,6 +66,7 @@ export function TeamPanel({
   assignableRoles: Role[];
   canWrite: boolean;
   stores: { id: string; name: string }[];
+  teams: { id: string; name: string }[];
   showDistribution: boolean;
   showPermissions: boolean;
 }) {
@@ -193,6 +196,7 @@ export function TeamPanel({
           isSelf={managing.id === currentUserId}
           assignableRoles={assignableRoles}
           stores={stores}
+          teams={teams}
           showDistribution={showDistribution}
           showPermissions={showPermissions}
           onClose={() => setManaging(null)}

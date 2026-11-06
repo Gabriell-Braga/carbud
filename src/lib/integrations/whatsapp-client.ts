@@ -95,7 +95,20 @@ export async function sendTemplate(
   templateName: string,
   languageCode: string,
   parameters: string[],
+  /** Só para modelo com foto no cabeçalho; a Meta baixa a imagem desta URL. */
+  headerImageUrl?: string | null,
 ): Promise<SendResult> {
+  const components: unknown[] = [];
+  if (headerImageUrl) {
+    components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
+  }
+  if (parameters.length > 0) {
+    components.push({
+      type: "body",
+      parameters: parameters.map((value) => ({ type: "text", text: value })),
+    });
+  }
+
   const payload = await request<{ messages?: { id: string }[] }>(
     `/${phoneNumberId}/messages`,
     token,
@@ -107,15 +120,7 @@ export async function sendTemplate(
       template: {
         name: templateName,
         language: { code: languageCode },
-        components:
-          parameters.length > 0
-            ? [
-                {
-                  type: "body",
-                  parameters: parameters.map((value) => ({ type: "text", text: value })),
-                },
-              ]
-            : [],
+        components,
       },
     },
   );
@@ -131,6 +136,8 @@ export type MetaTemplate = {
   body: string;
   /** Quantos {{n}} o corpo espera. */
   placeholders: number;
+  /** "IMAGE" quando o modelo leva foto no cabeçalho — aí o envio precisa da URL. */
+  headerFormat: string | null;
 };
 
 /**
@@ -150,7 +157,7 @@ export async function listMetaTemplates(
       status: string;
       language: string;
       category: string;
-      components?: { type: string; text?: string }[];
+      components?: { type: string; text?: string; format?: string }[];
     }[];
   }>(`/${wabaId}/message_templates?limit=100`, token, undefined, "GET");
 
@@ -163,6 +170,7 @@ export async function listMetaTemplates(
       category: template.category,
       body,
       placeholders: countPlaceholders(body),
+      headerFormat: template.components?.find((part) => part.type === "HEADER")?.format ?? null,
     };
   });
 }

@@ -337,3 +337,177 @@ export const whatsappConnections = sqliteTable(
 );
 
 export type WhatsappConnection = typeof whatsappConnections.$inferSelect;
+
+/* ------------------------------------------------------------------------ */
+/* Agenda do vendedor                                                        */
+/* ------------------------------------------------------------------------ */
+
+export const TASK_KINDS = ["call", "whatsapp", "visit", "test_drive", "other"] as const;
+export type TaskKind = (typeof TASK_KINDS)[number];
+
+export const TASK_STATUS = ["pending", "done", "canceled"] as const;
+export type TaskStatus = (typeof TASK_STATUS)[number];
+
+/**
+ * Próximo passo combinado com o cliente: retornar a ligação, visita na loja.
+ *
+ * Separado da linha do tempo porque tem futuro — o histórico conta o que
+ * aconteceu, a agenda cobra o que ainda precisa acontecer. Quando a tarefa
+ * fecha, o resultado vai para a linha do tempo e a tarefa sai da frente.
+ */
+export const leadTasks = sqliteTable(
+  "lead_tasks",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    assignedToUserId: text("assigned_to_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    kind: text("kind").$type<TaskKind>().notNull().default("call"),
+    dueAt: integer("due_at", { mode: "timestamp_ms" }).notNull(),
+    note: text("note"),
+    status: text("status").$type<TaskStatus>().notNull().default("pending"),
+    doneAt: integer("done_at", { mode: "timestamp_ms" }),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    index("lead_tasks_tenant_due_idx").on(table.tenantId, table.status, table.dueAt),
+    index("lead_tasks_lead_idx").on(table.leadId, table.status),
+  ],
+);
+
+export type LeadTask = typeof leadTasks.$inferSelect;
+
+/* ------------------------------------------------------------------------ */
+/* Campanhas de WhatsApp                                                     */
+/* ------------------------------------------------------------------------ */
+
+export const CAMPAIGN_STATUS = ["draft", "sending", "done", "canceled"] as const;
+export type CampaignStatus = (typeof CAMPAIGN_STATUS)[number];
+
+/** Quem entra na campanha. Tudo opcional; vazio é "todos com telefone". */
+export type CampaignAudience = {
+  /** Procura na ficha de negociação e no carro do interesse. */
+  interest?: string;
+  statuses?: string[];
+  sources?: string[];
+  createdFrom?: string;
+  createdTo?: string;
+  teamId?: string;
+};
+
+/**
+ * Disparo de modelo aprovado pela Meta para uma lista tirada do CRM.
+ *
+ * `purpose` é a finalidade declarada — a LGPD pede que o tratamento tenha
+ * propósito informado, e fica registrado para quem perguntar depois por que
+ * a loja mandou aquela mensagem.
+ */
+export const campaigns = sqliteTable(
+  "campaigns",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    purpose: text("purpose").notNull(),
+    audience: text("audience", { mode: "json" }).$type<CampaignAudience>().notNull(),
+    templateName: text("template_name").notNull(),
+    templateLanguage: text("template_language").notNull().default("pt_BR"),
+    /** Um valor por {{n}} do modelo; aceita {nome}, {veiculo}, {revenda}. */
+    parameters: text("parameters", { mode: "json" }).$type<string[]>().notNull(),
+    /** Texto do modelo, para a linha do tempo do lead mostrar o que foi. */
+    templateBody: text("template_body"),
+    /** Foto do cabeçalho, quando o modelo leva uma — a capa do carro escolhido. */
+    headerImageUrl: text("header_image_url"),
+    status: text("status").$type<CampaignStatus>().notNull().default("draft"),
+    total: integer("total").notNull().default(0),
+    sent: integer("sent").notNull().default(0),
+    failed: integer("failed").notNull().default(0),
+    createdByUserId: text("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdByName: text("created_by_name"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("campaigns_tenant_idx").on(table.tenantId, table.createdAt)],
+);
+
+export type Campaign = typeof campaigns.$inferSelect;
+
+export const RECIPIENT_STATUS = ["pending", "sent", "failed", "skipped"] as const;
+export type RecipientStatus = (typeof RECIPIENT_STATUS)[number];
+
+/**
+ * A lista congelada no momento em que a campanha é criada.
+ *
+ * Congelar é o que torna o envio retomável: ele anda em lotes, e se a lista
+ * fosse recalculada a cada lote, lead novo entraria no meio e lead que mudou
+ * de situação sairia — o resumo aprovado não seria o que foi enviado.
+ */
+export const campaignRecipients = sqliteTable(
+  "campaign_recipients",
+  {
+    id: idColumn(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => campaigns.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    status: text("status").$type<RecipientStatus>().notNull().default("pending"),
+    error: text("error"),
+    sentAt: integer("sent_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("campaign_recipients_unique").on(table.campaignId, table.leadId),
+    index("campaign_recipients_status_idx").on(table.campaignId, table.status),
+  ],
+);
+
+export type CampaignRecipient = typeof campaignRecipients.$inferSelect;
+
+/* ------------------------------------------------------------------------ */
+/* Anúncios de cadastro da Meta (Facebook e Instagram)                        */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Página do Facebook da revenda ligada ao formulário de anúncio.
+ *
+ * Mesmo desenho do WhatsApp: o app e a página são da revenda, e o token vai
+ * para o cofre. A página é a chave porque é o que a Meta manda no webhook.
+ */
+export const metaLeadConnections = sqliteTable(
+  "meta_lead_connections",
+  {
+    tenantId: text("tenant_id")
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    pageId: text("page_id").notNull(),
+    pageName: text("page_name"),
+    credentials: text("credentials").notNull(),
+    lastError: text("last_error"),
+    lastLeadAt: integer("last_lead_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [uniqueIndex("meta_lead_page_unique").on(table.pageId)],
+);
+
+export type MetaLeadConnection = typeof metaLeadConnections.$inferSelect;

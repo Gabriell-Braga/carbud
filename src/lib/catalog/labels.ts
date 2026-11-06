@@ -4,7 +4,10 @@ import type {
   FinancingStatus,
   LeadSource,
   LeadStatus,
+  LostReason,
+  PaymentMethod,
   StageKind,
+  TaskKind,
   VehicleStatus,
 } from "@/db/schema";
 
@@ -51,6 +54,40 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   phone: "Telefone",
   manual: "Cadastro manual",
   portal: "Portal de classificados",
+  meta_ads: "Anúncio Facebook/Instagram",
+};
+
+export const LOST_REASON_LABELS: Record<LostReason, string> = {
+  preco: "Preço",
+  avaliacao_troca: "Avaliação da troca",
+  credito_negado: "Crédito negado",
+  comprou_outro_lugar: "Comprou em outro lugar",
+  desistiu: "Desistiu da compra",
+  sem_contato: "Não respondeu",
+  sem_estoque: "Não tínhamos o carro",
+  curioso: "Só pesquisando",
+  outro: "Outro motivo",
+};
+
+/**
+ * Perdas que ainda dá para reverter mexendo no valor. Essas avisam a gerência:
+ * "perdi por R$ 2 mil" só tem conserto se alguém com alçada souber a tempo.
+ */
+export const ESCALATED_LOST_REASONS: readonly LostReason[] = ["preco", "avaliacao_troca"];
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  a_vista: "À vista",
+  financiado: "Financiado",
+  consorcio: "Consórcio",
+  troca_mais_volta: "Troca com volta",
+};
+
+export const TASK_KIND_LABELS: Record<TaskKind, string> = {
+  call: "Ligar",
+  whatsapp: "WhatsApp",
+  visit: "Visita na loja",
+  test_drive: "Test drive",
+  other: "Outro",
 };
 
 export const STAGE_KIND_LABELS: Record<StageKind, string> = {

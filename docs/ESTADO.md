@@ -422,6 +422,35 @@ migrate em produção depois do deploy.
   carro). Sem recorrência automática: cada mês é um lançamento.
 - Fora: Mobiauto (aguardando API).
 
+### 9.10 CRM no nível do Syonet (06/11/2026)
+
+Comparação com a demo comercial do Syonet. Migration `0034_crm_agenda_campaigns`.
+IA no WhatsApp (robô, score, sugestão de resposta) ficou fora por custo.
+
+- **Agenda** (`lead_tasks`, `/admin/agenda`): retorno, visita e test drive com
+  data, por responsável. Concluir/cancelar escreve na linha do tempo. "Hoje"
+  é o dia de Brasília (`agendaBucket`). Aviso de atrasados na tela inicial.
+- **Motivo da perda** (`leads.lost_reason`): a API recusa passar para perdido
+  (situação ou etapa `lost`) sem motivo; ficha e funil abrem o diálogo.
+  Preço e avaliação da troca mandam e-mail aos admins da revenda.
+- **Ficha de negociação** (`leads.negotiation`, JSON): interesse, pagamento,
+  entrada, troca. Proposta imprimível em `/admin/leads/[id]/proposta`.
+- **Equipes** (`teams`, `users.team_id`): a equipe é da pessoa; leads, agenda
+  e campanhas filtram pelos membros.
+- **Campanhas** (`/admin/campanhas`, permissão `campaigns:write`, plano
+  `whatsapp_integrado`): finalidade (LGPD) → filtro no CRM → modelo aprovado
+  na Meta → resumo → envio em lotes de 20 chamados pela tela. Lista congelada
+  em `campaign_recipients`, teto de 2.000. Quem responde "sair"/"parar" ganha
+  `leads.marketing_opt_out_at` e fica fora; o lead também tem o checkbox.
+  A conexão do WhatsApp precisa do WABA ID para listar os modelos.
+- **Anúncios do Facebook/Instagram** (`meta_lead_connections`, webhook
+  `/api/webhooks/meta-leads`, campo `leadgen`): cartão em Mensagens → Conexão.
+  Lead entra com `source = meta_ads`, sem duplicar (`externalId meta:<id>`).
+  Não testado contra a Meta de verdade ainda.
+- **Relatórios**: motivos de perda, agenda da equipe e atendimento pelo
+  WhatsApp (conversas, mediana da primeira resposta, esperando resposta, por
+  atendente, por dia).
+
 ### 9.7 Afiliados (fase 1 entregue, portal planejado)
 
 Painel Geral → Afiliados. Código `AF-` + 10 caracteres gerado no servidor,

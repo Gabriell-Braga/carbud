@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { apiPatch, apiPost } from "@/lib/client/api";
 import { cn, formatPhone } from "@/lib/utils";
+import { LostReasonDialog, type LostChoice } from "@/components/admin/lost-reason-dialog";
 import { StageManager } from "./stage-manager";
 
 export type BoardCard = {
@@ -53,10 +54,19 @@ export function FunnelBoard({
   const [over, setOver] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
   const [adopting, setAdopting] = useState(false);
+  // perder pede motivo: o card só se move depois que a pessoa responde
+  const [pendingLoss, setPendingLoss] = useState<{ cardId: string; toColumnId: string; name: string } | null>(null);
 
-  async function moveCard(cardId: string, toColumnId: string) {
+  async function moveCard(cardId: string, toColumnId: string, lost?: LostChoice) {
     const from = board.find((column) => column.cards.some((card) => card.id === cardId));
     if (!from || from.id === toColumnId) return;
+
+    const target = board.find((column) => column.id === toColumnId);
+    if (target?.kind === "lost" && from.kind !== "lost" && !lost) {
+      const name = from.cards.find((item) => item.id === cardId)?.name ?? "Lead";
+      setPendingLoss({ cardId, toColumnId, name });
+      return;
+    }
 
     const card = from.cards.find((item) => item.id === cardId)!;
     const previous = board;
@@ -72,7 +82,7 @@ export function FunnelBoard({
       }),
     );
 
-    const result = await apiPatch(`/api/admin/leads/${cardId}`, { stageId: toColumnId });
+    const result = await apiPatch(`/api/admin/leads/${cardId}`, { stageId: toColumnId, ...lost });
     if (!result.ok) {
       setBoard(previous);
       toast.error("Não consegui mover", result.error);
@@ -215,6 +225,18 @@ export function FunnelBoard({
           ))}
         </div>
       </div>
+
+      <LostReasonDialog
+        open={pendingLoss !== null}
+        leadName={pendingLoss?.name ?? ""}
+        onCancel={() => setPendingLoss(null)}
+        onConfirm={async (choice) => {
+          if (!pendingLoss) return;
+          const { cardId, toColumnId } = pendingLoss;
+          setPendingLoss(null);
+          await moveCard(cardId, toColumnId, choice);
+        }}
+      />
 
       {managing ? (
         <StageManager

@@ -9,6 +9,7 @@ import { badRequest, forbidden, jsonOk, notFound, withApi } from "@/lib/http";
 import { requireFeature } from "@/lib/api/feature-guard";
 import { TENANT_PERMISSIONS } from "@/lib/auth/rbac";
 import { resetPasswordSchema, updateUserSchema } from "@/lib/validation/users";
+import { assertTeam } from "@/lib/services/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,8 @@ export const PATCH = withApi(async (request: Request, { params }: Params) => {
     );
     if (invalid.length > 0) throw badRequest(`Permissão inválida: ${invalid.join(", ")}`);
   }
+
+  if (input.teamId) await assertTeam(context.tenant.id, input.teamId);
 
   const db = await getDb();
   await db

@@ -558,6 +558,53 @@ export function buyerCodeEmail(input: { code: string; minutes: number; origin: s
   };
 }
 
+
+/**
+ * Venda perdida por motivo que a gerência ainda pode reverter.
+ *
+ * Sem texto editável no Painel Geral: é aviso interno da revenda, curto, e o
+ * que importa nele são os dados do lead — não há o que personalizar.
+ */
+export function lostDealEmail(input: {
+  leadName: string;
+  vehicleLabel: string | null;
+  reason: string;
+  note: string | null;
+  sellerName: string;
+  tenantName: string;
+  url: string;
+}): EmailContent {
+  const preheader = `${input.sellerName} perdeu ${input.leadName} por ${input.reason.toLowerCase()}.`;
+  const itens = [
+    { rotulo: "Cliente", valor: input.leadName },
+    { rotulo: "Veículo", valor: input.vehicleLabel ?? "—" },
+    { rotulo: "Motivo", valor: input.reason },
+    { rotulo: "Vendedor", valor: input.sellerName },
+  ];
+  return {
+    subject: `Venda perdida por ${input.reason.toLowerCase()}: ${input.leadName}`,
+    preheader,
+    text: [
+      `${input.tenantName}: venda perdida`,
+      "",
+      ...itens.map((item) => `${item.rotulo}: ${item.valor}`),
+      ...(input.note ? ["", input.note] : []),
+      "",
+      `Ver o lead: ${input.url}`,
+    ].join("\n"),
+    html: layout({
+      preheader,
+      url: input.url,
+      eyebrow: input.tenantName,
+      title: "Venda perdida que ainda dá para salvar",
+      body: `${paragrafo("O vendedor marcou este lead como perdido por um motivo que costuma ter conserto com alçada de gerência.", CINZA)}
+              ${dados(itens.map((item) => ({ rotulo: item.rotulo, valor: escapeHtml(item.valor) })))}
+              ${input.note ? citacao(input.note) : ""}
+              ${botao(input.url, "Abrir o lead")}`,
+    }),
+  };
+}
+
 /* ------------------------------------------------------------------------ */
 /* Comercial                                                                 */
 /* ------------------------------------------------------------------------ */

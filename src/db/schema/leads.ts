@@ -1,4 +1,4 @@
-import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { createdAt, idColumn, updatedAt } from "./_shared";
 import { tenants } from "./tenants";
 import { users } from "./users";
@@ -7,7 +7,7 @@ import { vehicles } from "./vehicles";
 export const LEAD_STATUS = ["new", "in_progress", "won", "lost"] as const;
 export type LeadStatus = (typeof LEAD_STATUS)[number];
 
-export const LEAD_SOURCES = ["form", "whatsapp", "phone", "manual", "portal"] as const;
+export const LEAD_SOURCES = ["form", "whatsapp", "phone", "manual", "portal", "meta_ads"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
 export type LeadUtm = {
@@ -18,6 +18,52 @@ export type LeadUtm = {
   content?: string;
   referrer?: string;
   page?: string;
+};
+
+/**
+ * Por que a venda não saiu. Lista fechada para o relatório conseguir somar —
+ * texto livre vira vinte grafias de "caro" e não dá para comparar.
+ */
+export const LOST_REASONS = [
+  "preco",
+  "avaliacao_troca",
+  "credito_negado",
+  "comprou_outro_lugar",
+  "desistiu",
+  "sem_contato",
+  "sem_estoque",
+  "curioso",
+  "outro",
+] as const;
+export type LostReason = (typeof LOST_REASONS)[number];
+
+export const PAYMENT_METHODS = ["a_vista", "financiado", "consorcio", "troca_mais_volta"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * Ficha de negociação: o que o cliente quer e como pretende pagar.
+ *
+ * JSON numa coluna, e não tabela própria, porque é sempre lida e gravada
+ * inteira junto do lead. Marca e modelo ficam aqui mesmo quando o carro não
+ * está no estoque — é isso que permite, meses depois, achar todo mundo que
+ * queria um Kwid quando chegar um.
+ */
+export type LeadNegotiation = {
+  brand?: string;
+  model?: string;
+  version?: string;
+  paymentMethod?: PaymentMethod;
+  valueCents?: number;
+  downPaymentCents?: number;
+  testDrive?: boolean;
+  tradeIn?: {
+    brand?: string;
+    model?: string;
+    year?: number;
+    mileageKm?: number;
+    valueCents?: number;
+  } | null;
+  notes?: string;
 };
 
 export const leads = sqliteTable(
@@ -58,6 +104,13 @@ export const leads = sqliteTable(
      */
     externalId: text("external_id"),
     utm: text("utm", { mode: "json" }).$type<LeadUtm>(),
+    lostReason: text("lost_reason").$type<LostReason>(),
+    negotiation: text("negotiation", { mode: "json" }).$type<LeadNegotiation>(),
+    /**
+     * Pediu para não receber campanha. Respondido "sair" no WhatsApp ou
+     * marcado pela equipe; campanha nenhuma passa por cima disso (LGPD).
+     */
+    marketingOptOutAt: integer("marketing_opt_out_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

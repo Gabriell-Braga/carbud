@@ -2,6 +2,8 @@ import { z } from "zod";
 import {
   DISTRIBUTION_MODES,
   FINANCING_STATUS,
+  LEAD_SOURCES,
+  LEAD_STATUS,
   STAGE_KINDS,
   TENANT_WEBHOOK_EVENTS,
 } from "@/db/schema";
@@ -75,4 +77,32 @@ export const tenantWebhookSchema = z.object({
 export const permissionOverridesSchema = z.object({
   granted: z.array(z.string()).max(40).optional(),
   revoked: z.array(z.string()).max(40).optional(),
+});
+
+export const campaignAudienceSchema = z.object({
+  interest: z.string().trim().max(80).optional(),
+  statuses: z.array(z.enum(LEAD_STATUS)).max(4).optional(),
+  sources: z.array(z.enum(LEAD_SOURCES)).max(10).optional(),
+  createdFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  createdTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  teamId: z.string().uuid().optional(),
+});
+
+export const campaignSchema = z.object({
+  name: z.string().trim().min(2, "Dê um nome à campanha").max(80),
+  /** LGPD: para que os dados do cliente estão sendo usados nesta mensagem. */
+  purpose: z.string().trim().min(5, "Diga a finalidade da campanha").max(300),
+  audience: campaignAudienceSchema,
+  templateName: z.string().trim().min(1, "Escolha o modelo").max(512),
+  templateLanguage: z.string().trim().min(2).max(10),
+  parameters: z.array(z.string().trim().min(1, "Preencha todas as variáveis").max(200)).max(10),
+  vehicleId: z.string().uuid().nullable().optional(),
+});
+
+export const metaLeadConnectionSchema = z.object({
+  pageId: z.string().trim().regex(/^\d{5,30}$/, "O ID da página tem só números"),
+  pageName: z.string().trim().max(120).nullable().optional(),
+  pageAccessToken: z.string().trim().min(20, "Cole o token da página").max(1000),
+  appSecret: z.string().trim().min(16, "Cole a chave secreta do app").max(200),
+  verifyToken: z.string().trim().min(8, "Use ao menos 8 caracteres").max(200),
 });

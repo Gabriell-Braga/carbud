@@ -12,6 +12,8 @@ import { Tabs } from "@/components/ui/tabs";
 import { NotificationsPanel } from "./notifications-panel";
 import { TemplatesPanel } from "./templates-panel";
 import { WhatsappConnection } from "./whatsapp-connection";
+import { MetaLeadsConnection } from "./meta-leads-connection";
+import { getMetaLeadConnection } from "@/lib/services/meta-leads";
 
 export const metadata: Metadata = { title: "Mensagens" };
 export const dynamic = "force-dynamic";
@@ -38,12 +40,13 @@ export default async function TemplatesPage({
 
   const canWrite = can(context.role, "tenant:settings");
 
-  const [templates, connection, hasWhatsapp, notifications, team] = await Promise.all([
+  const [templates, connection, hasWhatsapp, notifications, team, metaLeads] = await Promise.all([
     ensureTemplates(context.tenant.id),
     getWhatsappConnection(context.tenant.id),
     tenantHasFeature(context.tenant.id, "whatsapp_integrado"),
     getNotificationSettings(context.tenant.id),
     teamEmails(context.tenant.id),
+    getMetaLeadConnection(context.tenant.id),
   ]);
 
   return (
@@ -55,8 +58,8 @@ export default async function TemplatesPage({
 
       <Tabs
         active={tab}
-        // sem WhatsApp no plano não há o que conectar: a aba não aparece
-        items={TABS.filter((item) => item.key !== "conexao" || hasWhatsapp).map((item) => ({
+        // a aba fica mesmo sem WhatsApp no plano: os anúncios da Meta conectam por ela
+        items={TABS.map((item) => ({
           key: item.key,
           label: item.label,
           href: `/admin/mensagens?aba=${item.key}`,
@@ -89,6 +92,23 @@ export default async function TemplatesPage({
                   status: connection.status,
                   lastError: connection.lastError,
                   lastInboundAt: connection.lastInboundAt?.toISOString() ?? null,
+                }
+              : null
+          }
+        />
+      ) : null}
+
+      {tab === "conexao" ? (
+        <MetaLeadsConnection
+          vaultReady={isVaultConfigured()}
+          canWrite={canWrite}
+          connection={
+            metaLeads
+              ? {
+                  pageId: metaLeads.pageId,
+                  pageName: metaLeads.pageName,
+                  lastError: metaLeads.lastError,
+                  lastLeadAt: metaLeads.lastLeadAt?.toISOString() ?? null,
                 }
               : null
           }

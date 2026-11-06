@@ -25,6 +25,7 @@ export function ManageMember({
   isSelf,
   assignableRoles,
   stores,
+  teams,
   showDistribution,
   showPermissions,
   onClose,
@@ -35,6 +36,7 @@ export function ManageMember({
   isSelf: boolean;
   assignableRoles: Role[];
   stores: { id: string; name: string }[];
+  teams: { id: string; name: string }[];
   showDistribution: boolean;
   showPermissions: boolean;
   onClose: () => void;
@@ -46,6 +48,7 @@ export function ManageMember({
 
   const [role, setRole] = useState<Role>(member.role);
   const [storeId, setStoreId] = useState(member.storeId ?? "");
+  const [teamId, setTeamId] = useState(member.teamId ?? "");
   const [receivesLeads, setReceivesLeads] = useState(member.receivesLeads);
   const [saving, setSaving] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
@@ -98,6 +101,7 @@ export function ManageMember({
     const payload: Record<string, unknown> = {
       storeId: storeId || null,
       receivesLeads,
+      ...(teams.length > 0 ? { teamId: teamId || null } : {}),
     };
     // o próprio acesso não se altera daqui: a pessoa se trancaria para fora
     if (!isSelf) payload.role = role;
@@ -147,7 +151,7 @@ export function ManageMember({
     (permission) => allowed.has(permission) !== can(role, permission),
   ).length;
 
-  const showTeamFields = showDistribution || stores.length > 0;
+  const showTeamFields = showDistribution || stores.length > 0 || teams.length > 0;
 
   return (
     <Dialog
@@ -209,6 +213,23 @@ export function ManageMember({
                   {stores.map((store) => (
                     <option key={store.id} value={store.id}>
                       {store.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            ) : null}
+
+            {teams.length > 0 ? (
+              <FormField label="Equipe" htmlFor="manage-team" hint="Filtra leads e agenda por equipe.">
+                <Select
+                  id="manage-team"
+                  value={teamId}
+                  onChange={(event) => setTeamId(event.target.value)}
+                >
+                  <option value="">Sem equipe</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
                     </option>
                   ))}
                 </Select>

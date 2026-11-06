@@ -9,8 +9,13 @@ import { tenantHasFeature, tierOf } from "@/lib/api/feature-guard";
 import { buildSalesReport, type Period } from "@/lib/services/reports";
 import { financingSummary } from "@/lib/services/financings";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { FINANCING_STATUS_LABELS, LEAD_SOURCE_LABELS } from "@/lib/catalog/labels";
-import type { FinancingStatus, LeadSource } from "@/db/schema";
+import {
+  FINANCING_STATUS_LABELS,
+  LEAD_SOURCE_LABELS,
+  LOST_REASON_LABELS,
+} from "@/lib/catalog/labels";
+import type { FinancingStatus, LeadSource, LostReason } from "@/db/schema";
+import { buildAttendanceReport, formatWait } from "@/lib/services/attendance";
 import { Bars } from "./bars";
 import { PeriodPicker } from "./period-picker";
 
@@ -39,8 +44,9 @@ export default async function ReportsPage({ searchParams }: Props) {
   const { periodo } = await searchParams;
   const period = (PERIODS.includes(Number(periodo) as Period) ? Number(periodo) : 30) as Period;
 
-  const [report, tier, financings] = await Promise.all([
+  const [report, attendance, tier, financings] = await Promise.all([
     buildSalesReport(context.tenant.id, period),
+    buildAttendanceReport(context.tenant.id, period),
     tierOf(context.tenant.id, "dashboards"),
     tenantHasFeature(context.tenant.id, "gestao_financiamentos").then((has) =>
       has ? financingSummary(context.tenant.id) : [],
@@ -168,6 +174,44 @@ export default async function ReportsPage({ searchParams }: Props) {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Por que as vendas não saíram</CardTitle>
+            <CardDescription>Motivo marcado ao dar o lead como perdido, no período.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {attendance.motivosPerda.length === 0 ? (
+              <EmptyState title="Nenhuma perda com motivo no período" />
+            ) : (
+              <Bars
+                items={attendance.motivosPerda.map((row) => ({
+                  label: LOST_REASON_LABELS[row.motivo as LostReason] ?? row.motivo,
+                  value: row.total,
+                }))}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {detailed && attendance.agenda.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Agenda da equipe</CardTitle>
+              <CardDescription>Retornos feitos no período e o que está atrasado agora.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-[13px]">
+              {attendance.agenda.map((row) => (
+                <Line
+                  key={row.nome}
+                  label={row.nome}
+                  value={`${formatNumber(row.feitas)} feitos · ${formatNumber(row.atrasadas)} atrasados`}
+                  alert={row.atrasadas > 0}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
         {financings.length > 0 ? (
           <Card>
             <CardHeader>
@@ -182,6 +226,77 @@ export default async function ReportsPage({ searchParams }: Props) {
                   value={`${row.quantidade} · ${formatCurrency(row.valorCents)}`}
                 />
               ))}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
+
+      <h2 className="mb-3 mt-8 text-sm font-medium text-text">Atendimento pelo WhatsApp</h2>
+      <StatGrid className="xl:grid-cols-4">
+        <StatCard
+          label="Conversas"
+          value={formatNumber(attendance.conversas)}
+          hint="clientes que mandaram mensagem"
+        />
+        <StatCard
+          label="Contatos novos"
+          value={formatNumber(attendance.novosContatos)}
+          hint="viraram lead pelo WhatsApp"
+        />
+        <StatCard
+          label="Tempo de resposta"
+          value={formatWait(attendance.medianaRespostaMin)}
+          hint="mediana até a primeira resposta"
+        />
+        <StatCard
+          label="Esperando resposta"
+          value={formatNumber(attendance.aguardando)}
+          tone={attendance.aguardando > 0 ? "warning" : "default"}
+          hint="cliente falou por último"
+        />
+      </StatGrid>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Conversas por dia</CardTitle>
+            <CardDescription>
+              {formatNumber(attendance.recebidas)} mensagens recebidas e{" "}
+              {formatNumber(attendance.enviadas)} enviadas no período.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {attendance.porDia.length === 0 ? (
+              <EmptyState title="Nenhuma conversa no período" />
+            ) : (
+              <Bars
+                items={attendance.porDia.map((row) => ({
+                  label: row.dia.split("-").reverse().slice(0, 2).join("/"),
+                  value: row.conversas,
+                }))}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {detailed ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Por atendente</CardTitle>
+              <CardDescription>Conversas respondidas por cada pessoa. Campanhas ficam de fora.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {attendance.porAtendente.length === 0 ? (
+                <EmptyState title="Ninguém respondeu pelo painel no período" />
+              ) : (
+                <Bars
+                  items={attendance.porAtendente.map((row) => ({
+                    label: row.nome,
+                    value: row.conversas,
+                    detail: `${formatNumber(row.mensagens)} msgs`,
+                  }))}
+                />
+              )}
             </CardContent>
           </Card>
         ) : null}

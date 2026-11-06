@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isOptOutMessage,
   isWindowOpen,
   parseInboundMessages,
   phoneVariants,
@@ -230,5 +231,18 @@ describe("assinatura do webhook da Meta", () => {
     const { verifySignature } = await import("./whatsapp-client");
     expect(await verifySignature(corpo, null, segredo)).toBe(false);
     expect(await verifySignature(corpo, "abc123", segredo)).toBe(false);
+  });
+});
+
+describe("pedido de descadastro", () => {
+  it("aceita a palavra sozinha, com acento e pontuação", () => {
+    expect(isOptOutMessage("SAIR")).toBe(true);
+    expect(isOptOutMessage(" Parar. ")).toBe(true);
+    expect(isOptOutMessage("Parar promoções")).toBe(true);
+  });
+
+  it("não confunde frase que só contém a palavra", () => {
+    expect(isOptOutMessage("não quero sair agora")).toBe(false);
+    expect(isOptOutMessage("Sim")).toBe(false);
   });
 });

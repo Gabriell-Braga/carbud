@@ -185,3 +185,22 @@ function describeNonText(type: string | undefined): string {
   };
   return labels[type ?? ""] ?? "[mensagem não suportada]";
 }
+
+const OPT_OUT_WORDS = new Set(["sair", "parar", "pare", "stop", "cancelar", "descadastrar"]);
+
+/**
+ * O cliente pediu para não receber mais campanha.
+ *
+ * Só a mensagem inteira conta: "não quero sair agora" não é pedido de
+ * descadastro. Também aceita o botão "Parar promoções" que a Meta oferece
+ * nos modelos de marketing.
+ */
+export function isOptOutMessage(text: string): boolean {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z ]/g, "")
+    .trim();
+  return OPT_OUT_WORDS.has(normalized) || normalized === "parar promocoes";
+}
