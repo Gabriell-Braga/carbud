@@ -245,6 +245,11 @@ function CouponEditor({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // o Asaas não cobra cartão abaixo de R$ 5; o servidor também recusa
+    if (draft.firstPaymentCents !== null && draft.firstPaymentCents < 500) {
+      setErrors({ firstPaymentCents: "Mínimo de R$ 5,00" });
+      return;
+    }
     setSaving(true);
     setErrors({});
 
@@ -390,7 +395,6 @@ function CouponEditor({
         <FormField
           label="Primeiro mês por (R$)"
           htmlFor="coupon-first"
-          hint="Cobrado na hora, no cartão. Vazio = primeiro mês pelo valor do plano (com o desconto acima). Use desconto 0 para um cupom só de primeiro mês."
           error={errors.firstPaymentCents}
         >
           <CurrencyInput
